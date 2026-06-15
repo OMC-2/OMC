@@ -1,8 +1,9 @@
 rootProject.name = 'OMC'
 
 include 'common'
-include 'services:eureka-server'
 include 'services:gateway'
+include 'services:eureka-server'
+include 'services:config-server'
 include 'services:user-service'
 include 'services:product-service'
 include 'services:drop-service'
@@ -11,3 +12,4 @@ include 'services:order-service'
 include 'services:payment-service'
 include 'services:coupon-service'
 include 'services:notification-service'
+

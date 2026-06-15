@@ -92,3 +92,15 @@ project(':services:eureka-server') {
         implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-server'
     }
 }
+
+// config-server 모듈 설정
+project(':services:config-server') {
+    apply plugin: 'org.springframework.boot'
+
+    bootJar.enabled = true
+    jar.enabled = false
+
+    dependencies {
+        implementation 'org.springframework.cloud:spring-cloud-config-server'
+    }
+}
