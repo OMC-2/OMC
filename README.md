@@ -11,14 +11,16 @@ Client
 [Gateway :8080]  ←── JWT 필터, 라우팅
   │
   ├── [user-service     :8081]  회원가입, 로그인, JWT
-  ├── [product-service  :8082]  상품 정보, 재고 관리
-  ├── [drop-service     :8083]  드롭 생성, 스케줄링
-  ├── [raffle-service   :8084]  응모, 추첨, 당첨자 선정
-  ├── [order-service    :8085]  주문 생성, 상태 관리
-  ├── [payment-service  :8086]  결제, 환불, SAGA
-  └── [notification-service :8087]  알림 발송
+  ├── [drop-service     :8082]  드롭 생성, 스케줄링
+  ├── [order-service    :8083]  주문 생성, 상태 관리
+  ├── [product-service  :8084]  상품 정보, 재고 관리
+  ├── [payment-service  :8085]  결제, 환불, SAGA
+  ├── [raffle-service   :8086]  응모, 추첨, 당첨자 선정
+  ├── [coupon-service   :8087]  쿠폰 발급 및 관리
+  └── [notification-service :8088]  알림 발송
 
 [eureka-server :8761]  ← 서비스 디스커버리
+[config-server :8888]  ← 중앙 설정 관리
 [Kafka :9092]          ← 비동기 이벤트
 [Redis :6379]          ← 캐시, 재고
 [MySQL :3306]          ← 영속성
@@ -30,14 +32,16 @@ Client
 |------|------|------|
 | `common` | - | 공통 DTO, 이벤트, 예외 |
 | `eureka-server` | 8761 | 서비스 레지스트리 |
+| `config-server` | 8888 | 중앙 설정 관리 |
 | `gateway` | 8080 | API 게이트웨이, JWT 필터 |
 | `user-service` | 8081 | 회원 관리, 인증 |
-| `product-service` | 8082 | 상품, 재고 |
-| `drop-service` | 8083 | 드롭 이벤트 |
-| `raffle-service` | 8084 | 응모, 추첨 |
-| `order-service` | 8085 | 주문 |
-| `payment-service` | 8086 | 결제 (SAGA) |
-| `notification-service` | 8087 | 알림 |
+| `drop-service` | 8082 | 드롭 이벤트 |
+| `order-service` | 8083 | 주문 |
+| `product-service` | 8084 | 상품, 재고 |
+| `payment-service` | 8085 | 결제 (SAGA) |
+| `raffle-service` | 8086 | 응모, 추첨 |
+| `coupon-service` | 8087 | 쿠폰 발급 |
+| `notification-service` | 8088 | 알림 |
 
 ## 시작하기
 
