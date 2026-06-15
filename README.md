@@ -1,4 +1,4 @@
-# OMC (Online Market Commerce)
+# OMC (ONE MORE CHANCE)
 
 한정판 드롭 커머스 플랫폼 - Spring Boot MSA 프로젝트
 
