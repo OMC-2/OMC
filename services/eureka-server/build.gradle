@@ -1,0 +1,6 @@
+// eureka-server 모듈 설정은 루트 build.gradle에서 처리됨
+// Spring Cloud Netflix Eureka Server
+
+dependencies {
+    // 추가 의존성 없음 - 루트 build.gradle에서 eureka-server 설정
+}

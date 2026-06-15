@@ -1,0 +1,10 @@
+// gateway 모듈 설정은 루트 build.gradle에서 처리됨
+// Spring Cloud Gateway는 WebFlux(Reactive) 기반으로 Spring MVC와 충돌
+// → spring-boot-starter-web 대신 spring-cloud-starter-gateway 사용
+
+dependencies {
+    // JWT 검증 (필터에서 토큰 파싱)
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+}

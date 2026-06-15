@@ -1,0 +1,7 @@
+dependencies {
+    // Kafka
+    implementation 'org.springframework.kafka:spring-kafka'
+
+    // Spring Scheduling (spring-context에 포함, 명시적 선언)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+}

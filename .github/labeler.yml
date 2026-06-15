@@ -1,0 +1,51 @@
+drop-service:
+  - changed-files:
+      - any-glob-to-any-file: services/drop-service/**
+
+eureka-server:
+  - changed-files:
+      - any-glob-to-any-file: services/eureka-server/**
+
+gateway:
+  - changed-files:
+      - any-glob-to-any-file: services/gateway/**
+
+notification-service:
+  - changed-files:
+      - any-glob-to-any-file: services/notification-service/**
+
+order-service:
+  - changed-files:
+      - any-glob-to-any-file: services/order-service/**
+
+payment-service:
+  - changed-files:
+      - any-glob-to-any-file: services/payment-service/**
+
+product-service:
+  - changed-files:
+      - any-glob-to-any-file: services/product-service/**
+
+raffle-service:
+  - changed-files:
+      - any-glob-to-any-file: services/raffle-service/**
+
+user-service:
+  - changed-files:
+      - any-glob-to-any-file: services/user-service/**
+
+common:
+  - changed-files:
+      - any-glob-to-any-file: common/**
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file: infra/**
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: docs/**
+
+github:
+  - changed-files:
+      - any-glob-to-any-file: .github/**

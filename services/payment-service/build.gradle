@@ -1,0 +1,4 @@
+dependencies {
+    // Kafka (SAGA 패턴 구현)
+    implementation 'org.springframework.kafka:spring-kafka'
+}
