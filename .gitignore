@@ -1,7 +1,7 @@
 # Gradle
 .gradle/
 build/
-!gradle/wrapper/gradle-wrapper.jar
+
 !**/src/main/**/build/
 !**/src/test/**/build/
 
@@ -64,6 +64,7 @@ application-local.yml
 # Package Files
 *.jar
 *.war
+!gradle/wrapper/gradle-wrapper.jar
 *.nar
 *.ear
 *.zip
