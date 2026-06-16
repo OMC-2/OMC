@@ -1,60 +1,60 @@
-"domain: drop":
+drop:
   - changed-files:
       - any-glob-to-any-file: services/drop-service/**
 
-"domain: eureka":
+eureka:
   - changed-files:
       - any-glob-to-any-file: services/eureka-server/**
 
-"domain: config":
+config:
   - changed-files:
       - any-glob-to-any-file: services/config-server/**
 
-"domain: gateway":
+gateway:
   - changed-files:
       - any-glob-to-any-file: services/gateway/**
 
-"domain: notification":
+notification:
   - changed-files:
       - any-glob-to-any-file: services/notification-service/**
 
-"domain: order":
+order:
   - changed-files:
       - any-glob-to-any-file: services/order-service/**
 
-"domain: payment":
+payment:
   - changed-files:
       - any-glob-to-any-file: services/payment-service/**
 
-"domain: product":
+product:
   - changed-files:
       - any-glob-to-any-file: services/product-service/**
 
-"domain: raffle":
+raffle:
   - changed-files:
       - any-glob-to-any-file: services/raffle-service/**
 
-"domain: user":
+user:
   - changed-files:
       - any-glob-to-any-file: services/user-service/**
 
-"domain: coupon":
+coupon:
   - changed-files:
       - any-glob-to-any-file: services/coupon-service/**
 
-"⚙️ common":
+common:
   - changed-files:
       - any-glob-to-any-file: common/**
 
-"⚙️ infra":
+infra:
   - changed-files:
       - any-glob-to-any-file: infra/**
 
-"📝 docs":
+documentation:
   - changed-files:
       - any-glob-to-any-file: docs/**
       - any-glob-to-any-file: '*.md'
 
-"⚙️ github":
+github:
   - changed-files:
       - any-glob-to-any-file: .github/**
