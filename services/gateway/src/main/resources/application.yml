@@ -10,37 +10,42 @@ spring:
         - id: user-service
           uri: lb://user-service
           predicates:
-            - Path=/api/users/**
+            - Path=/api/v1/users/**
 
         - id: product-service
           uri: lb://product-service
           predicates:
-            - Path=/api/products/**
+            - Path=/api/v1/products/**
 
         - id: drop-service
           uri: lb://drop-service
           predicates:
-            - Path=/api/drops/**
+            - Path=/api/v1/drops/**
 
         - id: raffle-service
           uri: lb://raffle-service
           predicates:
-            - Path=/api/raffles/**
+            - Path=/api/v1/raffles/**
 
         - id: order-service
           uri: lb://order-service
           predicates:
-            - Path=/api/orders/**
+            - Path=/api/v1/orders/**
 
         - id: payment-service
           uri: lb://payment-service
           predicates:
-            - Path=/api/payments/**
+            - Path=/api/v1/payments/**
+
+        - id: coupon-service
+          uri: lb://coupon-service
+          predicates:
+            - Path=/api/v1/coupons/**
 
         - id: notification-service
           uri: lb://notification-service
           predicates:
-            - Path=/api/notifications/**
+            - Path=/api/v1/notifications/**
 
 eureka:
   client:
@@ -48,6 +53,10 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
   instance:
     prefer-ip-address: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
 
 jwt:
   secret: omc-jwt-secret-key-must-be-at-least-32-characters-long
