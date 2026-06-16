@@ -38,6 +38,7 @@ subprojects {
         annotationProcessor 'org.projectlombok:lombok'
         testImplementation 'org.springframework.boot:spring-boot-starter-test'
         testImplementation 'com.tngtech.archunit:archunit-junit5:1.2.1'
+        testImplementation project(':arch-rules')
     }
 
     test {
@@ -48,6 +49,16 @@ subprojects {
 // common 모듈: 일반 jar만 빌드 (bootJar 제외)
 project(':common') {
     apply plugin: 'java-library'
+}
+
+// arch-rules 모듈: 아키텍처 공통 규칙 (일반 jar)
+project(':arch-rules') {
+    apply plugin: 'java-library'
+    dependencies {
+        implementation 'com.tngtech.archunit:archunit-junit5:1.2.1'
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    }
 }
 
 // 서비스 모듈 공통 설정 (gateway, eureka-server 제외)
