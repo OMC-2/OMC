@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.2.5' apply false
+    id 'org.springframework.boot' version '3.4.5' apply false
     id 'io.spring.dependency-management' version '1.1.7' apply false
 }
 
@@ -29,8 +29,8 @@ subprojects {
 
     dependencyManagement {
         imports {
-            mavenBom "org.springframework.boot:spring-boot-dependencies:3.2.5"
-            mavenBom "org.springframework.cloud:spring-cloud-dependencies:2023.0.1"
+            mavenBom "org.springframework.boot:spring-boot-dependencies:3.4.5"
+            mavenBom "org.springframework.cloud:spring-cloud-dependencies:2024.0.1"
         }
     }
 
@@ -81,6 +81,7 @@ configure(subprojects.findAll { it.name in jpaServiceModules }) {
         runtimeOnly 'com.mysql:mysql-connector-j'
         implementation project(':common')
         implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+        implementation 'org.springframework.cloud:spring-cloud-starter-config'
     }
 }
 
@@ -94,6 +95,7 @@ project(':services:gateway') {
     dependencies {
         implementation 'org.springframework.cloud:spring-cloud-starter-gateway'
         implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+        implementation 'org.springframework.cloud:spring-cloud-starter-config'
         implementation project(':common')
     }
 }
@@ -119,5 +121,6 @@ project(':services:config-server') {
 
     dependencies {
         implementation 'org.springframework.cloud:spring-cloud-config-server'
+        implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     }
 }
