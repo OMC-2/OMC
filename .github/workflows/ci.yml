@@ -35,6 +35,7 @@ jobs:
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@v2
         if: always()
+        continue-on-error: true
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_CHANNEL: 'github-actions-ci'
