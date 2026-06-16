@@ -1,8 +1,8 @@
-drop-service:
+drop:
   - changed-files:
       - any-glob-to-any-file: services/drop-service/**
 
-eureka-server:
+eureka:
   - changed-files:
       - any-glob-to-any-file: services/eureka-server/**
 
@@ -10,41 +10,47 @@ gateway:
   - changed-files:
       - any-glob-to-any-file: services/gateway/**
 
-notification-service:
+notification:
   - changed-files:
       - any-glob-to-any-file: services/notification-service/**
 
-order-service:
+order:
   - changed-files:
       - any-glob-to-any-file: services/order-service/**
 
-payment-service:
+payment:
   - changed-files:
       - any-glob-to-any-file: services/payment-service/**
 
-product-service:
+product:
   - changed-files:
       - any-glob-to-any-file: services/product-service/**
 
-raffle-service:
+raffle:
   - changed-files:
       - any-glob-to-any-file: services/raffle-service/**
 
-user-service:
+user:
   - changed-files:
       - any-glob-to-any-file: services/user-service/**
 
 common:
   - changed-files:
       - any-glob-to-any-file: common/**
+      - any-glob-to-any-file: arch-rules/**
 
 infra:
   - changed-files:
       - any-glob-to-any-file: infra/**
+      - any-glob-to-any-file: build.gradle
+      - any-glob-to-any-file: settings.gradle
+      - any-glob-to-any-file: gradlew*
+      - any-glob-to-any-file: gradle/**
 
 docs:
   - changed-files:
       - any-glob-to-any-file: docs/**
+      - any-glob-to-any-file: README.md
 
 github:
   - changed-files:
