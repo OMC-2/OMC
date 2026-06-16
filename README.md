@@ -68,7 +68,7 @@ docker-compose up -d
 
 ## 기술 스택
 
-- **Java 17** (Amazon Corretto)
+- **Java 21** (Amazon Corretto) - 가상 스레드(Virtual Threads) 활용
 - **Spring Boot 3.2.5**
 - **Spring Cloud 2023.0.1** (Eureka, Gateway)
 - **Spring Security 6** + **jjwt 0.12.3**
