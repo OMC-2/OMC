@@ -1,51 +1,60 @@
-drop-service:
+"domain: drop":
   - changed-files:
       - any-glob-to-any-file: services/drop-service/**
 
-eureka-server:
+"domain: eureka":
   - changed-files:
       - any-glob-to-any-file: services/eureka-server/**
 
-gateway:
+"domain: config":
+  - changed-files:
+      - any-glob-to-any-file: services/config-server/**
+
+"domain: gateway":
   - changed-files:
       - any-glob-to-any-file: services/gateway/**
 
-notification-service:
+"domain: notification":
   - changed-files:
       - any-glob-to-any-file: services/notification-service/**
 
-order-service:
+"domain: order":
   - changed-files:
       - any-glob-to-any-file: services/order-service/**
 
-payment-service:
+"domain: payment":
   - changed-files:
       - any-glob-to-any-file: services/payment-service/**
 
-product-service:
+"domain: product":
   - changed-files:
       - any-glob-to-any-file: services/product-service/**
 
-raffle-service:
+"domain: raffle":
   - changed-files:
       - any-glob-to-any-file: services/raffle-service/**
 
-user-service:
+"domain: user":
   - changed-files:
       - any-glob-to-any-file: services/user-service/**
 
-common:
+"domain: coupon":
+  - changed-files:
+      - any-glob-to-any-file: services/coupon-service/**
+
+"⚙️ common":
   - changed-files:
       - any-glob-to-any-file: common/**
 
-infra:
+"⚙️ infra":
   - changed-files:
       - any-glob-to-any-file: infra/**
 
-docs:
+"📝 docs":
   - changed-files:
       - any-glob-to-any-file: docs/**
+      - any-glob-to-any-file: '*.md'
 
-github:
+"⚙️ github":
   - changed-files:
       - any-glob-to-any-file: .github/**
