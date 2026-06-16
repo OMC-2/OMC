@@ -3,6 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/OMC.iml" filepath="$PROJECT_DIR$/OMC.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/common/OMC.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/common/OMC.common.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/services/drop-service/OMC.services.drop-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/services/drop-service/OMC.services.drop-service.main.iml" />
     </modules>
   </component>
 </project>
