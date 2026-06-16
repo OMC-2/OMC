@@ -27,7 +27,9 @@ jobs:
           cache: gradle
 
       - name: Grant execute permission for Gradle
-        run: chmod +x gradlew
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
 
       - name: Compile all modules
         run: ./gradlew testClasses --no-daemon
