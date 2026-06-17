@@ -19,7 +19,7 @@
 - Spring Security 6.x
 - Spring Data JPA
 - jjwt 0.12.x
-- MySQL
+- PostgreSQL 18
 - Eureka Client
 
 ## DB 테이블
