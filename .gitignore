@@ -50,6 +50,9 @@ Desktop.ini
 *.log
 logs/
 
+# Claude Code (local only)
+CLAUDE.md
+
 # Environment variables
 .env
 .env.local
