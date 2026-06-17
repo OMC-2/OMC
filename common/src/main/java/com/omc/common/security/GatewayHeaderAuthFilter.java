@@ -1,9 +1,14 @@
 package com.omc.common.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.common.exception.CommonErrorCode;
+import com.omc.common.response.ErrorResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -15,8 +20,14 @@ import java.util.Collections;
 import java.util.List;
 
 // 게이트웨이가 JWT 검증 후 주입한 헤더를 읽어 SecurityContext에 세팅하는 필터.
-// 각 서비스 SecurityConfig에서 addFilterBefore(new GatewayHeaderAuthFilter(), ...) 로 등록.
+// 각 서비스 SecurityConfig에서 addFilterBefore(new GatewayHeaderAuthFilter(gatewaySecret), ...) 로 등록.
 public class GatewayHeaderAuthFilter extends OncePerRequestFilter {
+
+    private final String gatewaySecret;
+
+    public GatewayHeaderAuthFilter(String gatewaySecret) {
+        this.gatewaySecret = gatewaySecret;
+    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -30,11 +41,18 @@ public class GatewayHeaderAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        String gatewaySecret = request.getHeader("X-Gateway-Secret");
-        String expectedSecret = System.getenv().getOrDefault("GATEWAY_SECRET", "local-secret");
+        String requestSecret = request.getHeader("X-Gateway-Secret");
 
-        if (!expectedSecret.equals(gatewaySecret)) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Direct access not allowed");
+        if (!gatewaySecret.equals(requestSecret)) {
+            ErrorResponse<Void> errorResponse = ErrorResponse.of(
+                    HttpStatus.FORBIDDEN,
+                    CommonErrorCode.ACCESS_DENIED.getCode(),
+                    CommonErrorCode.ACCESS_DENIED.getMessage()
+            );
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write(new ObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
