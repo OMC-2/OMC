@@ -2,5 +2,8 @@
 // bootJar 비활성화는 루트 build.gradle에서 처리됨
 
 dependencies {
-    // 공통 의존성 최소화 - Lombok만 사용 (루트 subprojects에서 제공)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
 }
