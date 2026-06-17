@@ -19,7 +19,12 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.H2Dialect
 
+# TODO: JWT 구현 시 실제 시크릿으로 교체 필요. 운영 환경에서는 환경변수로 주입할 것 (${JWT_SECRET})
 jwt:
   secret: omc-jwt-secret-key-must-be-at-least-32-characters-long
   access-expiration: 3600000
   refresh-expiration: 604800000
+
+# TODO: 운영 배포 시 환경변수로 주입할 것 (${GATEWAY_SECRET}). user-service-prod.yml에서 오버라이드
+gateway:
+  secret: local-secret

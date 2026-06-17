@@ -1,49 +1,38 @@
 package com.omc.common.exception;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 
-@Getter
-@RequiredArgsConstructor
-public enum ErrorCode {
-
-    // Common
-    INTERNAL_SERVER_ERROR(500, "C001", "내부 서버 오류가 발생했습니다."),
-    INVALID_INPUT_VALUE(400, "C002", "유효하지 않은 입력값입니다."),
-    RESOURCE_NOT_FOUND(404, "C003", "요청한 리소스를 찾을 수 없습니다."),
-    UNAUTHORIZED(401, "C004", "인증이 필요합니다."),
-    FORBIDDEN(403, "C005", "접근 권한이 없습니다."),
-
-    // User
-    USER_NOT_FOUND(404, "U001", "사용자를 찾을 수 없습니다."),
-    DUPLICATE_EMAIL(409, "U002", "이미 사용 중인 이메일입니다."),
-    INVALID_PASSWORD(400, "U003", "비밀번호가 올바르지 않습니다."),
-    INVALID_TOKEN(401, "U004", "유효하지 않은 토큰입니다."),
-    EXPIRED_TOKEN(401, "U005", "만료된 토큰입니다."),
-
-    // Product
-    PRODUCT_NOT_FOUND(404, "P001", "상품을 찾을 수 없습니다."),
-    INSUFFICIENT_STOCK(409, "P002", "재고가 부족합니다."),
-
-    // Drop
-    DROP_NOT_FOUND(404, "D001", "드롭을 찾을 수 없습니다."),
-    DROP_NOT_OPEN(409, "D002", "드롭이 오픈 상태가 아닙니다."),
-    DROP_INVALID_STATUS(400, "D003", "현재 상태에서 허용되지 않는 작업입니다."),
-    DROP_SOLD_OUT(409, "D004", "재고가 소진되었습니다."),
-    DROP_DUPLICATE_PURCHASE(409, "D005", "이미 구매를 신청한 드롭입니다."),
-
-    // Raffle
-    RAFFLE_NOT_FOUND(404, "R001", "응모 정보를 찾을 수 없습니다."),
-    ALREADY_APPLIED(409, "R002", "이미 응모한 드롭입니다."),
-
-    // Order
-    ORDER_NOT_FOUND(404, "O001", "주문을 찾을 수 없습니다."),
-
-    // Payment
-    PAYMENT_NOT_FOUND(404, "PAY001", "결제 정보를 찾을 수 없습니다."),
-    PAYMENT_FAILED(400, "PAY002", "결제에 실패했습니다.");
-
-    private final int status;
-    private final String code;
-    private final String message;
+/**
+ * 모든 에러 코드의 공통 규격.
+ *
+ * 각 서비스 모듈에서 이 interface를 구현하는 enum을 만들어 사용한다.
+ *
+ * 구현 예시 (user-service):
+ *
+ *   @Getter
+ *   @RequiredArgsConstructor
+ *   public enum UserErrorCode implements ErrorCode {
+ *       USER_NOT_FOUND(HttpStatus.NOT_FOUND,     "USER-001", "사용자를 찾을 수 없습니다."),
+ *       USER_ALREADY_EXISTS(HttpStatus.CONFLICT, "USER-002", "이미 존재하는 사용자입니다."),
+ *       USER_NOT_APPROVED(HttpStatus.FORBIDDEN,  "USER-003", "승인되지 않은 사용자입니다.");
+ *
+ *       private final HttpStatus status;
+ *       private final String code;
+ *       private final String message;
+ *   }
+ *
+ * 사용 예시 (service 레이어):
+ *
+ *   throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+ *
+ * GlobalExceptionHandler가 BusinessException을 잡아 ErrorCode 기반으로 응답을 내려준다.
+ */
+public interface ErrorCode {
+    HttpStatus getStatus();
+    String getCode();
+    String getMessage();
+    // 특정 필드에 대한 에러일 경우 override해서 필드명 반환 (기본값 null)
+    default String getField() {
+        return null;
+    }
 }
