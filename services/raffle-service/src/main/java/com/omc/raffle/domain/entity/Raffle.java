@@ -1,9 +1,10 @@
 package com.omc.raffle.domain.entity;
 
 import com.omc.raffle.domain.entity.common.BaseTimeEntity;
-import com.omc.raffle.domain.entity.enums.RaffleStatus;
+import com.omc.raffle.domain.enums.RaffleStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
@@ -41,6 +42,7 @@ public class Raffle extends BaseTimeEntity {
     @Column(name = "ended_at", nullable = false)
     private LocalDateTime endedAt;
 
+    @Builder
     private Raffle(UUID dropId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
         this.id = UUID.randomUUID(); // Using v4 here for simplicity, although spec said v7. Spring defaults to v4.
         this.dropId = dropId;
@@ -52,7 +54,13 @@ public class Raffle extends BaseTimeEntity {
     }
 
     public static Raffle create(UUID dropId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
-        return new Raffle(dropId, name, winnerCount, startedAt, endedAt);
+        return Raffle.builder()
+                .dropId(dropId)
+                .name(name)
+                .winnerCount(winnerCount)
+                .startedAt(startedAt)
+                .endedAt(endedAt)
+                .build();
     }
 
     public void updateStatus(RaffleStatus newStatus) {

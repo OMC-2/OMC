@@ -1,8 +1,9 @@
 package com.omc.raffle.domain.entity;
 
-import com.omc.raffle.domain.entity.enums.RaffleResultStatus;
+import com.omc.raffle.domain.enums.RaffleResultStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -38,6 +39,7 @@ public class RaffleResult {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Builder
     private RaffleResult(UUID entryId, UUID dropId, UUID userId, RaffleResultStatus result) {
         this.id = UUID.randomUUID();
         this.entryId = entryId;
@@ -49,7 +51,12 @@ public class RaffleResult {
     }
 
     public static RaffleResult create(UUID entryId, UUID dropId, UUID userId, RaffleResultStatus result) {
-        return new RaffleResult(entryId, dropId, userId, result);
+        return RaffleResult.builder()
+                .entryId(entryId)
+                .dropId(dropId)
+                .userId(userId)
+                .result(result)
+                .build();
     }
 
     public void updateToCanceled() {

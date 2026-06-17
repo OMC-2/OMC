@@ -3,6 +3,7 @@ package com.omc.raffle.domain.entity;
 import com.omc.raffle.domain.entity.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
@@ -33,6 +34,7 @@ public class RaffleEntry extends BaseTimeEntity {
     @Column(name = "entered_at", nullable = false)
     private LocalDateTime enteredAt;
 
+    @Builder
     private RaffleEntry(UUID dropId, UUID userId, UUID billingKeyId) {
         this.id = UUID.randomUUID();
         this.dropId = dropId;
@@ -42,6 +44,10 @@ public class RaffleEntry extends BaseTimeEntity {
     }
 
     public static RaffleEntry create(UUID dropId, UUID userId, UUID billingKeyId) {
-        return new RaffleEntry(dropId, userId, billingKeyId);
+        return RaffleEntry.builder()
+                .dropId(dropId)
+                .userId(userId)
+                .billingKeyId(billingKeyId)
+                .build();
     }
 }

@@ -1,4 +1,4 @@
-package com.omc.raffle.domain.entity.enums;
+package com.omc.raffle.domain.enums;
 
 public enum RaffleResultStatus {
     PENDING,
