@@ -1,5 +1,7 @@
 package com.omc.drop.domain.entity;
 
+import com.omc.drop.domain.exception.DropNotOpenException;
+import com.omc.drop.domain.exception.InvalidDropStatusException;
 import com.omc.drop.domain.vo.DropStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -68,21 +70,21 @@ public class Drop {
 
     public void open() {
         if (this.status != DropStatus.SCHEDULED) {
-            throw new IllegalStateException("현재 상태에서 허용되지 않는 작업입니다."); // TODO: InvalidDropStatusException으로 교체
+            throw new InvalidDropStatusException();
         }
         this.status = DropStatus.OPEN;
     }
 
     public void close() {
         if (this.status != DropStatus.OPEN) {
-            throw new IllegalStateException("현재 상태에서 허용되지 않는 작업입니다."); // TODO: InvalidDropStatusException으로 교체
+            throw new InvalidDropStatusException();
         }
         this.status = DropStatus.CLOSED;
     }
 
     public void update(LocalDateTime startAt, LocalDateTime endAt, int totalQty, int holdTtlSec) {
         if (this.status != DropStatus.SCHEDULED) {
-            throw new IllegalStateException("현재 상태에서 허용되지 않는 작업입니다."); // TODO: InvalidDropStatusException으로 교체
+            throw new InvalidDropStatusException();
         }
         this.startAt = startAt;
         this.endAt = endAt;
@@ -96,7 +98,7 @@ public class Drop {
 
     public void validateOpen() {
         if (!isOpen()) {
-            throw new IllegalStateException("드롭이 오픈 상태가 아닙니다."); // TODO: DropNotOpenException으로 교체
+            throw new DropNotOpenException();
         }
     }
 }

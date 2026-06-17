@@ -27,7 +27,10 @@ public enum ErrorCode {
 
     // Drop
     DROP_NOT_FOUND(404, "D001", "드롭을 찾을 수 없습니다."),
-    DROP_NOT_OPEN(400, "D002", "드롭이 오픈 상태가 아닙니다."),
+    DROP_NOT_OPEN(409, "D002", "드롭이 오픈 상태가 아닙니다."),
+    DROP_INVALID_STATUS(400, "D003", "현재 상태에서 허용되지 않는 작업입니다."),
+    DROP_SOLD_OUT(409, "D004", "재고가 소진되었습니다."),
+    DROP_DUPLICATE_PURCHASE(409, "D005", "이미 구매를 신청한 드롭입니다."),
 
     // Raffle
     RAFFLE_NOT_FOUND(404, "R001", "응모 정보를 찾을 수 없습니다."),
