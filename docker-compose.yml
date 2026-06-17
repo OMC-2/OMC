@@ -1,21 +1,22 @@
 version: '3.8'
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: omc-mysql
+  postgres:
+    image: postgres:17-alpine
+    container_name: omc-postgres
     environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: omc
+      POSTGRES_USER: omc
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: omc
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
     networks:
       - omc-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U omc -d omc"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -75,7 +76,7 @@ services:
       - omc-network
 
 volumes:
-  mysql_data:
+  postgres_data:
   redis_data:
 
 networks:
