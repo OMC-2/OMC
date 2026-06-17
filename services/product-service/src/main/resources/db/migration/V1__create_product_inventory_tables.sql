@@ -11,11 +11,11 @@ CREATE TABLE p_products (
                             image_url     VARCHAR(500),
                             status        VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
                             created_at    TIMESTAMP    NOT NULL,
-                            created_by    VARCHAR(100),
+                            created_by    UUID,
                             updated_at    TIMESTAMP,
-                            updated_by    VARCHAR(100),
+                            updated_by    UUID,
                             deleted_at    TIMESTAMP,
-                            deleted_by    VARCHAR(100),
+                            deleted_by    UUID,
                             PRIMARY KEY (product_id)
 );
 
@@ -34,11 +34,11 @@ CREATE TABLE p_inventories (
                                available_quantity INT GENERATED ALWAYS AS (total_quantity - sold_quantity) STORED,
                                version            BIGINT NOT NULL DEFAULT 0,
                                created_at         TIMESTAMP NOT NULL,
-                               created_by         VARCHAR(100),
+                               created_by         UUID,
                                updated_at         TIMESTAMP,
-                               updated_by         VARCHAR(100),
+                               updated_by         UUID,
                                deleted_at         TIMESTAMP,
-                               deleted_by         VARCHAR(100),
+                               deleted_by         UUID,
                                PRIMARY KEY (inventory_id)
 );
 
@@ -84,7 +84,7 @@ CREATE TABLE p_failed_event_logs (
                                      status           VARCHAR(50)  NOT NULL DEFAULT 'UNRESOLVED',
                                      created_at       TIMESTAMP    NOT NULL,
                                      resolved_at      TIMESTAMP,
-                                     resolved_by      VARCHAR(100),
+                                     resolved_by      UUID,
                                      PRIMARY KEY (log_id)
 );
 
