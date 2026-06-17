@@ -73,3 +73,11 @@ application-local.yml
 
 # Spring Boot devtools restart file
 .spring-boot-devtools.properties
+
+# Personal Test Harness (Local Only)
+/harness/
+# ============================================================
+# 개인 로컬 하네스 (절대 커밋 금지)
+# ============================================================
+CLAUDE.local.md
+harness/
