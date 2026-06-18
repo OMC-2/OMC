@@ -5,4 +5,7 @@
 dependencies {
     // Keycloak JWT 검증 (JWKS 기반, Spring Security OAuth2 Resource Server)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+
+    // Swagger (WebFlux 기반 Gateway)
+    implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.9'
 }

@@ -1,1 +1,2 @@
 com.omc.common.config.GatewaySecurityAutoConfiguration
+com.omc.common.config.CommonSwaggerAutoConfiguration
