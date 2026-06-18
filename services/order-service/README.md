@@ -18,7 +18,7 @@ Kafka 이벤트로 결제 서비스와 연동하고, SAGA 패턴으로 분산 �
 - Spring Data JPA
 - Spring Data Redis
 - Spring Kafka (Consumer/Producer)
-- MySQL
+- PostgreSQL 18
 - Eureka Client
 
 ## Kafka Topics

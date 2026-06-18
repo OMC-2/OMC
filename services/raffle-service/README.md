@@ -18,7 +18,7 @@ Redis를 활용한 중복 응모 방지 및 Kafka 이벤트 기반 추첨 처리
 - Spring Data JPA
 - Spring Data Redis
 - Spring Kafka (Consumer/Producer)
-- MySQL
+- PostgreSQL 18
 - Eureka Client
 
 ## Kafka Topics

@@ -16,7 +16,7 @@ Kafka Consumer로 다른 서비스의 이벤트를 수신하여 사용자에게 
 - Spring Boot 3.2.x
 - Spring Data JPA
 - Spring Kafka (Consumer)
-- MySQL
+- PostgreSQL 18
 - Eureka Client
 
 ## 구독 Kafka Topics
