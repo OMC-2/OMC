@@ -23,6 +23,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Check;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -30,6 +31,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "p_payments")
+@Check(constraints = "(sales_type = 'DROP' AND order_id IS NOT NULL AND entry_id IS NULL) OR "
+        + "(sales_type = 'RAFFLE' AND order_id IS NULL AND entry_id IS NOT NULL)")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Payment extends BaseEntity {
@@ -39,8 +42,14 @@ public class Payment extends BaseEntity {
     @Column(name = "payment_id")
     private UUID paymentId;
 
-    @Column(name = "order_id", nullable = false, unique = true)
+    @Column(name = "order_id", unique = true)
     private UUID orderId;
+
+    @Column(name = "entry_id", unique = true)
+    private UUID entryId;
+
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "sales_type", nullable = false)
     @Enumerated(EnumType.STRING)
@@ -107,6 +116,8 @@ public class Payment extends BaseEntity {
 
     public static Payment create(
             UUID orderId,
+            UUID entryId,
+            UUID userId,
             SalesType salesType,
             Long originalAmount,
             Long discountAmount,
@@ -126,9 +137,14 @@ public class Payment extends BaseEntity {
             throw new IllegalArgumentException("할인 금액은 원금액을 초과할 수 없습니다.");
         }
 
+        SalesType resolvedSalesType = Objects.requireNonNull(salesType, "판매 유형은 null일 수 없습니다.");
+        validateReferenceIds(resolvedSalesType, orderId, entryId);
+
         return Payment.builder()
-                .orderId(Objects.requireNonNull(orderId, "주문 ID는 null일 수 없습니다."))
-                .salesType(Objects.requireNonNull(salesType, "판매 유형은 null일 수 없습니다."))
+                .orderId(orderId)
+                .entryId(entryId)
+                .userId(Objects.requireNonNull(userId, "사용자 ID는 null일 수 없습니다."))
+                .salesType(resolvedSalesType)
                 .originalAmount(resolvedOriginalAmount)
                 .discountAmount(resolvedDiscountAmount)
                 .finalAmount(resolvedOriginalAmount - resolvedDiscountAmount)
@@ -156,7 +172,6 @@ public class Payment extends BaseEntity {
 
     // PG 승인 실패 이벤트 반영
     public void fail(String failureCode, String failureMessage) {
-
         transitTo(PaymentStatus.FAILED);
         this.failureCode = failureCode;
         this.failureMessage = failureMessage;
@@ -192,10 +207,28 @@ public class Payment extends BaseEntity {
         this.paymentStatus = targetStatus;
     }
 
+    // 객체 생성 시 CHECK 제약 조건 검증
+    private static void validateReferenceIds(SalesType salesType, UUID orderId, UUID entryId) {
+        switch (salesType) {
+            case DROP -> {
+                if (orderId == null || entryId != null) {
+                    throw new IllegalArgumentException("드롭 결제는 주문 ID가 필요하고 응모 ID는 없어야 합니다.");
+                }
+            }
+            case RAFFLE -> {
+                if (orderId != null || entryId == null) {
+                    throw new IllegalArgumentException("래플 결제는 응모 ID가 필요하고 주문 ID는 없어야 합니다.");
+                }
+            }
+        }
+    }
+
     @Builder(access = AccessLevel.PRIVATE)
     private Payment(
             UUID paymentId,
             UUID orderId,
+            UUID entryId,
+            UUID userId,
             SalesType salesType,
             Long originalAmount,
             Long discountAmount,
@@ -217,6 +250,8 @@ public class Payment extends BaseEntity {
     ) {
         this.paymentId = paymentId;
         this.orderId = orderId;
+        this.entryId = entryId;
+        this.userId = userId;
         this.salesType = salesType;
         this.originalAmount = originalAmount;
         this.discountAmount = discountAmount;
