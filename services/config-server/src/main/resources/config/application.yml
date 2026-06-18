@@ -5,6 +5,9 @@ eureka:
   instance:
     prefer-ip-address: true
 
+gateway:
+  secret: ${GATEWAY_SECRET:local-secret}
+
 app:
   swagger:
     server-url: ${SWAGGER_SERVER_URL:http://localhost:8080}
