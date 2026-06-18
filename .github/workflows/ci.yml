@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    name: Gradle Test Classes
+    name: Gradle Build & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -33,6 +33,9 @@ jobs:
 
       - name: Compile all modules
         run: ./gradlew testClasses --no-daemon
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
 
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@v2

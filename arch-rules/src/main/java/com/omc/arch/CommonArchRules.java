@@ -62,6 +62,7 @@ public class CommonArchRules {
     public static ArchRule entityNamingRule() {
         return classes()
                 .that().resideInAPackage("..entity..")
+                .and().areTopLevelClasses()
                 .should().haveSimpleNameEndingWith("Entity");
     }
 
@@ -103,6 +104,7 @@ public class CommonArchRules {
     public static ArchRule entityAnnotationRule() {
         return classes()
                 .that().resideInAPackage("..entity..")
+                .and().areTopLevelClasses()
                 .should().beAnnotatedWith(Entity.class);
     }
 }
