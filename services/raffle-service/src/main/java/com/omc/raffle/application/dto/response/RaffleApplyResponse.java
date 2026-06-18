@@ -6,14 +6,14 @@ import java.util.UUID;
 
 public record RaffleApplyResponse(
         UUID entryId,
-        UUID dropId,
+        UUID raffleId,
         UUID userId,
         LocalDateTime enteredAt
 ) {
     public static RaffleApplyResponse from(RaffleEntry entry) {
         return new RaffleApplyResponse(
                 entry.getId(),
-                entry.getDropId(),
+                entry.getRaffleId(),
                 entry.getUserId(),
                 entry.getEnteredAt()
         );

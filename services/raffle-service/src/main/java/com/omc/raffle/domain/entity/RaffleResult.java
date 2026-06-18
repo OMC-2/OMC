@@ -23,8 +23,8 @@ public class RaffleResult {
     @Column(name = "entry_id", nullable = false, columnDefinition = "uuid")
     private UUID entryId;
 
-    @Column(name = "drop_id", nullable = false, columnDefinition = "uuid")
-    private UUID dropId;
+    @Column(name = "raffle_id", nullable = false, columnDefinition = "uuid")
+    private UUID raffleId;
 
     @Column(name = "user_id", nullable = false, columnDefinition = "uuid")
     private UUID userId;
@@ -40,20 +40,20 @@ public class RaffleResult {
     private LocalDateTime createdAt;
 
     @Builder
-    private RaffleResult(UUID entryId, UUID dropId, UUID userId, RaffleResultStatus result) {
+    private RaffleResult(UUID entryId, UUID raffleId, UUID userId, RaffleResultStatus result) {
         this.id = UUID.randomUUID();
         this.entryId = entryId;
-        this.dropId = dropId;
+        this.raffleId = raffleId;
         this.userId = userId;
         this.result = result;
         this.decidedAt = LocalDateTime.now();
         this.createdAt = LocalDateTime.now();
     }
 
-    public static RaffleResult create(UUID entryId, UUID dropId, UUID userId, RaffleResultStatus result) {
+    public static RaffleResult create(UUID entryId, UUID raffleId, UUID userId, RaffleResultStatus result) {
         return RaffleResult.builder()
                 .entryId(entryId)
-                .dropId(dropId)
+                .raffleId(raffleId)
                 .userId(userId)
                 .result(result)
                 .build();
