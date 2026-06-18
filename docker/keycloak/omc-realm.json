@@ -1,0 +1,49 @@
+{
+  "realm": "omc",
+  "displayName": "OMC",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "accessTokenLifespan": 3600,
+  "ssoSessionIdleTimeout": 86400,
+  "ssoSessionMaxLifespan": 86400,
+  "clients": [
+    {
+      "clientId": "omc-client",
+      "name": "OMC Client",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "bearerOnly": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "USER",
+        "description": "Regular user",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "omc"
+      },
+      {
+        "name": "ADMIN",
+        "description": "Administrator",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "omc"
+      }
+    ]
+  }
+}

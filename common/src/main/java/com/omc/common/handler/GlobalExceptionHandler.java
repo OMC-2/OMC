@@ -13,6 +13,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingPathVariableException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -96,6 +97,17 @@ public class GlobalExceptionHandler {
                         CommonErrorCode.INVALID_PARAMETER_TYPE.getCode(),
                         CommonErrorCode.INVALID_PARAMETER_TYPE.getMessage(),
                         fieldErrors
+                ));
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse<Void>> handleMissingRequestHeaderException(MissingRequestHeaderException e) {
+        log.warn("Missing Request Header: {}", e.getHeaderName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(
+                        HttpStatus.BAD_REQUEST,
+                        CommonErrorCode.INVALID_INPUT_VALUE.getCode(),
+                        String.format("필수 헤더가 누락되었습니다: %s", e.getHeaderName())
                 ));
     }
 

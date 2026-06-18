@@ -1,8 +1,9 @@
--- ========================
+SET search_path TO product_db;
+-- ========================================
 -- p_products
--- ========================
+-- ========================================
 CREATE TABLE p_products (
-                            product_id    UUID         NOT NULL DEFAULT gen_random_uuid(),
+                            product_id    UUID         NOT NULL DEFAULT uuidv7(),
                             name          VARCHAR(100) NOT NULL,
                             description   TEXT,
                             price         BIGINT       NOT NULL,
@@ -23,11 +24,11 @@ CREATE INDEX idx_products_category        ON p_products (category);
 CREATE INDEX idx_products_status          ON p_products (status);
 CREATE INDEX idx_products_category_status ON p_products (category, status);
 
--- ========================
+-- ========================================
 -- p_inventories
--- ========================
+-- ========================================
 CREATE TABLE p_inventories (
-                               inventory_id       UUID   NOT NULL DEFAULT gen_random_uuid(),
+                               inventory_id       UUID   NOT NULL DEFAULT uuidv7(),
                                product_id         UUID   NOT NULL UNIQUE,
                                total_quantity     INT    NOT NULL,
                                sold_quantity      INT    NOT NULL DEFAULT 0,
@@ -42,9 +43,9 @@ CREATE TABLE p_inventories (
                                PRIMARY KEY (inventory_id)
 );
 
--- ========================
+-- ========================================
 -- p_processed_events (멱등성 방어)
--- ========================
+-- ========================================
 CREATE TABLE p_processed_events (
                                     event_id     VARCHAR(50)  NOT NULL,
                                     topic        VARCHAR(100) NOT NULL,
@@ -52,11 +53,11 @@ CREATE TABLE p_processed_events (
                                     PRIMARY KEY (event_id)
 );
 
--- ========================
+-- ========================================
 -- p_outbox_events (Transactional Outbox)
--- ========================
+-- ========================================
 CREATE TABLE p_outbox_events (
-                                 event_id      UUID         NOT NULL DEFAULT gen_random_uuid(),
+                                 event_id      UUID         NOT NULL DEFAULT uuidv7(),
                                  aggregate_type VARCHAR(100) NOT NULL,
                                  aggregate_id  UUID         NOT NULL,
                                  event_type    VARCHAR(100) NOT NULL,
@@ -70,11 +71,11 @@ CREATE TABLE p_outbox_events (
 
 CREATE INDEX idx_outbox_status_created_at ON p_outbox_events (status, created_at);
 
--- ========================
+-- ========================================
 -- p_failed_event_logs (실패 이벤트 로그)
--- ========================
+-- ========================================
 CREATE TABLE p_failed_event_logs (
-                                     log_id           UUID         NOT NULL DEFAULT gen_random_uuid(),
+                                     log_id           UUID         NOT NULL DEFAULT uuidv7(),
                                      original_topic   VARCHAR(255) NOT NULL,
                                      consumer_group   VARCHAR(255) NOT NULL,
                                      aggregate_type   VARCHAR(100) NOT NULL,
