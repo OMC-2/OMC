@@ -59,13 +59,12 @@ public class GatewayHeaderAuthFilter extends OncePerRequestFilter {
         String userId = request.getHeader("X-User-Id");
         String username = request.getHeader("X-Username");
         String userRole = request.getHeader("X-User-Role");
-        String userStatus = request.getHeader("X-User-Status");
 
         if (userId != null && userRole != null) {
             SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + userRole);
             List<SimpleGrantedAuthority> authorities = Collections.singletonList(authority);
 
-            CustomUserDetails userDetails = new CustomUserDetails(userId, username, userRole, userStatus, authorities);
+            CustomUserDetails userDetails = new CustomUserDetails(userId, username, userRole, authorities);
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
