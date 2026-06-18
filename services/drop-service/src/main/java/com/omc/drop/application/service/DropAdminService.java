@@ -36,6 +36,7 @@ public class DropAdminService {
 
     @Transactional
     public void delete(UUID dropId) {
+        // @PreAuthorize("hasRole('ADMIN')")가 인증을 보장하므로 정상 흐름에서는 도달하지 않음
         UUID deletedBy = SecurityUtil.getCurrentUserId()
                 .orElseThrow(UnauthorizedException::new);
         Drop drop = dropRepository.getByIdOrThrow(dropId);
