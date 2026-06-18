@@ -29,10 +29,6 @@ public class SecurityUtil {
         return getPrincipal().map(CustomUserDetails::getRole);
     }
 
-    public static Optional<String> getCurrentUserStatus() {
-        return getPrincipal().map(CustomUserDetails::getUserStatus);
-    }
-
     private static Optional<CustomUserDetails> getPrincipal() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()

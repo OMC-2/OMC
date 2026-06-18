@@ -40,10 +40,40 @@ spring:
           predicates:
             - Path=/api/v1/notifications/**
 
+        - id: coupon-service
+          uri: lb://coupon-service
+          predicates:
+            - Path=/api/v1/coupons/**
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8180/realms/omc/protocol/openid-connect/certs}
+
+gateway:
+  secret: ${GATEWAY_SECRET:local-secret}
+
+springdoc:
+  swagger-ui:
+    urls:
+      - name: user-service
+        url: /v3/api-docs/user-service
+      - name: product-service
+        url: /v3/api-docs/product-service
+      - name: drop-service
+        url: /v3/api-docs/drop-service
+      - name: order-service
+        url: /v3/api-docs/order-service
+      - name: payment-service
+        url: /v3/api-docs/payment-service
+      - name: raffle-service
+        url: /v3/api-docs/raffle-service
+      - name: coupon-service
+        url: /v3/api-docs/coupon-service
+      - name: notification-service
+        url: /v3/api-docs/notification-service
+
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG
-
-jwt:
-  secret: omc-jwt-secret-key-must-be-at-least-32-characters-long
-  expiration: 3600000
