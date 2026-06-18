@@ -1,0 +1,15 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    testImplementation 'com.intuit.karate:karate-junit5:1.4.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    systemProperty 'karate.options', System.getProperty('karate.options', '')
+    onlyIf { project.hasProperty('runE2E') }
+    testLogging { showStandardStreams = true }
+}

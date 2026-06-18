@@ -93,7 +93,7 @@ MockMvc → POST /signup
 
 ---
 
-## 3. Newman E2E 테스트
+## 3. Karate E2E 테스트
 
 ### 목적
 
@@ -102,14 +102,15 @@ MockMvc → POST /signup
 ### 특징
 
 - 서버가 실제로 떠 있어야 실행 가능 (docker compose 기동 후)
-- 코드가 아닌 Postman Collection 파일(.json)로 시나리오 정의
-- 나중에 여러 서비스 연계 시나리오(회원가입 → 주문 → 결제)도 추가 가능
+- `.feature` 파일(Gherkin 문법)로 시나리오 정의 — npm 불필요, Gradle로 통합 실행
+- JUnit 5 기반으로 `./gradlew :e2e:test`로 실행
+- 여러 서비스 연계 시나리오(회원가입 → 주문 → 결제)도 추가 가능
 - 배포 후 스모크 테스트로도 활용 가능
 
 > **스모크 테스트**: 배포 직후 "서버가 살아있나?"를 확인하는 최소한의 검증.
 > 핵심 API 몇 개만 찔러보고 기본 동작 여부를 빠르게 확인하는 용도.
 
-### 대상 시나리오 (예정)
+### 대상 시나리오
 
 1. 회원가입 → 201
 2. 중복 이메일 가입 → 409
@@ -119,14 +120,16 @@ MockMvc → POST /signup
 
 ### 도구
 
-- Postman Collection + Newman CLI
+- Karate DSL + JUnit 5
 
-### 실행 방법 (예정)
+### 실행 방법
 
 ```bash
 # 인프라 기동 후
-newman run docs/test/postman/user-service.postman_collection.json \
-  --env-var baseUrl=http://localhost:8080
+GATEWAY_SECRET=xxx ADMIN_SECRET=yyy ./gradlew :e2e:test -PrunE2E
+
+# 특정 feature만 실행
+GATEWAY_SECRET=xxx ./gradlew :e2e:test -PrunE2E -Dkarate.options="classpath:user/signup.feature"
 ```
 
 ---
@@ -137,4 +140,4 @@ newman run docs/test/postman/user-service.postman_collection.json \
 |---|---|---|---|---|
 | 단위 테스트 | 함수 1개 | 불필요 (전부 Mock) | 빠름 | 비즈니스 로직 검증 |
 | 통합 테스트 | API 1개 (컨트롤러~DB) | PostgreSQL (TestContainers) | 보통 | 전체 흐름 + DB 저장 검증 |
-| Newman E2E | 여러 API 시나리오 | 전체 인프라 기동 필요 | 느림 | 실제 환경 흐름 검증 |
+| Karate E2E | 여러 API 시나리오 | 전체 인프라 기동 필요 | 느림 | 실제 환경 흐름 검증 |
