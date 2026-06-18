@@ -3,8 +3,14 @@
 // → spring-boot-starter-web 대신 spring-cloud-starter-gateway 사용
 
 dependencies {
+    // Security (WebFlux)
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
     // JWT 검증 (필터에서 토큰 파싱)
     implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+
+    // Swagger (WebFlux 기반 Gateway)
+    implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.9'
 }

@@ -40,6 +40,31 @@ spring:
           predicates:
             - Path=/api/v1/notifications/**
 
+        - id: coupon-service
+          uri: lb://coupon-service
+          predicates:
+            - Path=/api/v1/coupons/**
+
+springdoc:
+  swagger-ui:
+    urls:
+      - name: user-service
+        url: /v3/api-docs/user-service
+      - name: product-service
+        url: /v3/api-docs/product-service
+      - name: drop-service
+        url: /v3/api-docs/drop-service
+      - name: order-service
+        url: /v3/api-docs/order-service
+      - name: payment-service
+        url: /v3/api-docs/payment-service
+      - name: raffle-service
+        url: /v3/api-docs/raffle-service
+      - name: coupon-service
+        url: /v3/api-docs/coupon-service
+      - name: notification-service
+        url: /v3/api-docs/notification-service
+
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG
