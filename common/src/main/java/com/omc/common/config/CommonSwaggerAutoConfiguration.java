@@ -27,16 +27,13 @@ public class CommonSwaggerAutoConfiguration {
     @ConditionalOnMissingBean(OpenAPI.class)
     public OpenAPI gatewayHeaderOpenAPI() {
         return new OpenAPI()
-                .addSecurityItem(new SecurityRequirement()
-                        .addList("X-User-Id")
-                        .addList("X-User-Role")
-                        .addList("X-User-Status")
-                        .addList("X-Username"))
+                .addSecurityItem(new SecurityRequirement().addList("BearerAuth"))
                 .components(new Components()
-                        .addSecuritySchemes("X-User-Id", apiKeyHeader("X-User-Id"))
-                        .addSecuritySchemes("X-User-Role", apiKeyHeader("X-User-Role"))
-                        .addSecuritySchemes("X-User-Status", apiKeyHeader("X-User-Status"))
-                        .addSecuritySchemes("X-Username", apiKeyHeader("X-Username")));
+                        .addSecuritySchemes("BearerAuth", new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")
+                                .description("Keycloak에서 발급받은 Access Token")));
     }
 
     @Bean
@@ -46,12 +43,5 @@ public class CommonSwaggerAutoConfiguration {
                 openApi.setServers(List.of(new Server().url(swaggerServerUrl)));
             }
         };
-    }
-
-    private SecurityScheme apiKeyHeader(String name) {
-        return new SecurityScheme()
-                .name(name)
-                .type(SecurityScheme.Type.APIKEY)
-                .in(SecurityScheme.In.HEADER);
     }
 }
