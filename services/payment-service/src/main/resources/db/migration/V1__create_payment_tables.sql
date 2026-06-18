@@ -21,6 +21,7 @@ CREATE TABLE p_payments (
     approved_at        TIMESTAMP,
     failed_at          TIMESTAMP,
     canceled_at        TIMESTAMP,
+    refunded_at        TIMESTAMP,
     created_at         TIMESTAMP    NOT NULL,
     created_by         UUID,
     updated_at         TIMESTAMP,

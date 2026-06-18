@@ -1,10 +1,28 @@
 package com.omc.payment.domain.entity;
 
+import com.omc.common.exception.BusinessException;
 import com.omc.common.entity.BaseEntity;
-import com.omc.payment.domain.enums.*;
-import jakarta.persistence.*;
+import com.omc.payment.domain.enums.CancellationCode;
+import com.omc.payment.domain.enums.PaymentMethod;
+import com.omc.payment.domain.enums.PaymentStatus;
+import com.omc.payment.domain.enums.Provider;
+import com.omc.payment.domain.enums.SalesType;
+import com.omc.payment.domain.exception.PaymentErrorCode;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import jakarta.validation.constraints.PositiveOrZero;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -21,7 +39,7 @@ public class Payment extends BaseEntity {
     @Column(name = "payment_id")
     private UUID paymentId;
 
-    @Column(name = "order_id",  nullable = false, unique = true)
+    @Column(name = "order_id", nullable = false, unique = true)
     private UUID orderId;
 
     @Column(name = "sales_type", nullable = false)
@@ -84,6 +102,9 @@ public class Payment extends BaseEntity {
     @Column(name = "canceled_at")
     private LocalDateTime canceledAt;
 
+    @Column(name = "refunded_at")
+    private LocalDateTime refundedAt;
+
     public static Payment create(
             UUID orderId,
             SalesType salesType,
@@ -118,6 +139,59 @@ public class Payment extends BaseEntity {
                 .build();
     }
 
+    // 결제 승인 요청 이벤트 처리
+    public void startConfirming() {
+        transitTo(PaymentStatus.CONFIRMING);
+    }
+
+    // PG 승인 성공 이벤트 반영
+    public void approve(String providerPaymentId) {
+        transitTo(PaymentStatus.PAID);
+        this.providerPaymentId = Objects.requireNonNull(providerPaymentId, "PG 결제 ID는 null일 수 없습니다.");
+        this.approvedAt = LocalDateTime.now();
+        this.failedAt = null;
+        this.failureCode = null;
+        this.failureMessage = null;
+    }
+
+    // PG 승인 실패 이벤트 반영
+    public void fail(String failureCode, String failureMessage) {
+
+        transitTo(PaymentStatus.FAILED);
+        this.failureCode = failureCode;
+        this.failureMessage = failureMessage;
+        this.failedAt = LocalDateTime.now();
+    }
+
+    // PG 응답 지연 또는 확인 불가 이벤트 반영
+    public void markUnknown() {
+        transitTo(PaymentStatus.UNKNOWN);
+    }
+
+    // 결제 완료 전 취소 이벤트 반영
+    public void cancel(CancellationCode cancellationCode, String cancelledMessage) {
+        transitTo(PaymentStatus.CANCELED);
+        this.cancellationCode = cancellationCode;
+        this.cancelledMessage = cancelledMessage;
+        this.canceledAt = LocalDateTime.now();
+    }
+
+    // 환불 완료 이벤트 반영
+    public void refund() {
+        transitTo(PaymentStatus.REFUNDED);
+        this.refundedAt = LocalDateTime.now();
+    }
+
+    private void transitTo(PaymentStatus targetStatus) {
+        if (!paymentStatus.canChangeTo(targetStatus)) {
+            throw new BusinessException(
+                    PaymentErrorCode.PAYMENT_INVALID_STATUS,
+                    "결제 상태를 " + paymentStatus + "에서 " + targetStatus + "(으)로 변경할 수 없습니다."
+            );
+        }
+        this.paymentStatus = targetStatus;
+    }
+
     @Builder(access = AccessLevel.PRIVATE)
     private Payment(
             UUID paymentId,
@@ -138,7 +212,8 @@ public class Payment extends BaseEntity {
             LocalDateTime requestedAt,
             LocalDateTime approvedAt,
             LocalDateTime failedAt,
-            LocalDateTime canceledAt
+            LocalDateTime canceledAt,
+            LocalDateTime refundedAt
     ) {
         this.paymentId = paymentId;
         this.orderId = orderId;
@@ -159,5 +234,6 @@ public class Payment extends BaseEntity {
         this.approvedAt = approvedAt;
         this.failedAt = failedAt;
         this.canceledAt = canceledAt;
+        this.refundedAt = refundedAt;
     }
 }

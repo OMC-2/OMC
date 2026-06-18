@@ -10,7 +10,8 @@ import org.springframework.http.HttpStatus;
 public enum PaymentErrorCode implements ErrorCode {
 
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "PAYMENT-001", "결제 정보를 찾을 수 없습니다."),
-    PAYMENT_FAILED(HttpStatus.BAD_REQUEST, "PAYMENT-002", "결제에 실패했습니다.");
+    PAYMENT_FAILED(HttpStatus.BAD_REQUEST, "PAYMENT-002", "결제에 실패했습니다."),
+    PAYMENT_INVALID_STATUS(HttpStatus.BAD_REQUEST, "PAYMENT-003", "현재 결제 상태에서 허용되지 않는 작업입니다.");
 
     private final HttpStatus status;
     private final String code;
