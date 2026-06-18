@@ -1,7 +1,8 @@
-package com.omc.user.application.service;
+package com.omc.user.unit.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
+import com.omc.user.application.service.UserService;
 import com.omc.user.domain.entity.UserEntity;
 import com.omc.user.domain.enums.UserRole;
 import com.omc.user.domain.exception.UserAlreadyExistsException;

@@ -64,6 +64,16 @@ void 이미_존재하는_이메일로_가입하면_예외가_발생한다() {
   - 실제 PostgreSQL DB에 데이터가 저장되었는지
   - 중복 이메일 재가입 시 409 반환
 
+### 사전 설정: Docker Desktop 소켓 허용
+
+TestContainers는 Docker 데몬 소켓을 통해 컨테이너를 제어한다.  
+Docker Desktop 4.x 이상에서는 기본 소켓이 비활성화되어 있어 아래 설정이 필요하다.
+
+**Docker Desktop → Settings → Advanced → "Allow the default Docker socket to be used (requires password)"** 를 켠다.
+
+> 이 옵션을 켜면 `/var/run/docker.sock`이 생성되어 TestContainers가 Docker 데몬에 접근할 수 있다.  
+> 비밀번호를 한 번 입력하면 이후 재기동 시에도 유지된다.
+
 ### 도구
 
 - JUnit 5 + `@SpringBootTest` + MockMvc
