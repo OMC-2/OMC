@@ -31,4 +31,4 @@ spring:
       port: ${REDIS_PORT:6379}
 
 gateway:
-  secret: local-secret
+  secret: ${GATEWAY_SECRET:local-secret}
