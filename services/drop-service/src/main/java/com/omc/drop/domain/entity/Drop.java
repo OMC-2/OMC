@@ -2,7 +2,7 @@ package com.omc.drop.domain.entity;
 
 import com.omc.drop.domain.exception.DropNotOpenException;
 import com.omc.drop.domain.exception.InvalidDropStatusException;
-import com.omc.drop.domain.vo.DropStatus;
+import com.omc.drop.domain.enums.DropStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
