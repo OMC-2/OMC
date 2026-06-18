@@ -3,6 +3,7 @@ package com.omc.user.domain.entity;
 import com.omc.user.domain.enums.UserRole;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Table(name = "p_users", schema = "user_db")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User {
+public class UserEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -39,28 +40,37 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Builder
+    private UserEntity(String keycloakId, String email, String nickname, UserRole role, String slackId) {
+        this.keycloakId = keycloakId;
+        this.email = email;
+        this.nickname = nickname;
+        this.role = role;
+        this.slackId = slackId;
+    }
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
 
-    public static User create(String keycloakId, String email, String nickname, String slackId) {
-        User user = new User();
-        user.keycloakId = keycloakId;
-        user.email = email;
-        user.nickname = nickname;
-        user.slackId = slackId;
-        user.role = UserRole.USER;
-        return user;
+    public static UserEntity create(String keycloakId, String email, String nickname, String slackId) {
+        return UserEntity.builder()
+                .keycloakId(keycloakId)
+                .email(email)
+                .nickname(nickname)
+                .slackId(slackId)
+                .role(UserRole.USER)
+                .build();
     }
 
-    public static User createAdmin(String keycloakId, String email, String nickname, String slackId) {
-        User user = new User();
-        user.keycloakId = keycloakId;
-        user.email = email;
-        user.nickname = nickname;
-        user.slackId = slackId;
-        user.role = UserRole.ADMIN;
-        return user;
+    public static UserEntity createAdmin(String keycloakId, String email, String nickname, String slackId) {
+        return UserEntity.builder()
+                .keycloakId(keycloakId)
+                .email(email)
+                .nickname(nickname)
+                .slackId(slackId)
+                .role(UserRole.ADMIN)
+                .build();
     }
 }

@@ -1,6 +1,6 @@
 package com.omc.user.presentation.dto.response;
 
-import com.omc.user.domain.entity.User;
+import com.omc.user.domain.entity.UserEntity;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -13,7 +13,7 @@ public record UserProfileResponse(
         String role,
         LocalDateTime createdAt
 ) {
-    public static UserProfileResponse from(User user) {
+    public static UserProfileResponse from(UserEntity user) {
         return new UserProfileResponse(
                 user.getUserId(),
                 user.getEmail(),

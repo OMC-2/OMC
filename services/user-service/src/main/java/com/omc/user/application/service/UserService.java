@@ -2,7 +2,7 @@ package com.omc.user.application.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
-import com.omc.user.domain.entity.User;
+import com.omc.user.domain.entity.UserEntity;
 import com.omc.user.domain.exception.UserErrorCode;
 import com.omc.user.domain.repository.UserRepository;
 import com.omc.user.infrastructure.client.KeycloakAdminClient;
@@ -38,8 +38,8 @@ public class UserService {
         );
 
         try {
-            User user = userRepository.save(
-                    User.create(keycloakUserId, request.email(), request.nickname(), request.slackId())
+            UserEntity user = userRepository.save(
+                    UserEntity.create(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
             return SignupResponse.from(user);
         } catch (Exception e) {
@@ -60,8 +60,8 @@ public class UserService {
         );
 
         try {
-            User user = userRepository.save(
-                    User.createAdmin(keycloakUserId, request.email(), request.nickname(), request.slackId())
+            UserEntity user = userRepository.save(
+                    UserEntity.createAdmin(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
             return SignupResponse.from(user);
         } catch (Exception e) {
@@ -78,7 +78,7 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(UUID keycloakId) {
-        User user = userRepository.findByKeycloakId(keycloakId.toString())
+        UserEntity user = userRepository.findByKeycloakId(keycloakId.toString())
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         return UserProfileResponse.from(user);
     }

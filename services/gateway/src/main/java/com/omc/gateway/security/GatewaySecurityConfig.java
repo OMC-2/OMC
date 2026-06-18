@@ -32,7 +32,6 @@ public class GatewaySecurityConfig {
             (exchange, e) -> writeErrorResponse(exchange, CommonErrorCode.ACCESS_DENIED);
 
         return http
-            .csrf(ServerHttpSecurity.CsrfSpec::disable)
             .authorizeExchange(ex -> ex
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/signup").permitAll()
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/admin/signup").permitAll()
