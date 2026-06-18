@@ -12,6 +12,7 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -32,6 +33,7 @@ public class GatewaySecurityConfig {
             (exchange, e) -> writeErrorResponse(exchange, CommonErrorCode.ACCESS_DENIED);
 
         return http
+            .csrf(csrf -> csrf.requireCsrfProtectionMatcher(exchange -> ServerWebExchangeMatcher.MatchResult.notMatch()))
             .authorizeExchange(ex -> ex
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/signup").permitAll()
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/admin/signup").permitAll()
