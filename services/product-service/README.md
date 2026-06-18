@@ -16,7 +16,7 @@ Redis를 활용한 재고 캐싱으로 동시성 제어를 처리합니다.
 - Spring Boot 3.2.x
 - Spring Data JPA
 - Spring Data Redis
-- MySQL
+- PostgreSQL 18
 - Eureka Client
 
 ## DB 테이블
