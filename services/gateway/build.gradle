@@ -3,8 +3,6 @@
 // → spring-boot-starter-web 대신 spring-cloud-starter-gateway 사용
 
 dependencies {
-    // JWT 검증 (필터에서 토큰 파싱)
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+    // Keycloak JWT 검증 (JWKS 기반, Spring Security OAuth2 Resource Server)
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 }
