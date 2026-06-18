@@ -22,8 +22,8 @@ public class RaffleEntry extends BaseTimeEntity {
     @Column(name = "entry_id", columnDefinition = "uuid")
     private UUID id;
 
-    @Column(name = "drop_id", nullable = false, columnDefinition = "uuid")
-    private UUID dropId;
+    @Column(name = "raffle_id", nullable = false, columnDefinition = "uuid")
+    private UUID raffleId;
 
     @Column(name = "user_id", nullable = false, columnDefinition = "uuid")
     private UUID userId;
@@ -35,17 +35,17 @@ public class RaffleEntry extends BaseTimeEntity {
     private LocalDateTime enteredAt;
 
     @Builder
-    private RaffleEntry(UUID dropId, UUID userId, UUID billingKeyId) {
+    private RaffleEntry(UUID raffleId, UUID userId, UUID billingKeyId) {
         this.id = UUID.randomUUID();
-        this.dropId = dropId;
+        this.raffleId = raffleId;
         this.userId = userId;
         this.billingKeyId = billingKeyId;
         this.enteredAt = LocalDateTime.now();
     }
 
-    public static RaffleEntry create(UUID dropId, UUID userId, UUID billingKeyId) {
+    public static RaffleEntry create(UUID raffleId, UUID userId, UUID billingKeyId) {
         return RaffleEntry.builder()
-                .dropId(dropId)
+                .raffleId(raffleId)
                 .userId(userId)
                 .billingKeyId(billingKeyId)
                 .build();

@@ -47,8 +47,11 @@ services:
       CONFIG_SERVER_URI: http://config-server:8888
       EUREKA_URI: http://eureka-server:8761/eureka/
       GATEWAY_SECRET: local-secret
+      KEYCLOAK_JWKS_URI: http://keycloak:8180/realms/omc/protocol/openid-connect/certs
     depends_on:
       config-server:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
@@ -67,14 +70,23 @@ services:
       - "8081:8081"
     environment:
       CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
       DB_URL: postgres:5432
       DB_USERNAME: omc
       DB_PASSWORD: password
       GATEWAY_SECRET: local-secret
+      KEYCLOAK_URL: http://keycloak:8180
+      KEYCLOAK_REALM: omc
+      KEYCLOAK_CLIENT_ID: omc-client
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      ADMIN_SECRET: local-admin-secret
     depends_on:
       config-server:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
