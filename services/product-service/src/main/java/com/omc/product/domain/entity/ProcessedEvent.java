@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -34,11 +35,22 @@ public class ProcessedEvent {
     @Column(name = "processed_at", nullable = false)
     private LocalDateTime processedAt;
 
-    public static ProcessedEvent of(String eventId, String topic) {
-        ProcessedEvent event = new ProcessedEvent();
-        event.eventId = eventId;
-        event.topic = topic;
-        event.processedAt = LocalDateTime.now();
-        return event;
+    @Builder(access = AccessLevel.PRIVATE)
+    private ProcessedEvent(
+            String eventId,
+            String topic,
+            LocalDateTime processedAt
+    ) {
+        this.eventId = eventId;
+        this.topic = topic;
+        this.processedAt = processedAt;
+    }
+
+    public static ProcessedEvent create(String eventId, String topic) {
+        return ProcessedEvent.builder()
+                .eventId(eventId)
+                .topic(topic)
+                .processedAt(LocalDateTime.now())
+                .build();
     }
 }

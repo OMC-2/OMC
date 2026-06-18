@@ -32,6 +32,7 @@ import java.util.UUID;
 public class Inventory extends BaseEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "inventory_id")
     private UUID inventoryId;
 
@@ -52,8 +53,7 @@ public class Inventory extends BaseEntity {
     private Long version;
 
     @Builder(access = AccessLevel.PRIVATE)
-    private Inventory(UUID inventoryId, UUID productId, int totalQuantity) {
-        this.inventoryId = inventoryId;
+    private Inventory(UUID productId, int totalQuantity) {
         this.productId = productId;
         this.totalQuantity = totalQuantity;
         this.soldQuantity = 0;
@@ -61,7 +61,6 @@ public class Inventory extends BaseEntity {
 
     public static Inventory create(UUID productId, int initialQuantity) {
         return Inventory.builder()
-                .inventoryId(UUID.randomUUID())
                 .productId(productId)
                 .totalQuantity(initialQuantity)
                 .build();

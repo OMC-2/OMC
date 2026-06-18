@@ -34,6 +34,7 @@ import java.util.UUID;
 public class OutboxEvent {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "event_id")
     private UUID eventId;
 
@@ -64,9 +65,8 @@ public class OutboxEvent {
     private LocalDateTime publishedAt;
 
     @Builder(access = AccessLevel.PRIVATE)
-    private OutboxEvent(UUID eventId, String aggregateType, UUID aggregateId,
+    private OutboxEvent(String aggregateType, UUID aggregateId,
                         OutboxEventType eventType, String payload) {
-        this.eventId = eventId;
         this.aggregateType = aggregateType;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
@@ -79,7 +79,6 @@ public class OutboxEvent {
     public static OutboxEvent create(String aggregateType, UUID aggregateId,
                                      OutboxEventType eventType, String payload) {
         return OutboxEvent.builder()
-                .eventId(UUID.randomUUID())
                 .aggregateType(aggregateType)
                 .aggregateId(aggregateId)
                 .eventType(eventType)

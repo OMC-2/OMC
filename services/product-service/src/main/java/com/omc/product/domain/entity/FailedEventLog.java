@@ -3,6 +3,7 @@ package com.omc.product.domain.entity;
 import com.omc.product.domain.enums.FailedEventStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -32,6 +33,7 @@ import java.util.UUID;
 public class FailedEventLog {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "log_id")
     private UUID logId;
 
@@ -66,19 +68,44 @@ public class FailedEventLog {
     @Column(name = "resolved_by")
     private UUID resolvedBy;
 
-    public static FailedEventLog create(String originalTopic, String consumerGroup,
-                                        String aggregateType, UUID aggregateId,
-                                        String originalPayload, String errorMessage) {
-        FailedEventLog log = new FailedEventLog();
-        log.logId = UUID.randomUUID();
-        log.originalTopic = originalTopic;
-        log.consumerGroup = consumerGroup;
-        log.aggregateType = aggregateType;
-        log.aggregateId = aggregateId;
-        log.originalPayload = originalPayload;
-        log.errorMessage = errorMessage;
-        log.status = FailedEventStatus.UNRESOLVED;
-        log.createdAt = LocalDateTime.now();
-        return log;
-    }
+     @Builder(access = AccessLevel.PRIVATE)
+     private FailedEventLog(
+             String originalTopic,
+             String consumerGroup,
+             String aggregateType,
+             UUID aggregateId,
+             String originalPayload,
+             String errorMessage,
+             FailedEventStatus status,
+             LocalDateTime createdAt
+     ) {
+         this.originalTopic = originalTopic;
+         this.consumerGroup = consumerGroup;
+         this.aggregateType = aggregateType;
+         this.aggregateId = aggregateId;
+         this.originalPayload = originalPayload;
+         this.errorMessage = errorMessage;
+         this.status = status;
+         this.createdAt = createdAt;
+     }
+
+     public static FailedEventLog create(
+             String originalTopic,
+             String consumerGroup,
+             String aggregateType,
+             UUID aggregateId,
+             String originalPayload,
+             String errorMessage
+     ) {
+         return FailedEventLog.builder()
+                 .originalTopic(originalTopic)
+                 .consumerGroup(consumerGroup)
+                 .aggregateType(aggregateType)
+                 .aggregateId(aggregateId)
+                 .originalPayload(originalPayload)
+                 .errorMessage(errorMessage)
+                 .status(FailedEventStatus.UNRESOLVED)
+                 .createdAt(LocalDateTime.now())
+                 .build();
+     }
 }

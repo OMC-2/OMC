@@ -25,6 +25,7 @@ import java.util.UUID;
 public class Product extends BaseEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "product_id")
     private UUID productId;
 
@@ -67,7 +68,6 @@ public class Product extends BaseEntity {
     public static Product create(String name, String description, Long price,
                                  String brand, String category, String imageUrl) {
         return Product.builder()
-                .productId(UUID.randomUUID())
                 .name(name)
                 .description(description)
                 .price(price)
