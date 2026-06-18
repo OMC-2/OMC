@@ -42,7 +42,7 @@ public class UserService {
             UserEntity user = userRepository.save(
                     UserEntity.create(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
-            return SignupResponse.from(user);
+            return new SignupResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getRole().name());
         } catch (Exception e) {
             log.error("DB save failed after Keycloak user creation, rolling back keycloak user {}", keycloakUserId, e);
             keycloakAdminClient.deleteUser(keycloakUserId);
@@ -64,7 +64,7 @@ public class UserService {
             UserEntity user = userRepository.save(
                     UserEntity.createAdmin(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
-            return SignupResponse.from(user);
+            return new SignupResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getRole().name());
         } catch (Exception e) {
             log.error("DB save failed after Keycloak admin creation, rolling back keycloak user {}", keycloakUserId, e);
             keycloakAdminClient.deleteUser(keycloakUserId);
@@ -81,6 +81,9 @@ public class UserService {
     public UserProfileResponse getProfile(UUID keycloakId) {
         UserEntity user = userRepository.findByKeycloakId(keycloakId.toString())
                 .orElseThrow(UserNotFoundException::new);
-        return UserProfileResponse.from(user);
+        return new UserProfileResponse(
+                user.getUserId(), user.getEmail(), user.getNickname(),
+                user.getSlackId(), user.getRole().name(), user.getCreatedAt()
+        );
     }
 }
