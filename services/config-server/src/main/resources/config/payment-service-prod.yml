@@ -14,5 +14,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: payment_db
+  flyway:
+    default-schema: payment_db
   kafka:
     bootstrap-servers: ${KAFKA_URI}
