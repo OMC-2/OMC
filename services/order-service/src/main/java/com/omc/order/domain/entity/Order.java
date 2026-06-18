@@ -3,6 +3,8 @@ package com.omc.order.domain.entity;
 import com.omc.common.entity.BaseEntity;
 import com.omc.order.domain.enums.OrderStatus;
 import com.omc.order.domain.enums.OrderType;
+import com.omc.order.domain.exception.OrderErrorCode;
+import com.omc.order.domain.exception.OrderStateException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -163,5 +165,39 @@ public class Order extends BaseEntity {
         .finalAmount(finalAmount)
         .idempotencyKey(idempotencyKey)
         .build();
+  }
+
+  //비즈니스 로직 (상태 전이 캡슐화)
+
+  //[결제 성공] PENDING_PAYMENT -> CONFIRMED (드롭/래플 공통)
+  public void confirmPayment() {
+    if (this.status != OrderStatus.PENDING_PAYMENT) {
+      throw new OrderStateException(OrderErrorCode.NOT_PENDING_PAYMENT);
+    }
+    this.status = OrderStatus.CONFIRMED;
+  }
+
+  //[결제 실패 / 타임아웃] -> CANCELLED
+  public void cancel() {
+    if (this.status == OrderStatus.CANCELLED || this.status == OrderStatus.DELIVERED || this.status == OrderStatus.REFUNDED) {
+      throw new OrderStateException(OrderErrorCode.ORDER_ALREADY_CANCELLED);
+    }
+    this.status = OrderStatus.CANCELLED;
+  }
+
+  //[배송 시작] CONFIRMED -> SHIPPING
+  public void startShipping() {
+    if (this.status != OrderStatus.CONFIRMED) {
+      throw new OrderStateException(OrderErrorCode.NOT_CONFIRMED);
+    }
+    this.status = OrderStatus.SHIPPING;
+  }
+
+  //[배송 완료] SHIPPING -> DELIVERED
+  public void completeDelivery() {
+    if (this.status != OrderStatus.SHIPPING) {
+      throw new OrderStateException(OrderErrorCode.NOT_SHIPPING);
+    }
+    this.status = OrderStatus.DELIVERED;
   }
 }
