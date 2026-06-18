@@ -17,7 +17,7 @@ SAGA 패턴을 통해 분산 트랜잭션의 일관성을 보장합니다.
 - Spring Boot 3.2.x
 - Spring Data JPA
 - Spring Kafka (Consumer/Producer)
-- MySQL
+- PostgreSQL 18
 - Eureka Client
 
 ## SAGA 흐름

@@ -23,7 +23,7 @@ Client
 [config-server :8888]  ← 중앙 설정 관리
 [Kafka :9092]          ← 비동기 이벤트
 [Redis :6379]          ← 캐시, 재고
-[MySQL :3306]          ← 영속성
+[PostgreSQL :5432]     ← 영속성
 ```
 
 ## 모듈 구성
@@ -45,35 +45,68 @@ Client
 
 ## 시작하기
 
-### 인프라 실행 (Docker)
+### 사전 요구사항
+
+- Docker Desktop
+- Java 21
+- Gradle
+
+### 인프라만 띄우기 (평소 로컬 개발 시)
+
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
-### 서비스 실행 순서
-1. `eureka-server` 먼저 실행
-2. 나머지 서비스 순서 무관
+| 서비스 | 포트 |
+|--------|------|
+| PostgreSQL | 5432 |
+| Redis | 6379 |
+| Kafka | 9092 |
+| Kafka UI | 9000 |
+
+### Spring Boot 서비스 로컬 실행
+
+인프라 기동 후 아래 순서대로 실행:
 
 ```bash
-./gradlew :eureka-server:bootRun
-./gradlew :gateway:bootRun
-./gradlew :user-service:bootRun
-# ...
+./gradlew :services:eureka-server:bootRun
+./gradlew :services:config-server:bootRun
+./gradlew :services:gateway:bootRun
+./gradlew :services:user-service:bootRun
+./gradlew :services:drop-service:bootRun
 ```
 
-### 전체 빌드
+### 전체 Docker로 한 번에 띄우기 (통합 테스트 / EC2 배포)
+
 ```bash
-./gradlew build
+# 1. jar 빌드
+./gradlew bootJar -x test
+
+# 2. 전체 기동 (depends_on으로 순서 자동 제어)
+docker compose -f docker-compose.yml -f docker-compose.services.yml up --build -d
+
+# 3. 로그 확인
+docker compose -f docker-compose.yml -f docker-compose.services.yml logs -f
+```
+
+### 종료
+
+```bash
+# 인프라만 내리기
+docker compose down
+
+# 전체 내리기
+docker compose -f docker-compose.yml -f docker-compose.services.yml down
 ```
 
 ## 기술 스택
 
 - **Java 21** (Amazon Corretto) - 가상 스레드(Virtual Threads) 활용
-- **Spring Boot 3.2.5**
-- **Spring Cloud 2023.0.1** (Eureka, Gateway)
+- **Spring Boot 3.4.5**
+- **Spring Cloud 2024.0.1** (Eureka, Gateway, Config Server)
 - **Spring Security 6** + **jjwt 0.12.3**
 - **Spring Kafka**
-- **Spring Data JPA** + **MySQL 8**
+- **Spring Data JPA** + **PostgreSQL 18** + **Flyway**
 - **Spring Data Redis**
 - **Gradle 8** (Groovy DSL)
 - **Docker Compose**
