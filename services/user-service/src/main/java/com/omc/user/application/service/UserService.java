@@ -3,7 +3,8 @@ package com.omc.user.application.service;
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.user.domain.entity.UserEntity;
-import com.omc.user.domain.exception.UserErrorCode;
+import com.omc.user.domain.exception.UserAlreadyExistsException;
+import com.omc.user.domain.exception.UserNotFoundException;
 import com.omc.user.domain.repository.UserRepository;
 import com.omc.user.infrastructure.client.KeycloakAdminClient;
 import com.omc.user.infrastructure.client.KeycloakTokenResponse;
@@ -30,7 +31,7 @@ public class UserService {
     @Transactional
     public SignupResponse signup(SignupRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new BusinessException(UserErrorCode.USER_ALREADY_EXISTS);
+            throw new UserAlreadyExistsException();
         }
 
         String keycloakUserId = keycloakAdminClient.createUser(
@@ -52,7 +53,7 @@ public class UserService {
     @Transactional
     public SignupResponse adminSignup(SignupRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new BusinessException(UserErrorCode.USER_ALREADY_EXISTS);
+            throw new UserAlreadyExistsException();
         }
 
         String keycloakUserId = keycloakAdminClient.createAdminUser(
@@ -79,7 +80,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(UUID keycloakId) {
         UserEntity user = userRepository.findByKeycloakId(keycloakId.toString())
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+                .orElseThrow(UserNotFoundException::new);
         return UserProfileResponse.from(user);
     }
 }
