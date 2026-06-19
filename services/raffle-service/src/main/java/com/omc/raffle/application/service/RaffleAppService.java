@@ -16,6 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+/**
+ * 래플 응모 및 관련된 전반적인 비즈니스 로직을 처리하는 Application Service.
+ * Redis 기반 중복 검증 로직, Feign 기반 결제 가승인 통신, 응모 내역 저장 로직을 관장합니다.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -49,9 +53,27 @@ public class RaffleAppService {
         // TODO (STEP 8): FeignClient를 통해 payment-service API 호출하여 빌링키 유효성 검사
 
         // 5. 응모 내역 저장
-        RaffleEntry entry = RaffleEntry.create(raffleId, request.userId(), request.billingKeyId());
+        RaffleEntry entry = RaffleEntry.create(
+                raffleId, 
+                request.userId(), 
+                request.billingKeyId(),
+                request.couponId(),
+                request.originalAmount(),
+                request.discountAmount(),
+                request.finalAmount()
+        );
         RaffleEntry savedEntry = raffleEntryRepository.save(entry);
 
-        return RaffleApplyResponse.from(savedEntry);
+        return new RaffleApplyResponse(
+                savedEntry.getId(),
+                savedEntry.getRaffleId(),
+                savedEntry.getUserId(),
+                savedEntry.getBillingKeyId(),
+                savedEntry.getCouponId(),
+                savedEntry.getOriginalAmount(),
+                savedEntry.getDiscountAmount(),
+                savedEntry.getFinalAmount(),
+                savedEntry.getEnteredAt()
+        );
     }
 }
