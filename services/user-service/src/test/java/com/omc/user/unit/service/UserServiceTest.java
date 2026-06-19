@@ -3,7 +3,7 @@ package com.omc.user.unit.service;
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.user.application.service.UserService;
-import com.omc.user.domain.entity.UserEntity;
+import com.omc.user.domain.entity.User;
 import com.omc.user.domain.enums.UserRole;
 import com.omc.user.domain.exception.UserAlreadyExistsException;
 import com.omc.user.domain.repository.UserRepository;
@@ -44,7 +44,7 @@ class UserServiceTest {
         String keycloakId = UUID.randomUUID().toString();
         UUID userId = UUID.randomUUID();
 
-        UserEntity mockUser = mock(UserEntity.class);
+        User mockUser = mock(User.class);
         given(mockUser.getUserId()).willReturn(userId);
         given(mockUser.getEmail()).willReturn("test@example.com");
         given(mockUser.getNickname()).willReturn("testuser");
@@ -52,7 +52,7 @@ class UserServiceTest {
 
         given(userRepository.existsByEmail("test@example.com")).willReturn(false);
         given(keycloakAdminClient.createUser("test@example.com", "password123", "testuser")).willReturn(keycloakId);
-        given(userRepository.save(any(UserEntity.class))).willReturn(mockUser);
+        given(userRepository.save(any(User.class))).willReturn(mockUser);
 
         SignupResponse response = userService.signup(request);
 
@@ -81,7 +81,7 @@ class UserServiceTest {
 
         given(userRepository.existsByEmail("test@example.com")).willReturn(false);
         given(keycloakAdminClient.createUser("test@example.com", "password123", "testuser")).willReturn(keycloakId);
-        given(userRepository.save(any(UserEntity.class))).willThrow(new RuntimeException("DB error"));
+        given(userRepository.save(any(User.class))).willThrow(new RuntimeException("DB error"));
 
         assertThatThrownBy(() -> userService.signup(request))
                 .isInstanceOf(BusinessException.class)
