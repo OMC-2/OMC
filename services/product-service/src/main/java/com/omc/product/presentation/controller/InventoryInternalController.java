@@ -4,6 +4,8 @@ import com.omc.product.application.service.InventoryService;
 import com.omc.product.presentation.dto.request.InventoryUpdateRequest;
 import com.omc.product.presentation.dto.response.InventoryResponse;
 import com.omc.product.presentation.dto.response.InventorySnapshotResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -12,38 +14,19 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+@Tag(name = "Inventory Internal", description = "재고 내부 API (서비스 간 통신 전용)")
 @RestController
-@RequestMapping("/api/v1/products/{productId}/inventories")
+@RequestMapping("/internal/v1/products")
 @RequiredArgsConstructor
 public class InventoryController {
 
     private final InventoryService inventoryService;
 
-    // 재고 스냅샷 조회 (Internal — Drop Service용)
-    // Gateway에서 외부 요청 차단
-    @GetMapping("/snapshot")
+    @Operation(summary = "재고 스냅샷 조회", description = "드롭 오픈 시 Drop Service가 Redis 워밍을 위해 호출합니다.")
+    @GetMapping("/{productId}/inventories/snapshot")
     public ResponseEntity<InventorySnapshotResponse> getSnapshot(
             @PathVariable UUID productId
     ) {
         return ResponseEntity.ok(inventoryService.getSnapshot(productId));
-    }
-
-    // 재고 상세 조회 (ADMIN)
-    @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<InventoryResponse> getInventory(
-            @PathVariable UUID productId
-    ) {
-        return ResponseEntity.ok(inventoryService.getInventory(productId));
-    }
-
-    // 재고 수동 수정 (ADMIN)
-    @PatchMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<InventoryResponse> updateInventory(
-            @PathVariable UUID productId,
-            @Valid @RequestBody InventoryUpdateRequest request
-    ) {
-        return ResponseEntity.ok(inventoryService.updateInventory(productId, request));
     }
 }
