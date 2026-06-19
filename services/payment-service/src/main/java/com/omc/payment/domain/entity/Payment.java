@@ -1,7 +1,7 @@
 package com.omc.payment.domain.entity;
 
-import com.omc.common.exception.BusinessException;
 import com.omc.common.entity.BaseEntity;
+import com.omc.common.exception.BusinessException;
 import com.omc.payment.domain.enums.CancellationCode;
 import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
@@ -125,36 +125,34 @@ public class Payment extends BaseEntity {
             Provider provider,
             PaymentMethod paymentMethod
     ) {
-        long resolvedOriginalAmount = Objects.requireNonNull(originalAmount, "원금액은 null일 수 없습니다.");
+        long resolvedOriginalAmount = Objects.requireNonNull(originalAmount, "원금은 null일 수 없습니다.");
         long resolvedDiscountAmount = discountAmount == null ? 0L : discountAmount;
 
         if (resolvedOriginalAmount < 0) {
-            throw new IllegalArgumentException("원금액은 0 이상이어야 합니다.");
+            throw new IllegalArgumentException("원금은 0 이상이어야 합니다.");
         }
         if (resolvedDiscountAmount < 0) {
             throw new IllegalArgumentException("할인 금액은 0 이상이어야 합니다.");
         }
         if (resolvedDiscountAmount > resolvedOriginalAmount) {
-            throw new IllegalArgumentException("할인 금액은 원금액을 초과할 수 없습니다.");
+            throw new IllegalArgumentException("할인 금액은 원금을 초과할 수 없습니다.");
         }
 
-
         SalesType resolvedSalesType = Objects.requireNonNull(salesType, "판매 유형은 null일 수 없습니다.");
-
         if (resolvedSalesType == SalesType.RAFFLE && entryId == null) {
-            throw new IllegalArgumentException("래플 결제는 응모 ID가 필요합니다.");
+            throw new IllegalArgumentException("래플 결제는 entryId가 필수입니다.");
         }
 
         return Payment.builder()
                 .orderId(Objects.requireNonNull(orderId, "주문 ID는 null일 수 없습니다."))
                 .entryId(entryId)
                 .couponId(couponId)
-                .userId(Objects.requireNonNull(userId, "사용자 ID는 null일 수 없습니다."))
+                .userId(Objects.requireNonNull(userId, "유저 ID는 null일 수 없습니다."))
                 .salesType(resolvedSalesType)
                 .originalAmount(resolvedOriginalAmount)
                 .discountAmount(resolvedDiscountAmount)
                 .finalAmount(resolvedOriginalAmount - resolvedDiscountAmount)
-                .provider(Objects.requireNonNull(provider, "결제 제공자는 null일 수 없습니다."))
+                .provider(Objects.requireNonNull(provider, "결제 제공사는 null일 수 없습니다."))
                 .paymentMethod(Objects.requireNonNull(paymentMethod, "결제 수단은 null일 수 없습니다."))
                 .paymentStatus(PaymentStatus.READY)
                 .requestedAt(LocalDateTime.now())
@@ -189,7 +187,7 @@ public class Payment extends BaseEntity {
         transitTo(PaymentStatus.UNKNOWN);
     }
 
-    // 결제 완료 전 취소 이벤트 반영
+    // 결제 취소 이벤트 반영
     public void cancel(CancellationCode cancellationCode, String cancelledMessage) {
         transitTo(PaymentStatus.CANCELED);
         this.cancellationCode = cancellationCode;
@@ -198,7 +196,9 @@ public class Payment extends BaseEntity {
     }
 
     // 환불 완료 이벤트 반영
-    public void refund() {
+    public void refund(CancellationCode cancellationCode, String cancelledMessage) {
+        this.cancellationCode = cancellationCode;
+        this.cancelledMessage = cancelledMessage;
         transitTo(PaymentStatus.REFUNDED);
         this.refundedAt = LocalDateTime.now();
     }
@@ -207,7 +207,7 @@ public class Payment extends BaseEntity {
         if (!paymentStatus.canChangeTo(targetStatus)) {
             throw new BusinessException(
                     PaymentErrorCode.PAYMENT_INVALID_STATUS,
-                    "결제 상태를 " + paymentStatus + "에서 " + targetStatus + "(으)로 변경할 수 없습니다."
+                    "결제 상태를 " + paymentStatus + "에서 " + targetStatus + "로 변경할 수 없습니다."
             );
         }
         this.paymentStatus = targetStatus;
