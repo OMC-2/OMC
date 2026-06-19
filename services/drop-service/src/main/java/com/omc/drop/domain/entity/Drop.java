@@ -1,13 +1,16 @@
 package com.omc.drop.domain.entity;
 
+import com.omc.common.entity.BaseEntity;
+import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.exception.DropNotOpenException;
+import com.omc.drop.domain.exception.InvalidDropDateRangeException;
 import com.omc.drop.domain.exception.InvalidDropStatusException;
-import com.omc.drop.domain.vo.DropStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -21,8 +24,10 @@ import java.util.UUID;
         @Index(name = "idx_drops_status_end", columnList = "status, end_at")
     }
 )
+// 소프트딜리트된 드롭은 모든 JPA 쿼리에서 자동으로 제외. 삭제된 드롭 조회가 필요하면 네이티브 쿼리를 사용.
+@SQLRestriction("deleted_at IS NULL")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Drop {
+public class Drop extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -59,6 +64,7 @@ public class Drop {
     }
 
     public static Drop create(UUID productId, LocalDateTime startAt, LocalDateTime endAt, int totalQty, int holdTtlSec) {
+        validateDateRange(startAt, endAt);
         return Drop.builder()
                 .productId(productId)
                 .startAt(startAt)
@@ -66,6 +72,12 @@ public class Drop {
                 .totalQty(totalQty)
                 .holdTtlSec(holdTtlSec)
                 .build();
+    }
+
+    public static void validateDateRange(LocalDateTime startAt, LocalDateTime endAt) {
+        if (!endAt.isAfter(startAt)) {
+            throw new InvalidDropDateRangeException();
+        }
     }
 
     public void open() {
@@ -86,10 +98,18 @@ public class Drop {
         if (this.status != DropStatus.SCHEDULED) {
             throw new InvalidDropStatusException();
         }
+        validateDateRange(startAt, endAt);
         this.startAt = startAt;
         this.endAt = endAt;
         this.totalQty = totalQty;
         this.holdTtlSec = holdTtlSec;
+    }
+
+    public void delete(UUID deletedBy) {
+        if (this.status != DropStatus.SCHEDULED) {
+            throw new InvalidDropStatusException();
+        }
+        softDelete(deletedBy);
     }
 
     public boolean isOpen() {
