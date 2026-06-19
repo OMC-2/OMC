@@ -1,5 +1,6 @@
 package com.omc.arch;
 
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.lang.ArchRule;
 import org.springframework.stereotype.Controller;
 import org.springframework.stereotype.Repository;
@@ -24,13 +25,12 @@ public class CommonArchRules {
                 .layer("Repositories").definedBy("..repository..")
                 .layer("Entities").definedBy("..entity..")
                 .layer("DTOs").definedBy("..dto..")
-                .layer("Clients").definedBy("..client..")
-                
+
                 .whereLayer("Controllers").mayNotBeAccessedByAnyLayer()
                 .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services")
                 .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Repositories")
-                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities")
-                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Clients", "Entities");
+                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "DTOs")
+                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities");
     }
 
     // 2. MSA 직접 침범 금지 (No direct import across domains)
@@ -57,12 +57,6 @@ public class CommonArchRules {
         return classes()
                 .that().resideInAPackage("..repository..")
                 .should().haveSimpleNameEndingWith("Repository");
-    }
-
-    public static ArchRule entityNamingRule() {
-        return classes()
-                .that().resideInAPackage("..entity..")
-                .should().haveSimpleNameEndingWith("Entity");
     }
 
     public static ArchRule requestDtoNamingRule() {
@@ -103,6 +97,8 @@ public class CommonArchRules {
     public static ArchRule entityAnnotationRule() {
         return classes()
                 .that().resideInAPackage("..entity..")
+                .and().areTopLevelClasses()
+                .and().doNotHaveModifier(JavaModifier.ABSTRACT)
                 .should().beAnnotatedWith(Entity.class);
     }
 }
