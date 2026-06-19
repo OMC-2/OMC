@@ -1,4 +1,4 @@
-package com.omc.user;
+package com.omc.user.arch;
 
 import com.omc.arch.CommonArchRules;
 import com.tngtech.archunit.core.importer.ImportOption;
