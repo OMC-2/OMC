@@ -3,9 +3,10 @@
 -- ========================
 CREATE TABLE p_payments (
     payment_id         UUID         NOT NULL DEFAULT gen_random_uuid(),
-    order_id           UUID,
-    user_id            UUID         NOT NULL,
+    order_id           UUID         NOT NULL,
     entry_id           UUID,
+    coupon_id          UUID,
+    user_id            UUID         NOT NULL,
     sales_type         VARCHAR(20)  NOT NULL,
     original_amount    BIGINT       NOT NULL,
     discount_amount    BIGINT,
@@ -32,9 +33,5 @@ CREATE TABLE p_payments (
     deleted_by         UUID,
     PRIMARY KEY (payment_id),
     CONSTRAINT uk_payments_order_id UNIQUE (order_id),
-    CONSTRAINT uk_payments_entry_id UNIQUE (entry_id),
-    CONSTRAINT chk_payments_reference_id CHECK (
-        (sales_type = 'DROP' AND order_id IS NOT NULL AND entry_id IS NULL) OR
-        (sales_type = 'RAFFLE' AND order_id IS NULL AND entry_id IS NOT NULL)
-    )
+    CONSTRAINT uk_payments_entry_id UNIQUE (entry_id)
 );
