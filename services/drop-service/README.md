@@ -196,9 +196,11 @@ processed_events (
 
 | 토픽 | 처리 | 멱등 |
 | --- | --- | --- |
-| `payment.completed` | hold 확정 제거 (ZREM) | ZREM 자체가 멱등 |
-| `payment.failed` | **즉시** ZREM + INCR + SREM 복구 (Lua) — TTL 대기 없이 재고 즉시 반환 | `processed_events` 필수 — INCR은 멱등이 아님 |
+| `payment.completed` | ① `salesType != INSTANT` 스킵 ② ZREM holds → 반환값 1=정상·0=LATE_PAYMENT ③ ZREM=0이면 `refund.requested` 발행 | ZREM 자체가 멱등 |
+| `payment.failed` | ① `salesType != INSTANT` 스킵 ② **즉시** ZREM + INCR + SREM 복구 (Lua) — TTL 대기 없이 재고 즉시 반환 | `processed_events` 필수 — INCR은 멱등이 아님 |
 | `stock.failed` | 동일 복구 Lua (ZREM + INCR + SREM) — payment, order와 병렬 구독 | `processed_events` 필수 |
+
+> `dropId` 전달 경로: `purchase.confirmed`(drop) → `order.created`(order) → `payment.completed` / `payment.failed`(payment) → drop 복구. RAFFLE은 `dropId`가 null이나 `salesType` 분기로 스킵.
 
 ---
 
