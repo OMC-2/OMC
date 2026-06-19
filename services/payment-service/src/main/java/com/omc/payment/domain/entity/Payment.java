@@ -90,6 +90,7 @@ public class Payment extends BaseEntity {
     private String failureMessage;
 
     @Column(name = "cancellation_code")
+    @Enumerated(EnumType.STRING)
     private CancellationCode cancellationCode;
 
     @Column(name = "cancelled_message")
