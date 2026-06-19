@@ -36,7 +36,7 @@ OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으�
 
 ```
 ① product-service 재고 스냅샷 조회
-② Redis 워밍 (stock SET, status 플래그)
+② Redis 워밍 (stock SETNX, status SETNX — 키 없을 때만 세팅, 멀티 인스턴스 재고 초기화 방지)
 ③ 조건부 UPDATE (WHERE status='SCHEDULED')  ← 인스턴스가 여러 대여도 전이는 1회
 ④ drop.opened 발행
 ```
