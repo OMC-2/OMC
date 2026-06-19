@@ -51,7 +51,7 @@ class DropAdminServiceTest {
     void setUpSecurityContext() {
         var auth = new UsernamePasswordAuthenticationToken(
                 new CustomUserDetails(
-                        adminId.toString(), "admin", "ADMIN", "APPROVED",
+                        adminId.toString(), "admin", "ADMIN",
                         List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
                 ),
                 null,
