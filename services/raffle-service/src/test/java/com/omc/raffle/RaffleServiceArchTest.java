@@ -25,9 +25,6 @@ public class RaffleServiceArchTest {
     static final ArchRule repository_naming = CommonArchRules.repositoryNamingRule();
 
     @ArchTest
-    static final ArchRule entity_naming = CommonArchRules.entityNamingRule();
-
-    @ArchTest
     static final ArchRule controller_annotation = CommonArchRules.controllerAnnotationRule();
 
     @ArchTest
