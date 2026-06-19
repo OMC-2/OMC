@@ -19,3 +19,6 @@ spring:
     default-schema: payment_db
   kafka:
     bootstrap-servers: ${KAFKA_URI}
+
+gateway:
+  secret: ${GATEWAY_SECRET}
