@@ -37,16 +37,22 @@ curl http://localhost:8080/actuator/health
 
 ## 실행 방법
 
+`e2e/run.sh`를 사용한다. 환경변수 설정과 대상 지정을 자동으로 처리해준다.
+
 ### 전체 실행
 
 ```bash
-GATEWAY_SECRET=xxx ADMIN_SECRET=yyy ./gradlew :e2e:test -PrunE2E
+bash e2e/run.sh
 ```
 
-### 특정 feature만 실행
+### 특정 대상만 실행
 
 ```bash
-GATEWAY_SECRET=xxx ./gradlew :e2e:test -PrunE2E -Dkarate.options="classpath:user/signup.feature"
+bash e2e/run.sh user              # user/ 폴더 전체
+bash e2e/run.sh user/signup       # 회원가입 시나리오만
+bash e2e/run.sh user/login        # 로그인 시나리오만
+bash e2e/run.sh user/profile      # 프로필 조회 시나리오만
+bash e2e/run.sh saga              # saga/ 폴더 전체
 ```
 
 ---
