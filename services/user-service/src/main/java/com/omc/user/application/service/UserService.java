@@ -2,7 +2,7 @@ package com.omc.user.application.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
-import com.omc.user.domain.entity.UserEntity;
+import com.omc.user.domain.entity.User;
 import com.omc.user.domain.exception.UserAlreadyExistsException;
 import com.omc.user.domain.exception.UserNotFoundException;
 import com.omc.user.domain.repository.UserRepository;
@@ -39,8 +39,8 @@ public class UserService {
         );
 
         try {
-            UserEntity user = userRepository.save(
-                    UserEntity.create(keycloakUserId, request.email(), request.nickname(), request.slackId())
+            User user = userRepository.save(
+                    User.create(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
             return new SignupResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getRole().name());
         } catch (Exception e) {
@@ -61,8 +61,8 @@ public class UserService {
         );
 
         try {
-            UserEntity user = userRepository.save(
-                    UserEntity.createAdmin(keycloakUserId, request.email(), request.nickname(), request.slackId())
+            User user = userRepository.save(
+                    User.createAdmin(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
             return new SignupResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getRole().name());
         } catch (Exception e) {
@@ -79,7 +79,7 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(UUID keycloakId) {
-        UserEntity user = userRepository.findByKeycloakId(keycloakId.toString())
+        User user = userRepository.findByKeycloakId(keycloakId.toString())
                 .orElseThrow(UserNotFoundException::new);
         return new UserProfileResponse(
                 user.getUserId(), user.getEmail(), user.getNickname(),
