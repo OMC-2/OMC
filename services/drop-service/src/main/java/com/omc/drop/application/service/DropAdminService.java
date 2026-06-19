@@ -8,11 +8,13 @@ import com.omc.drop.presentation.dto.request.DropCreateRequest;
 import com.omc.drop.presentation.dto.request.DropUpdateRequest;
 import com.omc.drop.presentation.dto.response.DropAdminResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DropAdminService {
@@ -22,7 +24,10 @@ public class DropAdminService {
     @Transactional
     public DropAdminResponse create(DropCreateRequest request) {
         Drop drop = createDrop(request);
-        return DropAdminResponse.from(dropRepository.save(drop));
+        DropAdminResponse response = DropAdminResponse.from(dropRepository.save(drop));
+        log.info("드롭 생성 완료: dropId={}, productId={}, startAt={}, endAt={}",
+                response.dropId(), response.productId(), response.startAt(), response.endAt());
+        return response;
     }
 
     @Transactional
@@ -31,6 +36,8 @@ public class DropAdminService {
 
         Drop drop = dropRepository.getByIdOrThrow(dropId);
         drop.update(request.startAt(), request.endAt(), request.totalQty(), request.holdTtlSec());
+        log.info("드롭 수정 완료: dropId={}, startAt={}, endAt={}, totalQty={}",
+                dropId, request.startAt(), request.endAt(), request.totalQty());
         return DropAdminResponse.from(drop);
     }
 
@@ -41,6 +48,7 @@ public class DropAdminService {
                 .orElseThrow(UnauthorizedException::new);
         Drop drop = dropRepository.getByIdOrThrow(dropId);
         drop.delete(deletedBy);
+        log.info("드롭 삭제 완료: dropId={}, deletedBy={}", dropId, deletedBy);
     }
 
     private Drop createDrop(DropCreateRequest request) {
