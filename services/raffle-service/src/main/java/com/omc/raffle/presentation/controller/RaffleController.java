@@ -13,6 +13,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+/**
+ * 외부 클라이언트(웹/앱)의 래플 도메인 관련 요청을 처리하는 Presentation 계층 Controller.
+ * 래플 응모(결제 연동 포함) 등의 진입점 역할을 합니다.
+ */
 @RestController
 @RequestMapping("/api/v1/raffles")
 @RequiredArgsConstructor
@@ -31,7 +35,14 @@ public class RaffleController {
             @RequestBody @Valid RaffleEnterRequest request) {
         
         // Controller DTO -> Application DTO 변환 및 userId 주입
-        RaffleApplyRequest appRequest = new RaffleApplyRequest(userId, request.billingKeyId());
+        RaffleApplyRequest appRequest = new RaffleApplyRequest(
+                userId, 
+                request.billingKeyId(),
+                request.couponId(),
+                request.originalAmount(),
+                request.discountAmount(),
+                request.finalAmount()
+        );
         
         RaffleApplyResponse response = raffleAppService.apply(raffleId, appRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(response));
