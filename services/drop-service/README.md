@@ -36,7 +36,11 @@ OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으�
 
 ```
 ① product-service 재고 스냅샷 조회
-② Redis 워밍 (stock SETNX, status SETNX — 키 없을 때만 세팅, 멀티 인스턴스 재고 초기화 방지)
+② Redis 워밍 (SETNX — 키 없을 때만 세팅, 멀티 인스턴스 재고 초기화 방지)
+   stock:{dropId}      = totalQty
+   drop:{dropId}:status = "OPEN"
+   hold_ttl:{dropId}   = holdTtlSec   ← 진입 경로 DB 무접촉을 위한 캐싱
+   product_id:{dropId} = productId    ← purchase.confirmed 이벤트 조립용 캐싱
 ③ 조건부 UPDATE (WHERE status='SCHEDULED')  ← 인스턴스가 여러 대여도 전이는 1회
 ④ drop.opened 발행
 ```
@@ -52,10 +56,11 @@ sequenceDiagram
     participant K as Kafka
 
     U->>D: POST /drops/{id}/purchase
-    D->>R: ① OPEN 플래그 검사 (fail-fast, DB 무접촉)
-    D->>R: ② Lua 원자 처리 (중복·재고·hold·순번)
+    D->>R: ① OPEN 플래그 검사 (fail-fast)
+    D->>R: ② holdTtlSec·productId 조회 (워밍 캐시, DB 무접촉)
+    D->>R: ③ Lua 원자 처리 (중복·재고·hold·순번)
     alt OK
-        D->>Q: ③ 이벤트 인메모리 큐에 적재
+        D->>Q: ④ 이벤트 인메모리 큐에 적재
         D-->>U: 202 Accepted (orderId, queueNumber)
         Note over Q,K: 워커 스레드가 큐에서 꺼내 Kafka 발행 (재시도 N회)
         Q->>K: purchase.confirmed 발행 (key=orderId)
@@ -89,8 +94,8 @@ sequenceDiagram
 | POST | `/admin/drops` | ADMIN | 드롭 생성 (선착순 INSTANT 전용) | 201 |
 | PUT | `/admin/drops/{dropId}` | ADMIN | 수정 — `SCHEDULED` 상태에서만 | 200 |
 | DELETE | `/admin/drops/{dropId}` | ADMIN | 삭제 — `SCHEDULED` 상태에서만 (소프트딜리트) | 204 |
-| GET | `/drops?status=&page=` | USER | 목록 (Look-aside 캐싱) | 200 |
-| GET | `/drops/{dropId}` | USER | 상세 — 잔여 수량은 Redis 카운터로 응답 | 200 |
+| GET | `/drops?status=&page=` | GUEST | 목록 (Look-aside 캐싱) | 200 |
+| GET | `/drops/{dropId}` | GUEST | 상세 — 잔여 수량은 Redis 카운터로 응답 | 200 |
 | POST | `/drops/{dropId}/purchase` | USER | **선착순 진입 (부하 테스트 대상)** | 202 |
 | GET | `/drops/{dropId}/purchase/me` | USER | 내 접수 상태·대기 순번 (P2) | 200 |
 
@@ -138,11 +143,13 @@ processed_events (
 
 | 키 | 타입 | 용도 | 생성 / 소멸 |
 | --- | --- | --- | --- |
-| `stock:{dropId}` | String | 남은 수량 카운터 | 워밍 SET / 정산 후 DEL |
+| `stock:{dropId}` | String | 남은 수량 카운터 | 워밍 SETNX / 정산 후 DEL |
 | `purchased:{dropId}` | Set | 1인 1구매 차단 (userId) | Lua SADD / 정산 후 DEL |
 | `holds:{dropId}` | ZSet | orderId → 만료 epoch | Lua ZADD / 결제·만료 시 ZREM |
 | `queue:{dropId}` | String | 접수 순번 카운터 | Lua INCR / 정산 후 DEL |
-| `drop:{dropId}:status` | String | OPEN 플래그 (fail-fast) | 전이 시 SET |
+| `drop:{dropId}:status` | String | OPEN 플래그 (fail-fast) | 전이 시 SETNX / 종료 시 즉시 DEL |
+| `hold_ttl:{dropId}` | String | 선점 유지 시간(초) 캐시 | 워밍 SETNX / 정산 후 DEL |
+| `product_id:{dropId}` | String | productId 캐시 (이벤트 조립용) | 워밍 SETNX / 정산 후 DEL |
 
 ---
 
@@ -179,7 +186,7 @@ processed_events (
 | --- | --- | --- | --- |
 | `drop.opened` | dropId (1) | 상태 전이 SCHEDULED → OPEN | `eventId`, `dropId`, `startAt`, `endAt`, `totalQty` |
 | `drop.closed` | dropId (1) | 상태 전이 OPEN → CLOSED | `eventId`, `dropId` |
-| `purchase.confirmed` | **orderId (3)** | 선점 성공 → 주문 생성 트리거 | `eventId`, `orderId`, `dropId`, `userId`, `productId` |
+| `purchase.confirmed` | **orderId (3)** | 선점 성공 → 주문 생성 트리거 | `eventId`, `orderId`, `dropId`, `userId`, `productId`, `holdExpiresAt` |
 | `hold.expired` | orderId (1) | TTL 만료 → 주문 취소 트리거 | `eventId`, `orderId`, `dropId`, `userId` |
 | `refund.requested` | orderId (1) | ZREM=0 감지 (만료 후 결제) → 자동 환불 트리거 | `eventId`, `orderId`, `userId`, `reason` |
 
