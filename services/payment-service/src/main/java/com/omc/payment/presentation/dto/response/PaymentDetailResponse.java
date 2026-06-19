@@ -1,0 +1,59 @@
+package com.omc.payment.presentation.dto.response;
+
+import com.omc.payment.domain.entity.Payment;
+import com.omc.payment.domain.enums.*;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public record PaymentDetailResponse(
+        UUID paymentId,
+        UUID orderId,
+        UUID entryId,
+        UUID couponId,
+        UUID userId,
+        SalesType salesType,
+        Long originalAmount,
+        Long discountAmount,
+        Long finalAmount,
+        Provider provider,
+        String providerPaymentId,
+        PaymentMethod paymentMethod,
+        PaymentStatus paymentStatus,
+        String failureCode,
+        String failureMessage,
+        CancellationCode cancellationCode,
+        String cancelledMessage,
+        LocalDateTime requestedAt,
+        LocalDateTime approvedAt,
+        LocalDateTime failedAt,
+        LocalDateTime canceledAt,
+        LocalDateTime refundedAt
+) {
+    public static PaymentDetailResponse from(Payment payment) {
+        return new PaymentDetailResponse(
+                payment.getPaymentId(),
+                payment.getOrderId(),
+                payment.getEntryId(),
+                payment.getCouponId(),
+                payment.getUserId(),
+                payment.getSalesType(),
+                payment.getOriginalAmount(),
+                payment.getDiscountAmount(),
+                payment.getFinalAmount(),
+                payment.getProvider(),
+                payment.getProviderPaymentId(),
+                payment.getPaymentMethod(),
+                payment.getPaymentStatus(),
+                payment.getFailureCode(),
+                payment.getFailureMessage(),
+                payment.getCancellationCode(),
+                payment.getCancelledMessage(),
+                payment.getRequestedAt(),
+                payment.getApprovedAt(),
+                payment.getFailedAt(),
+                payment.getCanceledAt(),
+                payment.getRefundedAt()
+        );
+    }
+}
