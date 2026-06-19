@@ -14,7 +14,7 @@ import java.util.UUID;
 @Table(name = "p_users", schema = "user_db")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class UserEntity {
+public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -41,7 +41,7 @@ public class UserEntity {
     private LocalDateTime createdAt;
 
     @Builder
-    private UserEntity(String keycloakId, String email, String nickname, UserRole role, String slackId) {
+    private User(String keycloakId, String email, String nickname, UserRole role, String slackId) {
         this.keycloakId = keycloakId;
         this.email = email;
         this.nickname = nickname;
@@ -54,8 +54,8 @@ public class UserEntity {
         createdAt = LocalDateTime.now();
     }
 
-    public static UserEntity create(String keycloakId, String email, String nickname, String slackId) {
-        return UserEntity.builder()
+    public static User create(String keycloakId, String email, String nickname, String slackId) {
+        return User.builder()
                 .keycloakId(keycloakId)
                 .email(email)
                 .nickname(nickname)
@@ -64,8 +64,8 @@ public class UserEntity {
                 .build();
     }
 
-    public static UserEntity createAdmin(String keycloakId, String email, String nickname, String slackId) {
-        return UserEntity.builder()
+    public static User createAdmin(String keycloakId, String email, String nickname, String slackId) {
+        return User.builder()
                 .keycloakId(keycloakId)
                 .email(email)
                 .nickname(nickname)
