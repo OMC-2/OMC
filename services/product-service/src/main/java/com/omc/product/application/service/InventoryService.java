@@ -2,7 +2,7 @@ package com.omc.product.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.product.application.event.dto.PaymentCompletedRequest;
+import com.omc.product.application.event.dto.request.PaymentCompletedRequest;
 import com.omc.product.domain.entity.FailedEventLog;
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.entity.OutboxEvent;

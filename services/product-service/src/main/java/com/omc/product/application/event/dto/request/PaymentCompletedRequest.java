@@ -1,4 +1,4 @@
-package com.omc.product.application.event.dto;
+package com.omc.product.application.event.dto.request;
 
 import java.util.UUID;
 

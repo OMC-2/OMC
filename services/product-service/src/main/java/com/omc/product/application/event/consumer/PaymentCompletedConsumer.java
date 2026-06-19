@@ -1,6 +1,6 @@
 package com.omc.product.application.event.consumer;
 
-import com.omc.product.application.event.dto.PaymentCompletedRequest;
+import com.omc.product.application.event.dto.request.PaymentCompletedRequest;
 import com.omc.product.application.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
