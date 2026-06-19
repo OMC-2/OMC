@@ -1,8 +1,9 @@
 package com.omc.drop.presentation.controller;
 
+import com.omc.common.exception.UnauthorizedException;
 import com.omc.common.response.ApiResponse;
 import com.omc.common.response.PageResponse;
-import com.omc.common.security.CustomUserDetails;
+import com.omc.common.security.SecurityUtil;
 import com.omc.drop.application.service.DropQueryService;
 import com.omc.drop.application.service.PurchaseService;
 import com.omc.drop.domain.enums.DropStatus;
@@ -16,7 +17,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -49,11 +49,8 @@ public class DropController {
 
     @Operation(summary = "드롭 구매 선점", description = "OPEN 상태의 드롭에 선착순으로 진입합니다. 성공 시 orderId와 대기 순번을 반환합니다.")
     @PostMapping("/{dropId}/purchase")
-    public ResponseEntity<ApiResponse<PurchaseResponse>> purchase(
-            @PathVariable UUID dropId,
-            @AuthenticationPrincipal CustomUserDetails userDetails
-    ) {
-        UUID userId = UUID.fromString(userDetails.getUserId());
+    public ResponseEntity<ApiResponse<PurchaseResponse>> purchase(@PathVariable UUID dropId) {
+        UUID userId = SecurityUtil.getCurrentUserId().orElseThrow(UnauthorizedException::new);
         PurchaseResponse response = purchaseService.purchase(dropId, userId);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(response));
     }
