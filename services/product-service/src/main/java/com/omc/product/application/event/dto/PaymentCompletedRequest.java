@@ -1,8 +1,8 @@
-package com.omc.product.application.event.consumer;
+package com.omc.product.application.event.dto;
 
 import java.util.UUID;
 
-public record PaymentCompletedEvent(
+public record PaymentCompletedRequest(
         String eventId,     // 멱등성 키
         UUID orderId,
         UUID productId,

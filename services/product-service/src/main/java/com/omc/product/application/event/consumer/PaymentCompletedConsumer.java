@@ -1,5 +1,6 @@
 package com.omc.product.application.event.consumer;
 
+import com.omc.product.application.event.dto.PaymentCompletedRequest;
 import com.omc.product.application.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +23,7 @@ public class PaymentCompletedConsumer {
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void handlePaymentCompleted(
-            @Payload PaymentCompletedEvent event,
+            @Payload PaymentCompletedRequest event,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.OFFSET) long offset
     ) {

@@ -2,7 +2,7 @@ package com.omc.product.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.product.application.event.consumer.PaymentCompletedEvent;
+import com.omc.product.application.event.dto.PaymentCompletedRequest;
 import com.omc.product.domain.entity.FailedEventLog;
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.entity.OutboxEvent;
@@ -39,7 +39,7 @@ public class InventoryService {
 
     // 재고 확정 차감 (payment.completed 이벤트 수신 시 호출)
     @Transactional
-    public void confirmDeduct(PaymentCompletedEvent event) {
+    public void confirmDeduct(PaymentCompletedRequest event) {
         // 1. 멱등성 확인
         if (processedEventRepository.existsByEventId(event.eventId())) {
             log.info("[InventoryService] 이미 처리된 이벤트 스킵. eventId={}", event.eventId());
@@ -113,7 +113,7 @@ public class InventoryService {
         );
     }
 
-    private String buildPayload(PaymentCompletedEvent event) {
+    private String buildPayload(PaymentCompletedRequest event) {
         return toJson(event);
     }
 
