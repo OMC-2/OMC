@@ -8,14 +8,11 @@ public record RaffleApplyResponse(
         UUID entryId,
         UUID raffleId,
         UUID userId,
+        UUID billingKeyId,
+        UUID couponId,
+        java.math.BigDecimal originalAmount,
+        java.math.BigDecimal discountAmount,
+        java.math.BigDecimal finalAmount,
         LocalDateTime enteredAt
 ) {
-    public static RaffleApplyResponse from(RaffleEntry entry) {
-        return new RaffleApplyResponse(
-                entry.getId(),
-                entry.getRaffleId(),
-                entry.getUserId(),
-                entry.getEnteredAt()
-        );
-    }
 }
