@@ -15,6 +15,11 @@ spring:
           predicates:
             - Path=/api/v1/products/**
 
+        - id: drop-service-admin
+          uri: lb://drop-service
+          predicates:
+            - Path=/api/v1/admin/drops/**
+
         - id: drop-service
           uri: lb://drop-service
           predicates:

@@ -1,4 +1,4 @@
-package com.omc.drop.domain.vo;
+package com.omc.drop.domain.enums;
 
 public enum DropStatus {
     SCHEDULED,
