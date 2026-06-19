@@ -88,7 +88,7 @@ sequenceDiagram
 | --- | --- | --- | --- | --- |
 | POST | `/admin/drops` | ADMIN | 드롭 생성 (선착순 INSTANT 전용) | 201 |
 | PUT | `/admin/drops/{dropId}` | ADMIN | 수정 — `SCHEDULED` 상태에서만 | 200 |
-| DELETE | `/admin/drops/{dropId}` | ADMIN | 삭제 — `SCHEDULED` 상태에서만 | 204 |
+| DELETE | `/admin/drops/{dropId}` | ADMIN | 삭제 — `SCHEDULED` 상태에서만 (소프트딜리트) | 204 |
 | GET | `/drops?status=&page=` | USER | 목록 (Look-aside 캐싱) | 200 |
 | GET | `/drops/{dropId}` | USER | 상세 — 잔여 수량은 Redis 카운터로 응답 | 200 |
 | POST | `/drops/{dropId}/purchase` | USER | **선착순 진입 (부하 테스트 대상)** | 202 |
@@ -112,9 +112,11 @@ drops (
   total_qty    INT          NOT NULL,
   hold_ttl_sec INT          NOT NULL DEFAULT 600,  -- 선점 유지 시간 (기본 10분)
   created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
-  created_by   VARCHAR(100) NOT NULL,
+  created_by   UUID         NOT NULL,  -- 생성자 userId
   updated_at   TIMESTAMPTZ,
-  updated_by   VARCHAR(100),
+  updated_by   UUID,                   -- 수정자 userId
+  deleted_at   TIMESTAMPTZ,            -- 소프트딜리트 일시 (NULL = 정상)
+  deleted_by   UUID,                   -- 소프트딜리트 처리자 userId
 
   CONSTRAINT pk_drops          PRIMARY KEY (drop_id),
   CONSTRAINT chk_drops_status  CHECK (status IN ('SCHEDULED', 'OPEN', 'CLOSED')),
@@ -123,6 +125,7 @@ drops (
 )
 -- INDEX (status, start_at), (status, end_at) : 스케줄러 폴링용
 -- 래플은 raffle-service의 p_raffles 테이블로 완전 분리
+-- BaseEntity 상속 + @SQLRestriction("deleted_at IS NULL"): JPA 쿼리에서 소프트딜리트 행 자동 제외
 
 processed_events (
   event_id     VARCHAR(100) PK,  -- Consumer 멱등
