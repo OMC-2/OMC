@@ -18,6 +18,9 @@ public class PurchaseRedisRepository {
     private static final RedisScript<Long> PURCHASE_SCRIPT =
             RedisScript.of(new ClassPathResource("scripts/purchase.lua"), Long.class);
 
+    private static final RedisScript<Long> RECOVERY_SCRIPT =
+            RedisScript.of(new ClassPathResource("scripts/recovery.lua"), Long.class);
+
     private static final int DEFAULT_HOLD_TTL_SEC = 600;
 
     public void warmup(UUID dropId, int totalQty, int holdTtlSec, UUID productId) {
@@ -56,6 +59,19 @@ public class PurchaseRedisRepository {
         );
         return redisTemplate.execute(PURCHASE_SCRIPT, keys,
                 userId.toString(), orderId.toString(), String.valueOf(holdTtlSec));
+    }
+
+    // 반환값: 1 = 정상 제거, 0 = 이미 없음 (LATE_PAYMENT)
+    public long removeHold(UUID dropId, UUID orderId) {
+        Long result = redisTemplate.opsForZSet().remove(holdsKey(dropId), orderId.toString());
+        return result != null ? result : 0L;
+    }
+
+    // 반환값: 1 = 복구 완료, 0 = hold 없음 (이미 처리됨)
+    public long recoverStock(UUID dropId, UUID orderId, UUID userId) {
+        List<String> keys = List.of(holdsKey(dropId), stockKey(dropId), purchasedKey(dropId));
+        Long result = redisTemplate.execute(RECOVERY_SCRIPT, keys, orderId.toString(), userId.toString());
+        return result != null ? result : 0L;
     }
 
     private static String statusKey(UUID dropId)    { return "drop:" + dropId + ":status"; }
