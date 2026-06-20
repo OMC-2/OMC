@@ -7,6 +7,7 @@ import com.omc.drop.domain.repository.DropProcessedEventRepository;
 import com.omc.drop.infrastructure.kafka.event.PaymentCompletedEvent;
 import com.omc.drop.infrastructure.kafka.event.PaymentFailedEvent;
 import com.omc.drop.infrastructure.kafka.event.StockFailedEvent;
+import com.omc.drop.infrastructure.kafka.exception.EventProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -35,7 +36,7 @@ public class DropEventConsumer {
 
         } catch (Exception e) {
             log.error("payment.completed 처리 실패. message={}", message, e);
-            throw new RuntimeException(e);
+            throw new EventProcessingException("payment.completed", e);
         }
     }
 
@@ -51,7 +52,7 @@ public class DropEventConsumer {
 
         } catch (Exception e) {
             log.error("payment.failed 처리 실패. message={}", message, e);
-            throw new RuntimeException(e);
+            throw new EventProcessingException("payment.failed", e);
         }
     }
 
@@ -66,7 +67,7 @@ public class DropEventConsumer {
 
         } catch (Exception e) {
             log.error("stock.failed 처리 실패. message={}", message, e);
-            throw new RuntimeException(e);
+            throw new EventProcessingException("stock.failed", e);
         }
     }
 
