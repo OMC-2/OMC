@@ -36,9 +36,7 @@ public class OrderService {
         throw new IllegalStateException("상품 정보를 조회할 수 없습니다. productId=" + payload.productId());
       }
 
-      Long originalAmount = productResponse.getData().price();
-      //TODO:  Long discountAmount = couponService.calculate(payload.userId(), originalAmount);
-      Long finalAmount = originalAmount; //쿠폰 미적용 시 원가와 동일
+      Long finalAmount = productResponse.getData().price();
 
       //2. DB에 PENDING_PAYMENT 상태로 주문 엔티티 저장
       //Order order = Order.createDropOrder(payload.orderId(), payload.userId(), payload.productId(), originalAmount, finalAmount, payload.dropId());

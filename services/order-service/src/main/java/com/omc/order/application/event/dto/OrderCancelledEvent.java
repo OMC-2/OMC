@@ -1,7 +1,6 @@
 package com.omc.order.application.event.dto;
 
 import lombok.Builder;
-import org.springframework.retry.annotation.Recover;
 
 import java.util.UUID;
 
