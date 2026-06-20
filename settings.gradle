@@ -13,4 +13,5 @@ include 'services:order-service'
 include 'services:payment-service'
 include 'services:coupon-service'
 include 'services:notification-service'
+include 'e2e'
 

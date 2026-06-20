@@ -1,0 +1,33 @@
+spring:
+  config:
+    import: ""
+  cloud:
+    config:
+      enabled: false
+  datasource:
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    locations: classpath:db/test-migration
+
+eureka:
+  client:
+    enabled: false
+
+keycloak:
+  realm: omc
+  client-id: omc-client
+  admin-username: admin
+  admin-password: admin
+
+gateway:
+  secret: test-gateway-secret
+
+admin:
+  secret: test-admin-secret
