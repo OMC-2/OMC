@@ -1,12 +1,14 @@
-package com.omc.order.infrastructure.kafka.consumer;
+package com.omc.order.application.event.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.order.application.event.dto.PaymentFailedEvent;
+import com.omc.order.application.event.dto.PurchaseConfirmedEvent;
+import com.omc.order.application.event.dto.RaffleWinnerSelectedEvent;
+import com.omc.order.application.service.OrderService;
 import com.omc.order.domain.entity.ProcessedEvent;
 import com.omc.order.domain.repository.ProcessedEventRepository;
-import com.omc.order.infrastructure.kafka.dto.OrderKafkaPayload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,8 +20,7 @@ public class OrderEventConsumer {
 
   private final ObjectMapper objectMapper;
   private final ProcessedEventRepository processedEventRepository;
-
-  //private final OrderService orderService;
+  private final OrderService orderService;
 
   //[멱등성 검증] 이미 처리된 event_id인지 확인 후, 없다면 저장
   private boolean isAlreadyProcessed(String eventId, String topic){
@@ -32,11 +33,12 @@ public class OrderEventConsumer {
     return false;
   }
 
+  //1.래플 당첨 수신
   @KafkaListener(topics = "raffle.winner.selected", groupId = "order-service-group")
   @Transactional
   public void consumeRaffleWinnerSelected(String message) {
     try {
-      OrderKafkaPayload.RaffleWinnerSelected payload = objectMapper.readValue(message, OrderKafkaPayload.RaffleWinnerSelected.class);
+      RaffleWinnerSelectedEvent payload = objectMapper.readValue(message, RaffleWinnerSelectedEvent.class);
 
       //멱등성 방어 차단 로직
       if (isAlreadyProcessed(payload.eventId(), "raffle.winner.selected")) return;
@@ -49,32 +51,54 @@ public class OrderEventConsumer {
     }
   }
 
+  //2. 드롭 선점 수신
   @KafkaListener(topics = "purchase.confirmed", groupId = "order-service-group")
   @Transactional
   public void consumePurchaseConfirmed(String message) {
     try {
-      OrderKafkaPayload.PurchaseConfirmed payload = objectMapper.readValue(message, OrderKafkaPayload.PurchaseConfirmed.class);
+      PurchaseConfirmedEvent payload = objectMapper.readValue(message, PurchaseConfirmedEvent.class);
 
       if (isAlreadyProcessed(payload.eventId(), "purchase.confirmed")) return;
 
       log.info("[OrderConsumer] 드롭 선점 수신 -> PENDING 주문 생성 대기: Order Id = {}", payload.orderId());
-      //TODO: orderService.createdDropOrder(payload) 호출
+      //TODO: ProductFeignClient 로 상품 가격(originalAmount) 동기 조회
+      //TODO: orderService.createdDropOrder(payload, 조회된 가격) 호출
+
     } catch (Exception e){
       log.error("[OrderConsumer] purchase.confirmed 파싱/처리 실패", e);
+      throw new org.springframework.kafka.KafkaException("이벤트 처리 실패", e);
     }
   }
 
+  //3. 결제 완료 수신
   @KafkaListener(topics = "payment.completed", groupId = "order-service-group")
   @Transactional
   public void consumePaymentCompleted(String message) {
     try{
-      OrderKafkaPayload.PaymentCompleted payload = objectMapper.readValue(message,OrderKafkaPayload.PaymentCompleted.class);
-      if (isAlreadyProcessed(payload.eventId(), "payment.completed")) return;
-      log.info("[OrderConsumer] 결제 완료 수신 -> 주문 확정 로직 진입: Order Id = {}", payload.orderId());
+      //PaymentCompletedEvent payload = objectMapper.readValue(message,PaymentCompletedEvent.class);
+      //if (isAlreadyProcessed(payload.eventId(), "payment.completed")) return;
+      //log.info("[OrderConsumer] 결제 완료 수신 -> 주문 확정 로직 진입: Order Id = {}", payload.orderId());
       //TODO: orderService.confirmOrder(payload) 호출
     } catch (Exception e) {
         log.error("[OrderConsumer] payment.completed 파싱/처리 실패", e);
         throw new org.springframework.kafka.KafkaException("이벤트 처리 실패", e);
+    }
+  }
+
+  //4. 결제 실패 수신 (SAGA 롤백용)
+  @KafkaListener(topics = "payment.faild", groupId = "order-service-group")
+  @Transactional
+  public void consumePaymentFailed(String message) {
+    try{
+      PaymentFailedEvent payload = objectMapper.readValue(message, PaymentFailedEvent.class);
+
+      if (isAlreadyProcessed(payload.eventId(), "payment.faild")) return;
+
+      log.info("[OrderConsumer] 결제 실패 수신 -> 주문 취소 처리: Order Id = {}, 사유 = {}", payload.orderId(), payload.failureReason());
+      //TODO: orderService.cancelOrder(payload.orderId(), payload.failureReason()) 호출
+    } catch (Exception e) {
+      log.error("[OrderConsumer] payment.failed 파싱/처리 실패", e);
+      throw new org.springframework.kafka.KafkaException("이벤트 처리 실패", e);
     }
   }
 }
