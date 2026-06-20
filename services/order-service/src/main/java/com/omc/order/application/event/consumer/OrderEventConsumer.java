@@ -44,7 +44,9 @@ public class OrderEventConsumer {
       if (isAlreadyProcessed(payload.eventId(), "raffle.winner.selected")) return;
 
       log.info("[OrderConsumer] 래플 당첨 수신 -> PENDING 주문 생성 대기: Entry ID = {}", payload.entryId());
-      //TODO: orderService.createRaffleOrder(payload) 호출
+
+      orderService.createRaffleOrder(payload);
+
     } catch (Exception e){
       log.error("[OrderConsumer] raffle.winner.selected 파싱/처리 실패", e);
       throw new org.springframework.kafka.KafkaException("이벤트 처리 실패", e);
@@ -61,8 +63,8 @@ public class OrderEventConsumer {
       if (isAlreadyProcessed(payload.eventId(), "purchase.confirmed")) return;
 
       log.info("[OrderConsumer] 드롭 선점 수신 -> PENDING 주문 생성 대기: Order Id = {}", payload.orderId());
-      //TODO: ProductFeignClient 로 상품 가격(originalAmount) 동기 조회
-      //TODO: orderService.createdDropOrder(payload, 조회된 가격) 호출
+
+      orderService.createDropOrder(payload);
 
     } catch (Exception e){
       log.error("[OrderConsumer] purchase.confirmed 파싱/처리 실패", e);
@@ -75,6 +77,7 @@ public class OrderEventConsumer {
   @Transactional
   public void consumePaymentCompleted(String message) {
     try{
+      log.info("[OrderConsumer] 결제 완료 이벤트 수신 (현재 SAGA 구현 대기 중): {}", message);
       //PaymentCompletedEvent payload = objectMapper.readValue(message,PaymentCompletedEvent.class);
       //if (isAlreadyProcessed(payload.eventId(), "payment.completed")) return;
       //log.info("[OrderConsumer] 결제 완료 수신 -> 주문 확정 로직 진입: Order Id = {}", payload.orderId());
@@ -92,10 +95,12 @@ public class OrderEventConsumer {
     try{
       PaymentFailedEvent payload = objectMapper.readValue(message, PaymentFailedEvent.class);
 
-      if (isAlreadyProcessed(payload.eventId(), "payment.faild")) return;
+      if (isAlreadyProcessed(payload.eventId(), "payment.failed")) return;
 
       log.info("[OrderConsumer] 결제 실패 수신 -> 주문 취소 처리: Order Id = {}, 사유 = {}", payload.orderId(), payload.failureReason());
-      //TODO: orderService.cancelOrder(payload.orderId(), payload.failureReason()) 호출
+
+      orderService.cancelOrder(payload.orderId(), payload.failureReason());
+
     } catch (Exception e) {
       log.error("[OrderConsumer] payment.failed 파싱/처리 실패", e);
       throw new org.springframework.kafka.KafkaException("이벤트 처리 실패", e);
