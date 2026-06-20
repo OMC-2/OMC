@@ -112,9 +112,6 @@ public class Payment extends BaseEntity {
     @Column(name = "canceled_at")
     private LocalDateTime canceledAt;
 
-    @Column(name = "refunded_at")
-    private LocalDateTime refundedAt;
-
     public static Payment create(
             UUID orderId,
             UUID entryId,
@@ -188,20 +185,12 @@ public class Payment extends BaseEntity {
         transitTo(PaymentStatus.UNKNOWN);
     }
 
-    // 결제 취소 이벤트 반영
+    // 결제 취소 또는 환불 이벤트 반영
     public void cancel(CancellationCode cancellationCode, String cancelledMessage) {
         transitTo(PaymentStatus.CANCELED);
         this.cancellationCode = cancellationCode;
         this.cancelledMessage = cancelledMessage;
         this.canceledAt = LocalDateTime.now();
-    }
-
-    // 환불 완료 이벤트 반영
-    public void refund(CancellationCode cancellationCode, String cancelledMessage) {
-        this.cancellationCode = cancellationCode;
-        this.cancelledMessage = cancelledMessage;
-        transitTo(PaymentStatus.REFUNDED);
-        this.refundedAt = LocalDateTime.now();
     }
 
     private void transitTo(PaymentStatus targetStatus) {
@@ -237,8 +226,7 @@ public class Payment extends BaseEntity {
             LocalDateTime requestedAt,
             LocalDateTime approvedAt,
             LocalDateTime failedAt,
-            LocalDateTime canceledAt,
-            LocalDateTime refundedAt
+            LocalDateTime canceledAt
     ) {
         this.paymentId = paymentId;
         this.orderId = orderId;
@@ -262,6 +250,5 @@ public class Payment extends BaseEntity {
         this.approvedAt = approvedAt;
         this.failedAt = failedAt;
         this.canceledAt = canceledAt;
-        this.refundedAt = refundedAt;
     }
 }

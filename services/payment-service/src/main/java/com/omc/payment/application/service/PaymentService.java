@@ -49,9 +49,9 @@ public class PaymentService {
                     throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
                 }
 
-                payment.refund(CancellationCode.USER_CANCEL, request.cancelReason());
+                payment.cancel(CancellationCode.USER_CANCEL, request.cancelReason());
                 /*
-                 * TODO PG 환불 연동 구현
+                 * TODO PG 취소 연동 구현
                  */
                 return PaymentResponse.from(payment);
             }
@@ -66,7 +66,6 @@ public class PaymentService {
                 .map(PaymentDetailResponse::from);
         return new PageResponse<>(page);
     }
-
 
     public PageResponse<PaymentDetailResponse> getPayments(Pageable pageable) {
         Pageable validatedPageable = PageableUtil.validatePageSize(pageable);
