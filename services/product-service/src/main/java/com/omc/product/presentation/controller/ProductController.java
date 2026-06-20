@@ -7,6 +7,8 @@ import com.omc.product.presentation.dto.request.ProductCreateRequest;
 import com.omc.product.presentation.dto.request.ProductUpdateRequest;
 import com.omc.product.presentation.dto.response.ProductResponse;
 import com.omc.product.presentation.dto.response.ProductSummaryResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+@Tag(name = "Product", description = "상품 조회")
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
@@ -26,15 +29,7 @@ public class ProductController {
 
     private final ProductService productService;
 
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
-            @Valid @RequestBody ProductCreateRequest request
-    ) {
-        ProductResponse response = productService.createProduct(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(response));
-    }
-
+    @Operation(summary = "상품 목록 조회", description = "카테고리/브랜드/키워드로 필터링하여 상품 목록을 조회합니다.")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ProductSummaryResponse>>> getProducts(
             @RequestParam(required = false) String category,
@@ -46,29 +41,10 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success(new PageResponse<>(response)));
     }
 
+    @Operation(summary = "상품 상세 조회", description = "상품 ID로 상품 상세 정보를 조회합니다.")
     @GetMapping("/{productId}")
     public ResponseEntity<ApiResponse<ProductResponse>> getProduct(@PathVariable UUID productId) {
         ProductResponse response = productService.getProduct(productId);
         return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    @PatchMapping("/{productId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
-            @PathVariable UUID productId,
-            @Valid @RequestBody ProductUpdateRequest request
-    ) {
-        ProductResponse response = productService.updateProduct(productId, request);
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
-
-    @DeleteMapping("/{productId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deleteProduct(
-            @PathVariable UUID productId,
-            @RequestHeader("X-User-Id") UUID userId
-    ) {
-        productService.deleteProduct(productId, userId);
-        return ResponseEntity.ok(ApiResponse.ok());
     }
 }
