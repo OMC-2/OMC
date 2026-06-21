@@ -14,8 +14,8 @@ public class TossPaymentsConfig {
     * */
     @Bean
     public RestClient tossPaymentRestClient(
-            @Value("${payment.toss.base-url") String baseUrl,
-            @Value("${payment.toss.secret-key") String secretKey
+            @Value("${payment.toss.base-url}") String baseUrl,
+            @Value("${payment.toss.secret-key}") String secretKey
     ) {
         return RestClient.builder()
                 .baseUrl(baseUrl)

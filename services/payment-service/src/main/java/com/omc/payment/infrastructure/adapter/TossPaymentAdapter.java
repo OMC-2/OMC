@@ -1,8 +1,8 @@
 package com.omc.payment.infrastructure.adapter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.payment.application.exception.PaymentGatewayConnectionException;
-import com.omc.payment.application.exception.PaymentGatewayRequestException;
+import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
+import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;

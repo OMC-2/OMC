@@ -1,4 +1,4 @@
-package com.omc.payment.application.exception;
+package com.omc.payment.domain.exception;
 
 public class PaymentGatewayConnectionException extends RuntimeException {
     /**
