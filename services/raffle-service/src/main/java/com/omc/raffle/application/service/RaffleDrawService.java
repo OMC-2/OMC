@@ -91,4 +91,59 @@ public class RaffleDrawService {
         // 6. 래플 상태 업데이트 (종료)
         raffle.updateStatus(RaffleStatus.CLOSED);
     }
+
+    /**
+     * 결제 실패로 인한 당첨 취소 및 차순위 무작위 재추첨 (보상 트랜잭션)
+     */
+    @Transactional
+    public void handlePaymentFailure(UUID raffleId, UUID failedUserId) {
+        // 1. 기존 당첨자의 결과를 조회하여 CANCELED로 변경
+        RaffleResult failedResult = raffleResultRepository.findByRaffleIdAndUserId(raffleId, failedUserId)
+                .orElseThrow(() -> new BusinessException(RaffleErrorCode.RAFFLE_001, "기존 당첨 내역을 찾을 수 없습니다."));
+        
+        if (failedResult.getResult() != RaffleResultStatus.WIN) {
+            log.warn("User {} is not in WIN status. Current status: {}", failedUserId, failedResult.getResult());
+            return; // 이미 다른 상태라면 무시
+        }
+        
+        failedResult.updateResult(RaffleResultStatus.CANCELED);
+        raffleResultRepository.save(failedResult);
+        log.info("Canceled WIN status for user {} in raffle {}", failedUserId, raffleId);
+
+        // 2. 남은 낙첨자 중 1명을 무작위로 추출하여 당첨 처리
+        List<RaffleResult> loseResults = raffleResultRepository.findAllByRaffleId(raffleId).stream()
+                .filter(r -> r.getResult() == RaffleResultStatus.LOSE)
+                .toList();
+
+        if (loseResults.isEmpty()) {
+            log.warn("No more entries available for redraw in raffle {}", raffleId);
+            return;
+        }
+
+        // 3. 무작위로 1명 선정
+        List<RaffleResult> modifiableList = new ArrayList<>(loseResults);
+        Collections.shuffle(modifiableList);
+        RaffleResult newWinnerResult = modifiableList.get(0);
+        
+        newWinnerResult.updateResult(RaffleResultStatus.WIN);
+        raffleResultRepository.save(newWinnerResult);
+        log.info("Selected new winner {} for raffle {}", newWinnerResult.getUserId(), raffleId);
+
+        // 4. 새로운 당첨자에 대해 다시 이벤트 발행 (Outbox 저장용)
+        RaffleEntry entry = raffleEntryRepository.findById(newWinnerResult.getEntryId())
+                .orElseThrow(() -> new BusinessException(RaffleErrorCode.RAFFLE_001, "응모 내역을 찾을 수 없습니다."));
+
+        RaffleWinnerSelectedEvent event = new RaffleWinnerSelectedEvent(
+                raffleId,
+                entry.getId(),
+                entry.getUserId(),
+                entry.getBillingKeyId(),
+                entry.getCouponId(),
+                entry.getOriginalAmount(),
+                entry.getDiscountAmount(),
+                entry.getFinalAmount(),
+                java.time.LocalDateTime.now()
+        );
+        eventPublisher.publishEvent(event);
+    }
 }

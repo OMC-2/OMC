@@ -23,6 +23,7 @@ import java.util.UUID;
 public class RaffleController {
 
     private final RaffleAppService raffleAppService;
+    private final com.omc.raffle.application.service.RaffleResultService raffleResultService;
 
     /**
      * 래플 응모 (선결제) API
@@ -46,5 +47,20 @@ public class RaffleController {
         
         RaffleApplyResponse response = raffleAppService.apply(raffleId, appRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(response));
+    }
+
+    /**
+     * 내 당첨 결과 조회 API
+     * GET /api/v1/raffles/{raffleId}/results
+     */
+    @GetMapping("/{raffleId}/results")
+    public ResponseEntity<ApiResponse<com.omc.raffle.application.dto.response.RaffleResultResponse>> getRaffleResult(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PathVariable UUID raffleId) {
+
+        com.omc.raffle.application.dto.response.RaffleResultResponse response = 
+                raffleResultService.getResult(raffleId, userId);
+                
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
