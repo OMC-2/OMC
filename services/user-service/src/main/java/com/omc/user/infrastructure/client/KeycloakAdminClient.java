@@ -115,11 +115,8 @@ public class KeycloakAdminClient {
                     ((Number) response.get("expires_in")).longValue()
             );
         } catch (HttpClientErrorException e) {
-            if (e.getStatusCode().value() == 401) {
-                throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
-            }
-            log.error("Keycloak token refresh failed: {}", e.getMessage());
-            throw new BusinessException(CommonErrorCode.REMOTE_CALL_FAILED);
+            // Keycloak 4xx → 클라이언트가 보낸 토큰이 잘못된 것이므로 401 반환
+            throw new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN);
         } catch (Exception e) {
             log.error("Keycloak token refresh failed", e);
             throw new BusinessException(CommonErrorCode.REMOTE_CALL_FAILED);
