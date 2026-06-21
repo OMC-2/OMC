@@ -275,7 +275,7 @@ class UserServiceIntegrationTest {
                                     }
                                     """))
                     .andExpect(status().isUnauthorized())
-                    .andExpect(jsonPath("$.errorCode").value("COMMON-007"));
+                    .andExpect(jsonPath("$.errorCode").value("USER-007"));
         }
 
         @Test

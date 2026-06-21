@@ -93,7 +93,7 @@ class CouponServiceTest {
         given(couponMock.isIssuable()).willReturn(true);
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
-        given(userCouponRepository.findByUserIdAndCouponId(userId, couponId)).willReturn(Optional.empty());
+        given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.empty());
         given(userCouponRepository.save(any(UserCoupon.class))).willReturn(userCouponMock);
         given(userCouponMock.getUserCouponId()).willReturn(userCouponId);
         given(userCouponMock.getCoupon()).willReturn(couponMock); // NPE 방지
@@ -165,7 +165,7 @@ class CouponServiceTest {
         given(couponMock.isIssuable()).willReturn(true);
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
-        given(userCouponRepository.findByUserIdAndCouponId(userId, couponId)).willReturn(Optional.of(existingMock));
+        given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.of(existingMock));
 
         // when & then
         assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))

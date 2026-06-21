@@ -84,7 +84,7 @@ public class CouponService {
         }
 
         // DB 중복 체크 (Redis Set과 이중 방어)
-        userCouponRepository.findByUserIdAndCouponId(userId, couponId).ifPresent(uc -> {
+        userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId).ifPresent(uc -> {
             couponRedisRepository.incrementStock(couponId.toString()); // 롤백
             throw new CouponAlreadyIssuedException();
         });

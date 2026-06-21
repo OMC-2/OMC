@@ -17,7 +17,7 @@ public interface UserCouponRepository extends JpaRepository<UserCoupon, UUID> {
 
     Optional<UserCoupon> findByOrderIdAndStatus(UUID orderId, UserCouponStatus status);
 
-    Optional<UserCoupon> findByUserIdAndCouponId(UUID userId, UUID couponId);
+    Optional<UserCoupon> findByUserIdAndCoupon_CouponId(UUID userId, UUID couponId);
 
     Page<UserCoupon> findByUserId(UUID userId, Pageable pageable);
 
