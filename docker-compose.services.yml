@@ -272,6 +272,7 @@ services:
       - "8087:8087"
     environment:
       CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
       DB_URL: postgres:5432
       DB_USERNAME: omc
       DB_PASSWORD: password
