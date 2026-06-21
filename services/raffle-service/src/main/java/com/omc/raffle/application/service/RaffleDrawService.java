@@ -15,11 +15,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.omc.raffle.application.event.producer.RaffleWinnerSelectedEvent;
+import org.springframework.context.ApplicationEventPublisher;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 래플 추첨(Shuffle) 및 당첨 결과 저장, 이벤트 발행을 담당하는 Application Service입니다.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -29,6 +35,7 @@ public class RaffleDrawService {
     private final RaffleRepository raffleRepository;
     private final RaffleEntryRepository raffleEntryRepository;
     private final RaffleResultRepository raffleResultRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 래플 추첨 로직 (스케줄러에 의해 호출됨)
@@ -59,7 +66,21 @@ public class RaffleDrawService {
             RaffleEntry entry = entries.get(i);
             RaffleResultStatus status = (i < winnerCount) ? RaffleResultStatus.WIN : RaffleResultStatus.LOSE;
             
-            // TODO (STEP 5): 당첨자(WIN)인 경우 Outbox 엔티티(Kafka 결제 요청 이벤트용) INSERT 로직 추가
+            // 5. 당첨자(WIN)인 경우 Outbox 엔티티(Kafka 결제 요청 이벤트용) 대신 우선 ApplicationEvent 발행
+            if (status == RaffleResultStatus.WIN) {
+                RaffleWinnerSelectedEvent event = new RaffleWinnerSelectedEvent(
+                        raffleId,
+                        entry.getId(),
+                        entry.getUserId(),
+                        entry.getBillingKeyId(),
+                        entry.getCouponId(),
+                        entry.getOriginalAmount(),
+                        entry.getDiscountAmount(),
+                        entry.getFinalAmount(),
+                        java.time.LocalDateTime.now()
+                );
+                eventPublisher.publishEvent(event);
+            }
             
             results.add(RaffleResult.create(entry.getId(), raffleId, entry.getUserId(), status));
         }
