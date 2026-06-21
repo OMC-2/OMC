@@ -65,28 +65,12 @@ public class PaymentService {
         );
         payment.startConfirming();
 
-        try {
-            // Mocking을 위한 랜덤 결제 식별자 생성
-            UUID randomProviderPaymentId = UUID.randomUUID();
-            PaymentGatewayResult.Confirm result = paymentGatewayPort.confirmPayment(
-                    new PaymentGatewayCommand.Confirm(
-                            randomProviderPaymentId.toString(),
-                            request.orderID().toString(),
-                            request.finalAmount()
-                    )
-            );
-            payment.approve(result.providerPaymentId());
-            return PaymentResponse.from(payment);
-        } catch (PaymentGatewayRequestException e) {
-            /* FAILED 처리 */
-            payment.fail(e.getProviderCode(), e.getMessage());
-            throw new BusinessException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
-        } catch (PaymentGatewayConnectionException e) {
-            /* UNKNOWN 처리, 추후 재처리 필요 */
-            payment.markUnknown();
-            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
-        }
+        // Mocking을 위한 랜덤 결제 식별자 Fallback
+        String providerPaymentId = request.providerPaymentId() == null || request.providerPaymentId().isBlank()
+                ? UUID.randomUUID().toString()
+                : request.providerPaymentId();
 
+        return confirmWithGateway(payment, request, providerPaymentId);
     }
 
     public RegisterBillingKeyResponse registerBillingKey(@Valid RegisterBillingKeyRequest request) {
@@ -112,10 +96,9 @@ public class PaymentService {
 
         switch (role) {
             case "ADMIN" -> {
+                cancelWithGateway(payment, request.cancelReason());
                 payment.cancel(CancellationCode.ADMIN_CANCEL, request.cancelReason());
-                /*
-                 * TODO PG 취소 연동 구현
-                 */
+
                 return PaymentResponse.from(payment);
             }
             case "USER" -> {
@@ -123,14 +106,56 @@ public class PaymentService {
                 if (!currentUserId.equals(payment.getUserId())) {
                     throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
                 }
-
+                cancelWithGateway(payment, request.cancelReason());
                 payment.cancel(CancellationCode.USER_CANCEL, request.cancelReason());
-                /*
-                 * TODO PG 취소 연동 구현
-                 */
+
                 return PaymentResponse.from(payment);
             }
             default -> throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
+        }
+    }
+
+    // confirmPayment PG 연동 로직 분리
+    private PaymentResponse confirmWithGateway(
+            Payment payment,
+            ConfirmPaymentRequest request,
+            String providerPaymentId
+    ) {
+        try {
+            PaymentGatewayResult.Confirm result = paymentGatewayPort.confirmPayment(
+                    new PaymentGatewayCommand.Confirm(
+                            providerPaymentId,
+                            request.orderID().toString(),
+                            request.finalAmount()
+                    )
+            );
+            payment.approve(result.providerPaymentId());
+            return PaymentResponse.from(payment);
+        } catch (PaymentGatewayRequestException e) {
+            /* FAILED 처리 */
+            payment.fail(e.getProviderCode(), e.getMessage());
+            throw new BusinessException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
+        } catch (PaymentGatewayConnectionException e) {
+            /* UNKNOWN 처리, 추후 재처리 필요 */
+            payment.markUnknown();
+            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
+        }
+    }
+
+    // cancelPayment PG 연동 로직 분리
+    private void cancelWithGateway(Payment payment, String cancelReason) {
+        try {
+           paymentGatewayPort.cancelPayment(
+                   new PaymentGatewayCommand.Cancel(
+                           payment.getProviderPaymentId(),
+                           cancelReason,
+                           payment.getFinalAmount()
+                   )
+           );
+        } catch (PaymentGatewayRequestException e) {
+            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_REQUEST_FAILED, e.getMessage());
+        } catch (PaymentGatewayConnectionException e) {
+            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
         }
     }
 
