@@ -95,6 +95,38 @@ public class KeycloakAdminClient {
     }
 
     @SuppressWarnings("unchecked")
+    public KeycloakTokenResponse refreshToken(String refreshToken) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("grant_type", "refresh_token");
+        form.add("client_id", props.getClientId());
+        form.add("refresh_token", refreshToken);
+
+        try {
+            Map<String, Object> response = restClient.post()
+                    .uri(props.getServerUrl() + "/realms/" + props.getRealm() + "/protocol/openid-connect/token")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(form)
+                    .retrieve()
+                    .body(Map.class);
+
+            return new KeycloakTokenResponse(
+                    (String) response.get("access_token"),
+                    (String) response.get("refresh_token"),
+                    ((Number) response.get("expires_in")).longValue()
+            );
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 401) {
+                throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
+            }
+            log.error("Keycloak token refresh failed: {}", e.getMessage());
+            throw new BusinessException(CommonErrorCode.REMOTE_CALL_FAILED);
+        } catch (Exception e) {
+            log.error("Keycloak token refresh failed", e);
+            throw new BusinessException(CommonErrorCode.REMOTE_CALL_FAILED);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
     public KeycloakTokenResponse login(String email, String password) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "password");
