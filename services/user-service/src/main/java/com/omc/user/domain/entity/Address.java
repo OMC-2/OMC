@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "p_addresses", schema = "user_db")
+@Table(name = "p_user_addresses", schema = "user_db")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Address {
