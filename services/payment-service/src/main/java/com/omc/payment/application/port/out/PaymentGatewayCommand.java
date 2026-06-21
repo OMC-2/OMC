@@ -16,6 +16,15 @@ public final class PaymentGatewayCommand {
             String authKey // 빌링키 발급용 승인키
     ) {}
 
+    public record ConfirmBilling(
+            String billingKeyId,
+            String customerKey,
+            String orderId,
+            String orderName,
+            Long amount
+    ) {
+    }
+
     public record Cancel(
             String providerPaymentId,
             String cancelReason,

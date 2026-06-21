@@ -22,7 +22,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     private final RestClient tossPaymentRestClient;
     private final ObjectMapper objectMapper;
 
-    // Toss 일반 결제 API
+    // Toss 일반 결제
     @Override
     public PaymentGatewayResult.Confirm confirmPayment(PaymentGatewayCommand.Confirm command) {
         PaymentResponse response = post(
@@ -33,7 +33,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
         return new PaymentGatewayResult.Confirm(response.PaymentKey());
     }
 
-    // Toss 빌링키 발급 API
+    // Toss 빌링키 발급
     @Override
     public PaymentGatewayResult.RegisterBillingKey registerBillingKey(PaymentGatewayCommand.RegisterBillingKey command) {
         BillingKeyResponse response = post(
@@ -44,7 +44,24 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
         return new PaymentGatewayResult.RegisterBillingKey(response.billingKey());
     }
 
-    // Toss 결제 취소 API
+    // Toss 빌링키 자동 결제
+    @Override
+    public PaymentGatewayResult.Confirm confirmBillingPayment(PaymentGatewayCommand.ConfirmBilling command) {
+        PaymentResponse response = post(
+                "/v1/billing/{billingKey}",
+                new ConfirmBillingRequest(
+                        command.customerKey(),
+                        command.orderId(),
+                        command.orderName(),
+                        command.amount()
+                ),
+                PaymentResponse.class,
+                command.billingKeyId()
+        );
+        return new PaymentGatewayResult.Confirm(response.PaymentKey());
+    }
+
+    // Toss 결제 취소
     @Override
     public PaymentGatewayResult.Cancel cancelPayment(PaymentGatewayCommand.Cancel command) {
         PaymentResponse response = post(
@@ -112,6 +129,13 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     private record BillingKeyRequest(
             String authKey,
             String customerKey
+    ) {}
+
+    private record ConfirmBillingRequest(
+            String customerKey,
+            String orderId,
+            String orderName,
+            Long amount
     ) {}
 
     private record CancelRequest(

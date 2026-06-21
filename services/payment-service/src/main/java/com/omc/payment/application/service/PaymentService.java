@@ -17,6 +17,7 @@ import com.omc.payment.domain.enums.Provider;
 import com.omc.payment.domain.enums.SalesType;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.repository.PaymentRepository;
+import com.omc.payment.presentation.dto.request.ConfirmBillingPaymentRequest;
 import com.omc.payment.presentation.dto.request.ConfirmPaymentRequest;
 import com.omc.payment.presentation.dto.request.PaymentCancelRequest;
 import com.omc.payment.presentation.dto.request.RegisterBillingKeyRequest;
@@ -42,7 +43,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse confirmPayment(@Valid ConfirmPaymentRequest request) {
-        validatePayment(request);
+        validatePaymentAmounts(request.originalAmount(), request.discountAmount(), request.finalAmount());
 
         // 멱등성 방어 로직
         Payment existingPayment = paymentRepository.findByOrderId(request.orderID()).orElse(null);
@@ -98,6 +99,32 @@ public class PaymentService {
     }
 
     @Transactional
+    public PaymentResponse confirmBillingPayment(@Valid ConfirmBillingPaymentRequest request) {
+        validatePaymentAmounts(request.originalAmount(), request.discountAmount(), request.finalAmount());
+
+        Payment existingPayment = paymentRepository.findByOrderId(request.orderId()).orElse(null);
+        if (existingPayment != null) {
+            return PaymentResponse.from(existingPayment);
+        }
+
+        Payment payment = paymentRepository.save(Payment.create(
+                request.orderId(),
+                request.entryId(),
+                request.couponId(),
+                request.userId(),
+                SalesType.RAFFLE,
+                request.originalAmount(),
+                request.discountAmount(),
+                Provider.TOSS,
+                PaymentMethod.CARD
+        ));
+
+        payment.startConfirming();
+
+        return confirmBillingWithGateway(payment, request);
+    }
+
+    @Transactional
     public PaymentResponse cancelPayment(UUID paymentId, @Valid PaymentCancelRequest request) {
         Payment payment = getPaymentEntity(paymentId);
         String role = getCurrentUserRole();
@@ -150,6 +177,36 @@ public class PaymentService {
         }
     }
 
+    // confirmBillingPayment PG 연동 로직 분리
+    private PaymentResponse confirmBillingWithGateway(
+            Payment payment,
+            ConfirmBillingPaymentRequest request
+    ) {
+        try {
+            String customerKey = request.customerKey() == null || request.customerKey().isBlank()
+                    ? UUID.randomUUID().toString()
+                    : request.customerKey();
+
+            PaymentGatewayResult.Confirm result = paymentGatewayPort.confirmBillingPayment(
+                    new PaymentGatewayCommand.ConfirmBilling(
+                            request.billingKeyId(),
+                            customerKey,
+                            request.orderId().toString(),
+                            "래플 자동결제",
+                            request.finalAmount()
+                    )
+            );
+            payment.approve(result.providerPaymentId());
+            return PaymentResponse.from(payment);
+        } catch (PaymentGatewayRequestException e) {
+            payment.fail(e.getProviderCode(), e.getMessage());
+            throw new BusinessException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
+        } catch (PaymentGatewayConnectionException e) {
+            payment.markUnknown();
+            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
+        }
+    }
+
     // cancelPayment PG 연동 로직 분리
     private String cancelWithGateway(Payment payment, String cancelReason) {
         try {
@@ -184,9 +241,9 @@ public class PaymentService {
     }
 
     // PG 연동 전 검증
-    private void validatePayment(ConfirmPaymentRequest request) {
+    private void validatePaymentAmounts(Long originalAmount, Long discountAmount, Long finalAmount) {
         // 금액 검증
-        if (request.originalAmount() - request.discountAmount() != request.finalAmount()) {
+        if (originalAmount - discountAmount != finalAmount) {
             throw new BusinessException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);
         }
     }
