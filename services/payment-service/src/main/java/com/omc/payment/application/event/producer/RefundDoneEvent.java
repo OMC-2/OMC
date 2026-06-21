@@ -6,6 +6,7 @@ public record RefundDoneEvent(
         String eventId,
         UUID orderId,
         UUID userId,
+        UUID couponId,
         Long amount,
         String refundReason
 ) {

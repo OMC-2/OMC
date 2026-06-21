@@ -40,6 +40,7 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentGatewayPort paymentGatewayPort;
+    private final PaymentOutboxService paymentOutboxService;
 
     @Transactional
     public PaymentResponse confirmPayment(@Valid ConfirmPaymentRequest request) {
@@ -53,15 +54,18 @@ public class PaymentService {
 
         Payment payment = paymentRepository.save(
                 Payment.create(
-                    request.orderID(),
-                    null,
-                    request.couponID(),
-                    getCurrentUserId(),
-                    SalesType.DROP,
-                    request.originalAmount(),
-                    request.discountAmount(),
-                    Provider.TOSS,
-                    PaymentMethod.CARD
+                        request.orderID(),
+                        request.dropId(),
+                        null,
+                        null,
+                        request.productId(),
+                        request.couponID(),
+                        getCurrentUserId(),
+                        SalesType.DROP,
+                        request.originalAmount(),
+                        request.discountAmount(),
+                        Provider.TOSS,
+                        PaymentMethod.CARD
                 )
         );
         payment.startConfirming();
@@ -109,7 +113,10 @@ public class PaymentService {
 
         Payment payment = paymentRepository.save(Payment.create(
                 request.orderId(),
+                null,
+                request.raffleId(),
                 request.entryId(),
+                request.productId(),
                 request.couponId(),
                 request.userId(),
                 SalesType.RAFFLE,
@@ -134,6 +141,7 @@ public class PaymentService {
                 String providerCancellationId = cancelWithGateway(payment, request.cancelReason());
                 payment.cancel(providerCancellationId, CancellationCode.ADMIN_CANCEL, request.cancelReason());
 
+                paymentOutboxService.saveRefundDone(payment);
                 return PaymentResponse.from(payment);
             }
             case "USER" -> {
@@ -144,6 +152,7 @@ public class PaymentService {
                 String providerCancellationId = cancelWithGateway(payment, request.cancelReason());
                 payment.cancel(providerCancellationId, CancellationCode.USER_CANCEL, request.cancelReason());
 
+                paymentOutboxService.saveRefundDone(payment);
                 return PaymentResponse.from(payment);
             }
             default -> throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
@@ -165,10 +174,12 @@ public class PaymentService {
                     )
             );
             payment.approve(result.providerPaymentId());
+            paymentOutboxService.savePaymentCompleted(payment);
             return PaymentResponse.from(payment);
         } catch (PaymentGatewayRequestException e) {
             /* FAILED 처리 */
             payment.fail(e.getProviderCode(), e.getMessage());
+            paymentOutboxService.savePaymentFailed(payment);
             throw new BusinessException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
             /* UNKNOWN 처리, 추후 재처리 필요 */
@@ -197,9 +208,11 @@ public class PaymentService {
                     )
             );
             payment.approve(result.providerPaymentId());
+            paymentOutboxService.savePaymentCompleted(payment);
             return PaymentResponse.from(payment);
         } catch (PaymentGatewayRequestException e) {
             payment.fail(e.getProviderCode(), e.getMessage());
+            paymentOutboxService.savePaymentFailed(payment);
             throw new BusinessException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
             payment.markUnknown();

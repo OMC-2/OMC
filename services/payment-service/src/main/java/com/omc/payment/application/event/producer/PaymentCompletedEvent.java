@@ -1,11 +1,17 @@
 package com.omc.payment.application.event.producer;
 
+import com.omc.payment.domain.enums.SalesType;
+
 import java.util.UUID;
 
 public record PaymentCompletedEvent(
-        UUID dropId,
         String eventId,
+        SalesType salesType,
+        UUID dropId,
         UUID orderId,
+        UUID raffleId,
+        UUID entryId,
+        UUID productId,
         UUID userId,
         UUID couponId,
         Long originalAmount,

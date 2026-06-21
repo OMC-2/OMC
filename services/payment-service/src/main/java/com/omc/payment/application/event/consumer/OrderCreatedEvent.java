@@ -8,6 +8,7 @@ public record OrderCreatedEvent(
         UUID userId,
         String orderType,
         UUID dropId,
+        UUID productId,
         UUID raffleId,
         UUID entryId,
         Long originalAmount,
