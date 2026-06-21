@@ -4,7 +4,9 @@ import com.omc.common.response.ApiResponse;
 import com.omc.raffle.application.dto.request.RaffleApplyRequest;
 import com.omc.raffle.application.dto.response.RaffleApplyResponse;
 import com.omc.raffle.application.service.RaffleAppService;
+import com.omc.raffle.application.service.RaffleResultService;
 import com.omc.raffle.presentation.dto.request.RaffleEnterRequest;
+import com.omc.raffle.presentation.dto.response.RaffleResultResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,6 +25,7 @@ import java.util.UUID;
 public class RaffleController {
 
     private final RaffleAppService raffleAppService;
+    private final RaffleResultService raffleResultService;
 
     /**
      * 래플 응모 (선결제) API
@@ -46,5 +49,20 @@ public class RaffleController {
         
         RaffleApplyResponse response = raffleAppService.apply(raffleId, appRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(response));
+    }
+
+    /**
+     * 내 당첨 결과 조회 API
+     * GET /api/v1/raffles/{raffleId}/results
+     */
+    @GetMapping("/{raffleId}/results")
+    public ResponseEntity<ApiResponse<RaffleResultResponse>> getRaffleResult(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PathVariable UUID raffleId) {
+
+        RaffleResultResponse response = 
+                raffleResultService.getResult(raffleId, userId);
+                
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

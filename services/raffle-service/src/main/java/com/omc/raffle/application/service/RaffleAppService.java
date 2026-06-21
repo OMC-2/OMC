@@ -59,9 +59,9 @@ public class RaffleAppService {
             // 결제 서버에 100원 가승인 요청 (이후 결제 서버 내에서 자동 승인 취소됨)
             paymentClient.preAuthCard(request.billingKeyId(), new java.math.BigDecimal("100"));
         } catch (Exception e) {
-            // SAGA 보상 트랜잭션: 결제 수단 유효성 검증에 실패하면 이미 SADD된 Redis 값을 제거해야 할 수도 있음
-            // 또는 비즈니스 로직에 따라 Redis Expire 시간을 짧게 주어 자연스레 만료되게 할 수도 있음.
+            // SAGA 보상 트랜잭션: 결제 수단 가승인 실패 시 이미 SADD된 Redis 값을 제거
             log.error("[RaffleAppService] 결제 수단 가승인 실패. userId={}, billingKeyId={}", request.userId(), request.billingKeyId(), e);
+            redisRepository.removeEntry(raffleId, request.userId());
             throw new BusinessException(RaffleErrorCode.RAFFLE_004, "결제 수단(카드) 검증에 실패했습니다.");
         }
 
