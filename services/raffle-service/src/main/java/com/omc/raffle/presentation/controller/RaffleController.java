@@ -54,11 +54,11 @@ public class RaffleController {
      * GET /api/v1/raffles/{raffleId}/results
      */
     @GetMapping("/{raffleId}/results")
-    public ResponseEntity<ApiResponse<com.omc.raffle.application.dto.response.RaffleResultResponse>> getRaffleResult(
+    public ResponseEntity<ApiResponse<com.omc.raffle.presentation.dto.response.RaffleResultResponse>> getRaffleResult(
             @RequestHeader("X-User-Id") UUID userId,
             @PathVariable UUID raffleId) {
 
-        com.omc.raffle.application.dto.response.RaffleResultResponse response = 
+        com.omc.raffle.presentation.dto.response.RaffleResultResponse response = 
                 raffleResultService.getResult(raffleId, userId);
                 
         return ResponseEntity.ok(ApiResponse.success(response));
