@@ -3,9 +3,9 @@ package com.omc.raffle.application.event.consumer;
 import java.util.UUID;
 
 /**
- * 결제 서버에서 발생하는 결제 실패 이벤트를 수신하기 위한 DTO
+ * 결제 서버에서 발생하는 결제 실패 요청을 수신하기 위한 DTO
  */
-public record PaymentFailedEvent(
+public record PaymentFailedRequest(
         UUID eventId,
         String salesType,
         UUID userId,

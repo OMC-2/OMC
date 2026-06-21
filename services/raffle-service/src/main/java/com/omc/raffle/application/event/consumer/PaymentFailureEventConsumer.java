@@ -18,7 +18,7 @@ public class PaymentFailureEventConsumer {
     @KafkaListener(topics = "payment.failed", groupId = "raffle-service-group")
     public void consumePaymentFailedEvent(String message) {
         try {
-            PaymentFailedEvent event = objectMapper.readValue(message, PaymentFailedEvent.class);
+            PaymentFailedRequest event = objectMapper.readValue(message, PaymentFailedRequest.class);
             log.info("Received payment.failed event: {}", event);
 
             // 래플 서비스에서 보낸 결제건만 처리
