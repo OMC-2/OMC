@@ -19,6 +19,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -80,9 +81,19 @@ public class InventoryService {
                     )
             );
 
+            // stock.failed payload에 dropId, userId 추가
+            String payload = toJson(Map.of(
+                    "eventId", UUID.randomUUID().toString(),
+                    "orderId", event.orderId(),
+                    "productId", event.productId(),
+                    "dropId", event.dropId(),
+                    "userId", event.userId(),
+                    "quantity", event.quantity()
+            ));
+
             // stock.failed Outbox INSERT → Poller가 Kafka 발행 → Payment Service 환불 트리거
             saveOutbox("INVENTORY", inventory.getInventoryId(),
-                    OutboxEventType.STOCK_FAILED, buildPayload(event));
+                    OutboxEventType.STOCK_FAILED, payload);
         }
     }
 

@@ -7,6 +7,7 @@ public record PaymentCompletedRequest(
         UUID orderId,
         UUID productId,
         UUID userId,
+        UUID dropId,
         int quantity,
         long amount
 ) {}
