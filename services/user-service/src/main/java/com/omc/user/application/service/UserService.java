@@ -15,6 +15,7 @@ import com.omc.user.presentation.dto.request.UpdateProfileRequest;
 import com.omc.user.presentation.dto.response.LoginResponse;
 import com.omc.user.presentation.dto.response.SignupResponse;
 import com.omc.user.presentation.dto.response.UpdateProfileResponse;
+import com.omc.user.presentation.dto.response.UserIdResponse;
 import com.omc.user.presentation.dto.response.UserProfileResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -81,8 +82,15 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public UserProfileResponse getProfile(UUID keycloakId) {
-        User user = userRepository.findByKeycloakId(keycloakId.toString())
+    public UserIdResponse findUserIdByKeycloakId(String keycloakId) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(UserNotFoundException::new);
+        return UserIdResponse.from(user);
+    }
+
+    @Transactional(readOnly = true)
+    public UserProfileResponse getProfile(UUID userId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(UserNotFoundException::new);
         return new UserProfileResponse(
                 user.getUserId(), user.getEmail(), user.getNickname(),
@@ -96,16 +104,16 @@ public class UserService {
     }
 
     @Transactional
-    public UpdateProfileResponse updateProfile(UUID keycloakId, UpdateProfileRequest request) {
-        User user = userRepository.findByKeycloakId(keycloakId.toString())
+    public UpdateProfileResponse updateProfile(UUID userId, UpdateProfileRequest request) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(UserNotFoundException::new);
         user.update(request.nickname(), request.slackId());
         return new UpdateProfileResponse(user.getUserId(), user.getNickname(), user.getSlackId());
     }
 
     @Transactional
-    public void withdraw(UUID keycloakId) {
-        User user = userRepository.findByKeycloakId(keycloakId.toString())
+    public void withdraw(UUID userId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(UserNotFoundException::new);
         String keycloakUserId = user.getKeycloakId();
         userRepository.delete(user);
