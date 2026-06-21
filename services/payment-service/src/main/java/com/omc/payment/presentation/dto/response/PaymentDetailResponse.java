@@ -1,7 +1,11 @@
 package com.omc.payment.presentation.dto.response;
 
 import com.omc.payment.domain.entity.Payment;
-import com.omc.payment.domain.enums.*;
+import com.omc.payment.domain.enums.CancellationCode;
+import com.omc.payment.domain.enums.PaymentMethod;
+import com.omc.payment.domain.enums.PaymentStatus;
+import com.omc.payment.domain.enums.Provider;
+import com.omc.payment.domain.enums.SalesType;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -27,8 +31,7 @@ public record PaymentDetailResponse(
         LocalDateTime requestedAt,
         LocalDateTime approvedAt,
         LocalDateTime failedAt,
-        LocalDateTime canceledAt,
-        LocalDateTime refundedAt
+        LocalDateTime canceledAt
 ) {
     public static PaymentDetailResponse from(Payment payment) {
         return new PaymentDetailResponse(
@@ -52,8 +55,7 @@ public record PaymentDetailResponse(
                 payment.getRequestedAt(),
                 payment.getApprovedAt(),
                 payment.getFailedAt(),
-                payment.getCanceledAt(),
-                payment.getRefundedAt()
+                payment.getCanceledAt()
         );
     }
 }
