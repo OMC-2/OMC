@@ -20,6 +20,10 @@
 #   user/signup         → 회원가입 (정상 201 / 중복 409 / 어드민 201)
 #   user/login          → 로그인 (정상 200 + 토큰 발급 / 잘못된 비밀번호 401)
 #   user/profile        → 프로필 조회 (정상 200 / 토큰 없음 401)
+#   user/token_refresh  → 토큰 갱신 (정상 200 / 잘못된 토큰 401)
+#   user/profile_update → 프로필 수정 (정상 200 / 탈퇴 200 / 미인증 401)
+#   user/address        → 주소 CRUD + 기본 주소 설정
+#   user/security       → 인증·인가·경로 보안 검증
 #
 # ----------------------------------------------------------------
 # 예시
@@ -27,9 +31,13 @@
 #
 #   bash e2e/run.sh                   # 모든 시나리오 실행
 #   bash e2e/run.sh user              # user 서비스 시나리오 전체
-#   bash e2e/run.sh user/signup       # 회원가입 시나리오만
-#   bash e2e/run.sh user/login        # 로그인 시나리오만
-#   bash e2e/run.sh user/profile      # 프로필 조회 시나리오만
+#   bash e2e/run.sh user/signup         # 회원가입 시나리오만
+#   bash e2e/run.sh user/login          # 로그인 시나리오만
+#   bash e2e/run.sh user/profile        # 프로필 조회 시나리오만
+#   bash e2e/run.sh user/token_refresh  # 토큰 갱신 시나리오만
+#   bash e2e/run.sh user/profile_update # 프로필 수정 시나리오만
+#   bash e2e/run.sh user/address        # 주소 관리 시나리오만
+#   bash e2e/run.sh user/security       # 보안 시나리오만
 #
 # ================================================================
 # 사전 조건: 전체 인프라가 기동된 상태여야 한다
@@ -56,7 +64,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user saga user/signup user/login user/profile"
+VALID_TARGETS="user saga user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do
@@ -75,9 +83,13 @@ if [ -n "$TARGET" ]; then
     echo "  saga              → saga/ 폴더 전체"
     echo ""
     echo "  [개별 시나리오]"
-    echo "  user/signup       → 회원가입"
-    echo "  user/login        → 로그인"
-    echo "  user/profile      → 프로필 조회"
+    echo "  user/signup         → 회원가입"
+    echo "  user/login          → 로그인"
+    echo "  user/profile        → 프로필 조회"
+    echo "  user/token_refresh  → 토큰 갱신"
+    echo "  user/profile_update → 프로필 수정 및 탈퇴"
+    echo "  user/address        → 주소 CRUD + 기본 주소 설정"
+    echo "  user/security       → 인증·인가·경로 보안 검증"
     exit 1
   fi
 fi
