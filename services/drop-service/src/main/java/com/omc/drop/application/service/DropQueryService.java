@@ -5,6 +5,7 @@ import com.omc.common.util.PageableUtil;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
+import com.omc.drop.presentation.dto.response.ActiveDropResponse;
 import com.omc.drop.presentation.dto.response.DropResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -12,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -29,6 +31,12 @@ public class DropQueryService {
     public DropResponse findById(UUID dropId) {
         Drop drop = dropRepository.getByIdOrThrow(dropId);
         return DropResponse.from(drop);
+    }
+
+    public ActiveDropResponse hasActiveDrop(UUID productId) {
+        boolean exists = dropRepository.existsByProductIdAndStatusIn(
+                productId, List.of(DropStatus.SCHEDULED, DropStatus.OPEN));
+        return ActiveDropResponse.of(exists);
     }
 
     private Page<Drop> fetchPage(DropStatus status, Pageable pageable) {
