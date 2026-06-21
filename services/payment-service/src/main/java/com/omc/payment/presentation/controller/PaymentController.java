@@ -66,10 +66,10 @@ public class PaymentController {
 
     @PostMapping("/internal/payments/confirm")
     @ResponseStatus(HttpStatus.CREATED)
-    public void confirmPayment(
+    public PaymentResponse confirmPayment(
             @Valid @RequestBody ConfirmPaymentRequest request
     ) {
-        paymentService.confirmPayment(request);
+        return paymentService.confirmPayment(request);
     }
 
     @PostMapping("/internal/billing-keys/register")

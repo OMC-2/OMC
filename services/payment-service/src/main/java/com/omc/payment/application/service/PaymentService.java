@@ -5,8 +5,16 @@ import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.response.PageResponse;
 import com.omc.common.security.SecurityUtil;
 import com.omc.common.util.PageableUtil;
+import com.omc.payment.application.exception.PaymentGatewayConnectionException;
+import com.omc.payment.application.exception.PaymentGatewayRequestException;
+import com.omc.payment.application.port.out.PaymentGatewayCommand;
+import com.omc.payment.application.port.out.PaymentGatewayPort;
+import com.omc.payment.application.port.out.PaymentGatewayResult;
 import com.omc.payment.domain.entity.Payment;
 import com.omc.payment.domain.enums.CancellationCode;
+import com.omc.payment.domain.enums.PaymentMethod;
+import com.omc.payment.domain.enums.Provider;
+import com.omc.payment.domain.enums.SalesType;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.repository.PaymentRepository;
 import com.omc.payment.presentation.dto.request.ConfirmPaymentRequest;
@@ -29,6 +37,62 @@ import java.util.UUID;
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
+    private final PaymentGatewayPort paymentGatewayPort;
+
+    @Transactional
+    public PaymentResponse confirmPayment(@Valid ConfirmPaymentRequest request) {
+        validatePayment(request);
+
+        // 멱등성 방어 로직
+        Payment existingPayment = paymentRepository.findByOrderId(request.orderID()).orElse(null);
+        if (existingPayment != null) {
+            return PaymentResponse.from(existingPayment);
+        }
+
+        Payment payment = paymentRepository.save(
+                Payment.create(
+                    request.orderID(),
+                    null,
+                    request.couponID(),
+                    getCurrentUserId(),
+                    SalesType.DROP,
+                    request.originalAmount(),
+                    request.discountAmount(),
+                    Provider.TOSS,
+                    PaymentMethod.CARD
+                )
+        );
+        payment.startConfirming();
+
+        try {
+            // Mocking을 위한 랜덤 결제 식별자 생성
+            UUID randomProviderPaymentId = UUID.randomUUID();
+            PaymentGatewayResult.Confirm result = paymentGatewayPort.confirmPayment(
+                    new PaymentGatewayCommand.Confirm(
+                            randomProviderPaymentId.toString(),
+                            request.orderID().toString(),
+                            request.finalAmount()
+                    )
+            );
+            payment.approve(result.providerPaymentId());
+            return PaymentResponse.from(payment);
+        } catch (PaymentGatewayRequestException e) {
+            /* FAILED 처리 */
+            payment.fail(e.getProviderCode(), e.getMessage());
+            throw new BusinessException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
+        } catch (PaymentGatewayConnectionException e) {
+            /* UNKNOWN 처리, 추후 재처리 필요 */
+            payment.markUnknown();
+            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
+        }
+
+    }
+
+    public void registerBillingKey(@Valid RegisterBillingKeyRequest request) {
+        /*
+         * TODO PG 빌링키 등록 구현
+         */
+    }
 
     @Transactional
     public PaymentResponse cancelPayment(UUID paymentId, @Valid PaymentCancelRequest request) {
@@ -74,16 +138,12 @@ public class PaymentService {
         return new PageResponse<>(page);
     }
 
-    public void confirmPayment(@Valid ConfirmPaymentRequest request) {
-        /*
-         * TODO PG 결제 승인 구현
-         */
-    }
-
-    public void registerBillingKey(@Valid RegisterBillingKeyRequest request) {
-        /*
-         * TODO PG 빌링키 등록 구현
-         */
+    // PG 연동 전 검증
+    private void validatePayment(ConfirmPaymentRequest request) {
+        // 금액 검증
+        if (request.originalAmount() - request.discountAmount() != request.finalAmount()) {
+            throw new BusinessException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);
+        }
     }
 
     private Payment getPaymentEntity(UUID paymentId) {
