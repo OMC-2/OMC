@@ -22,6 +22,7 @@ import com.omc.payment.presentation.dto.request.PaymentCancelRequest;
 import com.omc.payment.presentation.dto.request.RegisterBillingKeyRequest;
 import com.omc.payment.presentation.dto.response.PaymentDetailResponse;
 import com.omc.payment.presentation.dto.response.PaymentResponse;
+import com.omc.payment.presentation.dto.response.RegisterBillingKeyResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -88,10 +89,20 @@ public class PaymentService {
 
     }
 
-    public void registerBillingKey(@Valid RegisterBillingKeyRequest request) {
-        /*
-         * TODO PG 빌링키 등록 구현
-         */
+    public RegisterBillingKeyResponse registerBillingKey(@Valid RegisterBillingKeyRequest request) {
+        try {
+            String customerKey = UUID.randomUUID().toString();
+            String authKey = UUID.randomUUID().toString();
+
+            PaymentGatewayResult.RegisterBillingKey result = paymentGatewayPort.registerBillingKey(
+                    new PaymentGatewayCommand.RegisterBillingKey(customerKey, authKey)
+            );
+            return RegisterBillingKeyResponse.from(result.billingKeyID());
+        } catch (PaymentGatewayRequestException e) {
+            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_REQUEST_FAILED, e.getMessage());
+        } catch (PaymentGatewayConnectionException e) {
+            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
+        }
     }
 
     @Transactional
