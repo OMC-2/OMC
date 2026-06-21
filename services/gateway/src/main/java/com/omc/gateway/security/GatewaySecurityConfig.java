@@ -49,6 +49,7 @@ public class GatewaySecurityConfig {
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/signup").permitAll()
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/admin/signup").permitAll()
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/login").permitAll()
+                .pathMatchers(HttpMethod.POST, "/api/v1/users/token/refresh").permitAll()
                 .pathMatchers("/actuator/**", "/*/actuator/**").permitAll()
                 .pathMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                 .pathMatchers("/internal/**").denyAll()
