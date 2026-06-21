@@ -176,21 +176,21 @@ class UserServiceTest {
 
     @Test
     void getProfile_success_returnsUserProfileResponse() {
-        UUID keycloakId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        UUID dbUserId = UUID.randomUUID();
 
         User mockUser = mock(User.class);
-        given(mockUser.getUserId()).willReturn(userId);
+        given(mockUser.getUserId()).willReturn(dbUserId);
         given(mockUser.getEmail()).willReturn("test@example.com");
         given(mockUser.getNickname()).willReturn("testuser");
         given(mockUser.getSlackId()).willReturn("U12345");
         given(mockUser.getRole()).willReturn(UserRole.USER);
         given(mockUser.getCreatedAt()).willReturn(LocalDateTime.of(2024, 6, 1, 0, 0));
-        given(userRepository.findByKeycloakId(keycloakId.toString())).willReturn(Optional.of(mockUser));
+        given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
 
-        UserProfileResponse response = userService.getProfile(keycloakId);
+        UserProfileResponse response = userService.getProfile(userId);
 
-        assertThat(response.userId()).isEqualTo(userId);
+        assertThat(response.userId()).isEqualTo(dbUserId);
         assertThat(response.email()).isEqualTo("test@example.com");
         assertThat(response.nickname()).isEqualTo("testuser");
         assertThat(response.slackId()).isEqualTo("U12345");
@@ -199,10 +199,10 @@ class UserServiceTest {
 
     @Test
     void getProfile_userNotFound_throwsUserNotFoundException() {
-        UUID keycloakId = UUID.randomUUID();
-        given(userRepository.findByKeycloakId(keycloakId.toString())).willReturn(Optional.empty());
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.getProfile(keycloakId))
+        assertThatThrownBy(() -> userService.getProfile(userId))
                 .isInstanceOf(UserNotFoundException.class);
     }
 
@@ -242,30 +242,30 @@ class UserServiceTest {
 
     @Test
     void updateProfile_success_returnsUpdatedFields() {
-        UUID keycloakId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        UUID dbUserId = UUID.randomUUID();
         UpdateProfileRequest request = new UpdateProfileRequest("newNickname", "U99999");
 
         User mockUser = mock(User.class);
-        given(mockUser.getUserId()).willReturn(userId);
+        given(mockUser.getUserId()).willReturn(dbUserId);
         given(mockUser.getNickname()).willReturn("newNickname");
         given(mockUser.getSlackId()).willReturn("U99999");
-        given(userRepository.findByKeycloakId(keycloakId.toString())).willReturn(Optional.of(mockUser));
+        given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
 
-        UpdateProfileResponse response = userService.updateProfile(keycloakId, request);
+        UpdateProfileResponse response = userService.updateProfile(userId, request);
 
         verify(mockUser).update("newNickname", "U99999");
-        assertThat(response.userId()).isEqualTo(userId);
+        assertThat(response.userId()).isEqualTo(dbUserId);
         assertThat(response.nickname()).isEqualTo("newNickname");
         assertThat(response.slackId()).isEqualTo("U99999");
     }
 
     @Test
     void updateProfile_userNotFound_throwsUserNotFoundException() {
-        UUID keycloakId = UUID.randomUUID();
-        given(userRepository.findByKeycloakId(keycloakId.toString())).willReturn(Optional.empty());
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.updateProfile(keycloakId, new UpdateProfileRequest("nick", null)))
+        assertThatThrownBy(() -> userService.updateProfile(userId, new UpdateProfileRequest("nick", null)))
                 .isInstanceOf(UserNotFoundException.class);
     }
 
@@ -275,14 +275,14 @@ class UserServiceTest {
 
     @Test
     void withdraw_success_deletesFromDbAndKeycloak() {
-        UUID keycloakId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         String keycloakUserId = UUID.randomUUID().toString();
 
         User mockUser = mock(User.class);
         given(mockUser.getKeycloakId()).willReturn(keycloakUserId);
-        given(userRepository.findByKeycloakId(keycloakId.toString())).willReturn(Optional.of(mockUser));
+        given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
 
-        userService.withdraw(keycloakId);
+        userService.withdraw(userId);
 
         verify(userRepository).delete(mockUser);
         verify(keycloakAdminClient).deleteUser(keycloakUserId);
@@ -290,24 +290,24 @@ class UserServiceTest {
 
     @Test
     void withdraw_keycloakFails_dbDeleteStillProceeds() {
-        UUID keycloakId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         String keycloakUserId = UUID.randomUUID().toString();
 
         User mockUser = mock(User.class);
         given(mockUser.getKeycloakId()).willReturn(keycloakUserId);
-        given(userRepository.findByKeycloakId(keycloakId.toString())).willReturn(Optional.of(mockUser));
+        given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
         willThrow(new RuntimeException("keycloak error")).given(keycloakAdminClient).deleteUser(keycloakUserId);
 
-        assertThatCode(() -> userService.withdraw(keycloakId)).doesNotThrowAnyException();
+        assertThatCode(() -> userService.withdraw(userId)).doesNotThrowAnyException();
         verify(userRepository).delete(mockUser);
     }
 
     @Test
     void withdraw_userNotFound_throwsUserNotFoundException() {
-        UUID keycloakId = UUID.randomUUID();
-        given(userRepository.findByKeycloakId(keycloakId.toString())).willReturn(Optional.empty());
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.withdraw(keycloakId))
+        assertThatThrownBy(() -> userService.withdraw(userId))
                 .isInstanceOf(UserNotFoundException.class);
 
         verify(userRepository, never()).delete(any());
