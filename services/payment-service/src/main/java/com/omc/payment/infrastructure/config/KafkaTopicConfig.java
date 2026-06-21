@@ -39,14 +39,6 @@ public class KafkaTopicConfig {
         return topic(KafkaTopics.STOCK_FAILED, partitions, replicationFactor);
     }
 
-    @Bean
-    public NewTopic raffleWinnerSelectedTopic(
-            @Value("${kafka.topic.default-partitions:3}") int partitions,
-            @Value("${kafka.topic.default-replication-factor:1}") short replicationFactor
-    ) {
-        return topic(KafkaTopics.RAFFLE_WINNER_SELECTED, partitions, replicationFactor);
-    }
-
     /*
      * 발행 도픽
      * */
