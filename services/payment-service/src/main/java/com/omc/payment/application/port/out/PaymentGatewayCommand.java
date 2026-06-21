@@ -1,15 +1,14 @@
 package com.omc.payment.application.port.out;
 
-import java.util.UUID;
-
 public final class PaymentGatewayCommand {
 
     // 객체 생성 방어
     private PaymentGatewayCommand() {}
 
     public record Confirm(
-            UUID orderId,
-            UUID amount
+            String providerPaymentId, // 결제 식별자
+            String orderId,
+            Long amount
     ) {}
 
     public record RegisterBillingKey(
@@ -19,6 +18,7 @@ public final class PaymentGatewayCommand {
 
     public record Cancel(
             String providerPaymentId,
+            String cancelReason,
             Long amount
     ) {}
 }
