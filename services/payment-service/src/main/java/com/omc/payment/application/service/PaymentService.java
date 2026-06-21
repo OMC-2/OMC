@@ -75,8 +75,16 @@ public class PaymentService {
 
     public RegisterBillingKeyResponse registerBillingKey(@Valid RegisterBillingKeyRequest request) {
         try {
-            String customerKey = UUID.randomUUID().toString();
-            String authKey = UUID.randomUUID().toString();
+            /*
+            * Mocking을 위한 랜덤 키 Fallback
+            * */
+            String customerKey = request.customerKey() == null || request.customerKey().isBlank()
+                    ? UUID.randomUUID().toString()
+                    : request.customerKey();
+
+            String authKey = request.authKey() == null || request.authKey().isBlank()
+                    ? UUID.randomUUID().toString()
+                    : request.authKey();
 
             PaymentGatewayResult.RegisterBillingKey result = paymentGatewayPort.registerBillingKey(
                     new PaymentGatewayCommand.RegisterBillingKey(customerKey, authKey)
@@ -96,8 +104,8 @@ public class PaymentService {
 
         switch (role) {
             case "ADMIN" -> {
-                cancelWithGateway(payment, request.cancelReason());
-                payment.cancel(CancellationCode.ADMIN_CANCEL, request.cancelReason());
+                String providerCancellationId = cancelWithGateway(payment, request.cancelReason());
+                payment.cancel(providerCancellationId, CancellationCode.ADMIN_CANCEL, request.cancelReason());
 
                 return PaymentResponse.from(payment);
             }
@@ -106,8 +114,8 @@ public class PaymentService {
                 if (!currentUserId.equals(payment.getUserId())) {
                     throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
                 }
-                cancelWithGateway(payment, request.cancelReason());
-                payment.cancel(CancellationCode.USER_CANCEL, request.cancelReason());
+                String providerCancellationId = cancelWithGateway(payment, request.cancelReason());
+                payment.cancel(providerCancellationId, CancellationCode.USER_CANCEL, request.cancelReason());
 
                 return PaymentResponse.from(payment);
             }
@@ -143,15 +151,16 @@ public class PaymentService {
     }
 
     // cancelPayment PG 연동 로직 분리
-    private void cancelWithGateway(Payment payment, String cancelReason) {
+    private String cancelWithGateway(Payment payment, String cancelReason) {
         try {
-           paymentGatewayPort.cancelPayment(
+            PaymentGatewayResult.Cancel result = paymentGatewayPort.cancelPayment(
                    new PaymentGatewayCommand.Cancel(
                            payment.getProviderPaymentId(),
                            cancelReason,
                            payment.getFinalAmount()
                    )
            );
+           return result.providerCancellationId();
         } catch (PaymentGatewayRequestException e) {
             throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_REQUEST_FAILED, e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
