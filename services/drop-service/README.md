@@ -72,7 +72,25 @@ sequenceDiagram
     Note over Q: 발행 유실 시 hold TTL(10분) 자연 보상
 ```
 
-### 2-3. hold 생명주기 — 결제 vs TTL 만료 경합
+### 2-3. Redis 키 정리 (`DropRedisCleanupScheduler`)
+
+CLOSE 직후 바로 삭제하지 않는다. hold TTL(10분) + 늦은 결제 이벤트까지 고려해 충분한 시간이 지난 뒤 정리한다.
+
+```
+조건 (AND):
+① status == CLOSED
+② endAt + 1시간 < now    ← hold TTL 10분 + 여유 버퍼
+③ ZCARD holds:{dropId} == 0  ← 대기 중인 hold 없음
+
+→ 셋 다 만족하면 DEL:
+   stock, purchased, holds, queue, hold_ttl, product_id (6개)
+   (status는 CLOSE 시 이미 삭제)
+```
+
+> 멀티 인스턴스 환경에서 중복 실행되더라도 `DEL`은 멱등이라 안전하다.  
+> 실제 삭제된 키 수가 0이면 로그를 찍지 않아 이미 정리된 드롭의 로그 노이즈를 방지한다.
+
+### 2-4. hold 생명주기 — 결제 vs TTL 만료 경합
 
 선점 후 `holdTtlSec`(기본 600초 / 10분) 내 미결제 시 선점을 회수한다.
 심판은 `ZREM` 반환값 — **먼저 지운 쪽이 승리**하며 별도 락이 필요 없다.

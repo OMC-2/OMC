@@ -90,6 +90,24 @@ public class PurchaseRedisRepository {
         return result != null ? result : 0L;
     }
 
+    public boolean isHoldsEmpty(UUID dropId) {
+        Long count = redisTemplate.opsForZSet().zCard(holdsKey(dropId));
+        return count == null || count == 0;
+    }
+
+    public long deleteDropKeys(UUID dropId) {
+        List<String> keys = List.of(
+                stockKey(dropId),
+                purchasedKey(dropId),
+                holdsKey(dropId),
+                queueKey(dropId),
+                holdTtlKey(dropId),
+                productIdKey(dropId)
+        );
+        Long deleted = redisTemplate.delete(keys);
+        return deleted != null ? deleted : 0L;
+    }
+
     private static String statusKey(UUID dropId)    { return "drop:" + dropId + ":status"; }
     private static String stockKey(UUID dropId)     { return "stock:" + dropId; }
     private static String purchasedKey(UUID dropId) { return "purchased:" + dropId; }
