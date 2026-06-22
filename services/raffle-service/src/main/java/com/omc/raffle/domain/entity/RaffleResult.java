@@ -59,7 +59,7 @@ public class RaffleResult {
                 .build();
     }
 
-    public void updateToCanceled() {
-        this.result = RaffleResultStatus.CANCELED;
+    public void updateResult(RaffleResultStatus result) {
+        this.result = result;
     }
 }

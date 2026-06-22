@@ -55,7 +55,7 @@ class AddressServiceTest {
         AddressResponse response = addressService.createAddress(userId, request);
 
         assertThat(response).isNotNull();
-        verify(addressRepository, never()).findAllByUserId(any());
+        verify(addressRepository, never()).unmarkAllDefaultByUserId(any());
         verify(addressRepository).save(any(Address.class));
     }
 
@@ -65,10 +65,6 @@ class AddressServiceTest {
         CreateAddressRequest request = new CreateAddressRequest(
                 "테스터", "010-1234-5678", "12345", "서울시 강남구", null, true);
 
-        Address existing1 = mock(Address.class);
-        Address existing2 = mock(Address.class);
-        given(addressRepository.findAllByUserId(userId)).willReturn(List.of(existing1, existing2));
-
         Address savedAddress = mock(Address.class);
         given(savedAddress.getAddressId()).willReturn(UUID.randomUUID());
         given(savedAddress.isDefault()).willReturn(true);
@@ -76,9 +72,7 @@ class AddressServiceTest {
 
         AddressResponse response = addressService.createAddress(userId, request);
 
-        verify(addressRepository).findAllByUserId(userId);
-        verify(existing1).unmarkAsDefault();
-        verify(existing2).unmarkAsDefault();
+        verify(addressRepository).unmarkAllDefaultByUserId(userId);
         assertThat(response.isDefault()).isTrue();
     }
 
@@ -94,7 +88,7 @@ class AddressServiceTest {
 
         addressService.createAddress(userId, request);
 
-        verify(addressRepository, never()).findAllByUserId(any());
+        verify(addressRepository, never()).unmarkAllDefaultByUserId(any());
     }
 
     // =========================================================================
@@ -231,18 +225,12 @@ class AddressServiceTest {
 
         Address targetAddress = mock(Address.class);
         given(targetAddress.getAddressId()).willReturn(targetId);
-
-        Address otherAddress = mock(Address.class);
-        given(otherAddress.getAddressId()).willReturn(UUID.randomUUID());
-
-        given(addressRepository.findAllByUserId(userId)).willReturn(List.of(otherAddress, targetAddress));
+        given(addressRepository.findByAddressIdAndUserId(targetId, userId)).willReturn(Optional.of(targetAddress));
 
         DefaultAddressResponse response = addressService.setDefaultAddress(userId, targetId);
 
-        verify(targetAddress).unmarkAsDefault();
+        verify(addressRepository).unmarkAllDefaultByUserId(userId);
         verify(targetAddress).markAsDefault();
-        verify(otherAddress).unmarkAsDefault();
-        verify(otherAddress, never()).markAsDefault();
         assertThat(response.addressId()).isEqualTo(targetId);
         assertThat(response.isDefault()).isTrue();
     }
@@ -252,10 +240,7 @@ class AddressServiceTest {
         UUID userId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
 
-        Address otherAddress = mock(Address.class);
-        given(otherAddress.getAddressId()).willReturn(UUID.randomUUID()); // 다른 ID
-
-        given(addressRepository.findAllByUserId(userId)).willReturn(List.of(otherAddress));
+        given(addressRepository.findByAddressIdAndUserId(targetId, userId)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> addressService.setDefaultAddress(userId, targetId))
                 .isInstanceOf(AddressNotFoundException.class);

@@ -14,4 +14,7 @@ public interface RaffleResultRepository extends JpaRepository<RaffleResult, UUID
     
     // 특정 응모권(entry)에 대한 추첨 결과 조회
     Optional<RaffleResult> findByEntryId(UUID entryId);
+
+    // 유저의 특정 래플 추첨 결과 조회
+    Optional<RaffleResult> findByRaffleIdAndUserId(UUID raffleId, UUID userId);
 }

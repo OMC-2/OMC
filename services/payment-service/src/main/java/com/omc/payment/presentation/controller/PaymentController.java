@@ -8,6 +8,7 @@ import com.omc.payment.presentation.dto.request.PaymentCancelRequest;
 import com.omc.payment.presentation.dto.request.RegisterBillingKeyRequest;
 import com.omc.payment.presentation.dto.response.PaymentDetailResponse;
 import com.omc.payment.presentation.dto.response.PaymentResponse;
+import com.omc.payment.presentation.dto.response.RegisterBillingKeyResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -61,21 +62,23 @@ public class PaymentController {
     }
 
     /*
-     * 내부 모듈 연동용 INTERNAL API
+     * 클라이언트 통신용 INTERNAL API
      */
 
+    // 클라이언트가 결제창/SDK 리다이렉트로 받은 providerPaymentId
     @PostMapping("/internal/payments/confirm")
     @ResponseStatus(HttpStatus.CREATED)
-    public void confirmPayment(
+    public PaymentResponse confirmPayment(
             @Valid @RequestBody ConfirmPaymentRequest request
     ) {
-        paymentService.confirmPayment(request);
+        return paymentService.confirmPayment(request);
     }
 
+    // 클라이언트가 결제창/SDK 리다이렉트로 받은 customerKey, authKey
     @PostMapping("/internal/billing-keys/register")
-    public void registerBillingKey(
+    public RegisterBillingKeyResponse registerBillingKey(
             @Valid @RequestBody RegisterBillingKeyRequest request
     ) {
-        paymentService.registerBillingKey(request);
+        return paymentService.registerBillingKey(request);
     }
 }

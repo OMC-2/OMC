@@ -35,8 +35,13 @@ stateDiagram-v2
 OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으로 바꾸지 않고 다음 주기에 재시도한다.
 
 ```
-① product-service 재고 스냅샷 조회
-② Redis 워밍 (stock SETNX, status SETNX — 키 없을 때만 세팅, 멀티 인스턴스 재고 초기화 방지)
+① product-service 재고 스냅샷 조회 (GET /internal/v1/products/{productId}/inventories/snapshot)
+   → availableQuantity 사용 / product-service 장애 시 드롭 생성 시 저장한 totalQty로 폴백
+② Redis 워밍 (SETNX — 키 없을 때만 세팅, 멀티 인스턴스 재고 초기화 방지)
+   stock:{dropId}      = availableQuantity
+   drop:{dropId}:status = "OPEN"
+   hold_ttl:{dropId}   = holdTtlSec   ← 진입 경로 DB 무접촉을 위한 캐싱
+   product_id:{dropId} = productId    ← purchase.confirmed 이벤트 조립용 캐싱
 ③ 조건부 UPDATE (WHERE status='SCHEDULED')  ← 인스턴스가 여러 대여도 전이는 1회
 ④ drop.opened 발행
 ```
@@ -52,10 +57,11 @@ sequenceDiagram
     participant K as Kafka
 
     U->>D: POST /drops/{id}/purchase
-    D->>R: ① OPEN 플래그 검사 (fail-fast, DB 무접촉)
-    D->>R: ② Lua 원자 처리 (중복·재고·hold·순번)
+    D->>R: ① OPEN 플래그 검사 (fail-fast)
+    D->>R: ② holdTtlSec·productId 조회 (워밍 캐시, DB 무접촉)
+    D->>R: ③ Lua 원자 처리 (중복·재고·hold·순번)
     alt OK
-        D->>Q: ③ 이벤트 인메모리 큐에 적재
+        D->>Q: ④ 이벤트 인메모리 큐에 적재
         D-->>U: 202 Accepted (orderId, queueNumber)
         Note over Q,K: 워커 스레드가 큐에서 꺼내 Kafka 발행 (재시도 N회)
         Q->>K: purchase.confirmed 발행 (key=orderId)
@@ -66,7 +72,25 @@ sequenceDiagram
     Note over Q: 발행 유실 시 hold TTL(10분) 자연 보상
 ```
 
-### 2-3. hold 생명주기 — 결제 vs TTL 만료 경합
+### 2-3. Redis 키 정리 (`DropRedisCleanupScheduler`)
+
+CLOSE 직후 바로 삭제하지 않는다. hold TTL(10분) + 늦은 결제 이벤트까지 고려해 충분한 시간이 지난 뒤 정리한다.
+
+```
+조건 (AND):
+① status == CLOSED
+② endAt + 1시간 < now    ← hold TTL 10분 + 여유 버퍼
+③ ZCARD holds:{dropId} == 0  ← 대기 중인 hold 없음
+
+→ 셋 다 만족하면 DEL:
+   stock, purchased, holds, queue, hold_ttl, product_id (6개)
+   (status는 CLOSE 시 이미 삭제)
+```
+
+> 멀티 인스턴스 환경에서 중복 실행되더라도 `DEL`은 멱등이라 안전하다.  
+> 실제 삭제된 키 수가 0이면 로그를 찍지 않아 이미 정리된 드롭의 로그 노이즈를 방지한다.
+
+### 2-4. hold 생명주기 — 결제 vs TTL 만료 경합
 
 선점 후 `holdTtlSec`(기본 600초 / 10분) 내 미결제 시 선점을 회수한다.
 심판은 `ZREM` 반환값 — **먼저 지운 쪽이 승리**하며 별도 락이 필요 없다.
@@ -89,12 +113,20 @@ sequenceDiagram
 | POST | `/admin/drops` | ADMIN | 드롭 생성 (선착순 INSTANT 전용) | 201 |
 | PUT | `/admin/drops/{dropId}` | ADMIN | 수정 — `SCHEDULED` 상태에서만 | 200 |
 | DELETE | `/admin/drops/{dropId}` | ADMIN | 삭제 — `SCHEDULED` 상태에서만 (소프트딜리트) | 204 |
-| GET | `/drops?status=&page=` | USER | 목록 (Look-aside 캐싱) | 200 |
-| GET | `/drops/{dropId}` | USER | 상세 — 잔여 수량은 Redis 카운터로 응답 | 200 |
+| GET | `/drops?status=&page=` | GUEST | 목록 (Look-aside 캐싱) | 200 |
+| GET | `/drops/{dropId}` | GUEST | 상세 — 잔여 수량은 Redis 카운터로 응답 | 200 |
 | POST | `/drops/{dropId}/purchase` | USER | **선착순 진입 (부하 테스트 대상)** | 202 |
 | GET | `/drops/{dropId}/purchase/me` | USER | 내 접수 상태·대기 순번 (P2) | 200 |
 
 진입 API 실패 코드: `DROP_NOT_OPEN`(409) · `SOLD_OUT`(409) · `DUPLICATE_PURCHASE`(409) · `DROP_NOT_FOUND`(404)
+
+### Internal API (서비스 간 전용, `/internal/**` 인증 제외)
+
+| Method | Path | 제공처 | 설명 | 응답 |
+| --- | --- | --- | --- | --- |
+| GET | `/internal/v1/drops/products/{productId}/active` | drop-service | 해당 상품의 활성 드롭(SCHEDULED·OPEN) 존재 여부 | `{ hasActiveDrop: true }` |
+
+> product-service가 상품 삭제·수정 전 활성 드롭 여부를 확인하기 위해 호출한다.
 
 ---
 
@@ -138,11 +170,13 @@ processed_events (
 
 | 키 | 타입 | 용도 | 생성 / 소멸 |
 | --- | --- | --- | --- |
-| `stock:{dropId}` | String | 남은 수량 카운터 | 워밍 SET / 정산 후 DEL |
+| `stock:{dropId}` | String | 남은 수량 카운터 | 워밍 SETNX / 정산 후 DEL |
 | `purchased:{dropId}` | Set | 1인 1구매 차단 (userId) | Lua SADD / 정산 후 DEL |
 | `holds:{dropId}` | ZSet | orderId → 만료 epoch | Lua ZADD / 결제·만료 시 ZREM |
 | `queue:{dropId}` | String | 접수 순번 카운터 | Lua INCR / 정산 후 DEL |
-| `drop:{dropId}:status` | String | OPEN 플래그 (fail-fast) | 전이 시 SET |
+| `drop:{dropId}:status` | String | OPEN 플래그 (fail-fast) | 전이 시 SETNX / 종료 시 즉시 DEL |
+| `hold_ttl:{dropId}` | String | 선점 유지 시간(초) 캐시 | 워밍 SETNX / 정산 후 DEL |
+| `product_id:{dropId}` | String | productId 캐시 (이벤트 조립용) | 워밍 SETNX / 정산 후 DEL |
 
 ---
 
@@ -179,8 +213,8 @@ processed_events (
 | --- | --- | --- | --- |
 | `drop.opened` | dropId (1) | 상태 전이 SCHEDULED → OPEN | `eventId`, `dropId`, `startAt`, `endAt`, `totalQty` |
 | `drop.closed` | dropId (1) | 상태 전이 OPEN → CLOSED | `eventId`, `dropId` |
-| `purchase.confirmed` | **orderId (3)** | 선점 성공 → 주문 생성 트리거 | `eventId`, `orderId`, `dropId`, `userId`, `productId` |
-| `hold.expired` | orderId (1) | TTL 만료 → 주문 취소 트리거 | `eventId`, `orderId`, `dropId`, `userId` |
+| `purchase.confirmed` | **orderId (3)** | 선점 성공 → 주문 생성 트리거 | `eventId`, `orderId`, `dropId`, `userId`, `productId`, `holdExpiresAt` |
+| `hold.expired` | orderId (1) | TTL 만료 → 주문 취소 트리거 | `eventId`, `orderId`, `dropId` |
 | `refund.requested` | orderId (1) | ZREM=0 감지 (만료 후 결제) → 자동 환불 트리거 | `eventId`, `orderId`, `userId`, `reason` |
 
 > 모든 이벤트 payload 첫 필드에 `eventId` 포함 — Consumer가 `processed_events`로 멱등성 체크
@@ -189,9 +223,11 @@ processed_events (
 
 | 토픽 | 처리 | 멱등 |
 | --- | --- | --- |
-| `payment.completed` | hold 확정 제거 (ZREM) | ZREM 자체가 멱등 |
-| `payment.failed` | **즉시** ZREM + INCR + SREM 복구 (Lua) — TTL 대기 없이 재고 즉시 반환 | `processed_events` 필수 — INCR은 멱등이 아님 |
+| `payment.completed` | ① `salesType != INSTANT` 스킵 ② ZREM holds → 반환값 1=정상·0=LATE_PAYMENT ③ ZREM=0이면 `refund.requested` 발행 | ZREM 자체가 멱등 |
+| `payment.failed` | ① `salesType != INSTANT` 스킵 ② **즉시** ZREM + INCR + SREM 복구 (Lua) — TTL 대기 없이 재고 즉시 반환 | `processed_events` 필수 — INCR은 멱등이 아님 |
 | `stock.failed` | 동일 복구 Lua (ZREM + INCR + SREM) — payment, order와 병렬 구독 | `processed_events` 필수 |
+
+> `dropId` 전달 경로: `purchase.confirmed`(drop) → `order.created`(order) → `payment.completed` / `payment.failed`(payment) → drop 복구. RAFFLE은 `dropId`가 null이나 `salesType` 분기로 스킵.
 
 ---
 

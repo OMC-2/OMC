@@ -5,6 +5,7 @@ import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.repository.DropRepository;
+import com.omc.drop.presentation.dto.response.ActiveDropResponse;
 import com.omc.drop.presentation.dto.response.DropResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -126,6 +127,35 @@ class DropQueryServiceTest {
 
             assertThatThrownBy(() -> dropQueryService.findById(dropId))
                     .isInstanceOf(DropNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("활성 드롭 존재 여부 조회")
+    class HasActiveDrop {
+
+        @Test
+        @DisplayName("SCHEDULED 또는 OPEN 드롭이 있으면 hasActiveDrop=true를 반환한다")
+        void returnsTrueWhenActiveDropExists() {
+            UUID productId = UUID.randomUUID();
+            when(dropRepository.existsByProductIdAndStatusIn(productId, List.of(DropStatus.SCHEDULED, DropStatus.OPEN)))
+                    .thenReturn(true);
+
+            ActiveDropResponse response = dropQueryService.hasActiveDrop(productId);
+
+            assertThat(response.hasActiveDrop()).isTrue();
+        }
+
+        @Test
+        @DisplayName("활성 드롭이 없으면 hasActiveDrop=false를 반환한다")
+        void returnsFalseWhenNoActiveDrop() {
+            UUID productId = UUID.randomUUID();
+            when(dropRepository.existsByProductIdAndStatusIn(productId, List.of(DropStatus.SCHEDULED, DropStatus.OPEN)))
+                    .thenReturn(false);
+
+            ActiveDropResponse response = dropQueryService.hasActiveDrop(productId);
+
+            assertThat(response.hasActiveDrop()).isFalse();
         }
     }
 

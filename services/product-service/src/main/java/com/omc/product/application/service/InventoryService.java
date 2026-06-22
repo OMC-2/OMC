@@ -2,7 +2,8 @@ package com.omc.product.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.product.application.event.dto.request.PaymentCompletedRequest;
+import com.omc.product.application.event.StockFailedEvent;
+import com.omc.product.application.event.PaymentCompletedEvent;
 import com.omc.product.domain.entity.FailedEventLog;
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.entity.OutboxEvent;
@@ -39,7 +40,7 @@ public class InventoryService {
 
     // 재고 확정 차감 (payment.completed 이벤트 수신 시 호출)
     @Transactional
-    public void confirmDeduct(PaymentCompletedRequest event) {
+    public void confirmDeduct(PaymentCompletedEvent event) {
         // 1. 멱등성 확인
         if (processedEventRepository.existsByEventId(event.eventId())) {
             log.info("[InventoryService] 이미 처리된 이벤트 스킵. eventId={}", event.eventId());
@@ -82,7 +83,7 @@ public class InventoryService {
 
             // stock.failed Outbox INSERT → Poller가 Kafka 발행 → Payment Service 환불 트리거
             saveOutbox("INVENTORY", inventory.getInventoryId(),
-                    OutboxEventType.STOCK_FAILED, buildPayload(event));
+                    OutboxEventType.STOCK_FAILED, buildFailedPayload(event));
         }
     }
 
@@ -113,7 +114,8 @@ public class InventoryService {
         );
     }
 
-    private String buildPayload(PaymentCompletedRequest event) {
+    private String buildPayload(PaymentCompletedEvent event) {
+
         return toJson(event);
     }
 
@@ -123,5 +125,15 @@ public class InventoryService {
         } catch (JsonProcessingException e) {
             return "{}";
         }
+    }
+
+    private String buildFailedPayload(PaymentCompletedEvent event) {
+        return toJson(new StockFailedEvent(
+                UUID.randomUUID().toString(),
+                event.orderId(),
+                event.productId(),
+                event.dropId(),
+                event.userId()
+        ));
     }
 }
