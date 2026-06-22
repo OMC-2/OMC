@@ -13,6 +13,8 @@ public record OrderCreatedEvent(
     UUID dropId,
     UUID raffleId,
     UUID entryId,
+    Long originalAmount,
+    Long discountAmount,
     Long finalAmount,
     UUID couponId,
     UUID billingKeyId

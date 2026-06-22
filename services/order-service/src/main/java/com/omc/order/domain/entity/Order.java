@@ -1,6 +1,7 @@
 package com.omc.order.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
+import com.omc.order.domain.enums.CancelReason;
 import com.omc.order.domain.enums.OrderStatus;
 import com.omc.order.domain.enums.OrderType;
 import com.omc.order.domain.exception.OrderErrorCode;
@@ -9,8 +10,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -19,6 +18,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
+import org.springframework.data.domain.Persistable;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -28,10 +28,9 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @SQLRestriction("deleted_at IS NULL")
-public class Order extends BaseEntity {
+public class Order extends BaseEntity implements Persistable<UUID> {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.UUID)
   @Column(name = "order_id")
   private UUID orderId;
 
@@ -76,8 +75,9 @@ public class Order extends BaseEntity {
   @Column(name = "final_amount", nullable = false, columnDefinition = "bigint")
   private Long finalAmount;
 
-  @Column(name = "cancel_reason", length = 100)
-  private String cancelReason;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "cancel_reason", length = 50)
+  private CancelReason cancelReason;
 
   @Column(name = "expires_at")
   private LocalDateTime expiresAt;
@@ -111,9 +111,10 @@ public class Order extends BaseEntity {
   private String idempotencyKey;
 
   @Builder(access = AccessLevel.PRIVATE)
-  private Order(UUID userId, UUID productId, UUID dropId, UUID raffleId, UUID entryId, UUID paymentId,
+  private Order(UUID orderId, UUID userId, UUID productId, UUID dropId, UUID raffleId, UUID entryId, UUID paymentId,
                 UUID appliedCouponId, OrderType orderType, Integer quantity, OrderStatus status, Long originalAmount,
                 Long discountAmount, Long finalAmount, LocalDateTime expiresAt, String idempotencyKey) {
+    this.orderId = orderId;
     this.userId = userId;
     this.productId = productId;
     this.dropId = dropId;
@@ -131,9 +132,21 @@ public class Order extends BaseEntity {
     this.idempotencyKey = idempotencyKey;
   }
 
-  //드롭 가생성용 정적 팩토리 메서드
-  public static Order createDropOrder(UUID userId, UUID productId, UUID dropId, Long originalAmount, String idempotencyKey) {
+  //Persistable 구현, SELECT-before-INSERT 회피
+  @Override
+  public UUID getId() {
+    return this.orderId;
+  }
+
+  @Override
+  public boolean isNew() {
+    return this.orderId == null;
+  }
+
+  //[DROP] 드롭이 생성한 orderId를 그대로 PK 사용
+  public static Order createDropOrder(UUID orderId, UUID userId, UUID productId, UUID dropId, Long originalAmount, String idempotencyKey) {
     return Order.builder()
+        .orderId(orderId)
         .userId(userId)
         .productId(productId)
         .dropId(dropId)
@@ -148,49 +161,75 @@ public class Order extends BaseEntity {
         .build();
   }
 
-  //래플 당첨자 확정용 정적 팩토리 메서드
-  public static Order createRaffleOrder(UUID userId, UUID productId, UUID raffleId, UUID entryId, UUID paymentId, UUID appliedCouponId, Long originalAmount, Long discountAmount, Long finalAmount, String idempotencyKey) {
+  //[RAFFLE] order-first: 당첨 수신 시 PENDING_PAYMENT로 생성 (order.created -> payment capture -> payment.completed
+  public static Order createRaffleOrder(UUID orderId, UUID userId, UUID productId, UUID raffleId, UUID entryId, UUID appliedCouponId, Long originalAmount, Long discountAmount, Long finalAmount, String idempotencyKey) {
     return Order.builder()
+        .orderId(orderId)
         .userId(userId)
         .productId(productId)
         .raffleId(raffleId)
         .entryId(entryId)
-        .paymentId(paymentId)
         .appliedCouponId(appliedCouponId)
         .orderType(OrderType.RAFFLE)
         .quantity(1)
-        .status(OrderStatus.CONFIRMED) //래플은 생성과 동시에 확정
+        .status(OrderStatus.PENDING_PAYMENT) // 즉시 CONFIRMED -> PENDING_PAYMENT
         .originalAmount(originalAmount)
         .discountAmount(discountAmount)
         .finalAmount(finalAmount)
+        .expiresAt(LocalDateTime.now().plusMinutes(10)) //capture 타임아웃
         .idempotencyKey(idempotencyKey)
         .build();
   }
 
-  //비즈니스 로직 (상태 전이 캡슐화)
+  //상태 전이 캡슐화
 
-  //[결제 성공] PENDING_PAYMENT -> CONFIRMED (드롭/래플 공통)
-  public void confirmPayment() {
-    if (this.status != OrderStatus.PENDING_PAYMENT) {
+  //[결제 완료] PENDING_PAYMENT -> PAID (payment.completed 수신, 재고 확정 차감 대기)
+  public void markPaid(UUID paymentId) {
+    if(this.status != OrderStatus.PENDING_PAYMENT) {
       throw new OrderStateException(OrderErrorCode.NOT_PENDING_PAYMENT);
     }
-    this.status = OrderStatus.CONFIRMED;
+    this.status = OrderStatus.PAID;
+    this.paymentId = paymentId;
+    this.paidAt = LocalDateTime.now();
   }
 
-  //[결제 실패 / 타임아웃] -> CANCELLED
-  public void cancel() {
+
+  //[재고 확정 차감 완료] PAID -> CONFIRMED (stock.deducted 수신)
+  public void confirm() {
+    if (this.status != OrderStatus.PAID) {
+      throw new OrderStateException(OrderErrorCode.INVALID_ORDER_STATE);
+    }
+    this.status = OrderStatus.CONFIRMED;
+    this.confirmedAt = LocalDateTime.now();
+  }
+
+  //[취소] 결제 실패 / 홀드 만료 / 재고 차감 실패 등 -> CANCELLED
+  public void cancel(CancelReason reason) {
     if (this.status == OrderStatus.CANCELLED || this.status == OrderStatus.DELIVERED || this.status == OrderStatus.REFUNDED) {
       throw new OrderStateException(OrderErrorCode.ORDER_ALREADY_CANCELLED);
     }
     this.status = OrderStatus.CANCELLED;
+    this.cancelReason = reason;
+    this.cancelledAt = LocalDateTime.now();
   }
 
-  //[배송 시작] CONFIRMED -> SHIPPING
+  // [환불 요청] CONFIRMED -> REFUND REQUESTED (사용자 직접 환불)
+  public void requestRefund(CancelReason reason) {
+    if (this.status != OrderStatus.CONFIRMED) {
+      throw new OrderStateException(OrderErrorCode.REFUND_NOT_ALLOWED);
+    }
+    this.status = OrderStatus.REFUND_REQUESTED;
+    this.cancelReason = reason;
+  }
+
+
+  //[배송 시작] CONFIRMED -> SHIPPING (배송 스케줄러)
   public void startShipping() {
     if (this.status != OrderStatus.CONFIRMED) {
       throw new OrderStateException(OrderErrorCode.NOT_CONFIRMED);
     }
     this.status = OrderStatus.SHIPPING;
+    this.shippedAt = LocalDateTime.now();
   }
 
   //[배송 완료] SHIPPING -> DELIVERED
@@ -199,5 +238,6 @@ public class Order extends BaseEntity {
       throw new OrderStateException(OrderErrorCode.NOT_SHIPPING);
     }
     this.status = OrderStatus.DELIVERED;
+    this.deliveredAt = LocalDateTime.now();
   }
 }
