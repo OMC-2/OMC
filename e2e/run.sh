@@ -14,30 +14,41 @@
 #
 #   [서비스 그룹]
 #   user                → user/ 폴더 전체 (회원가입 + 로그인 + 프로필)
+#   coupon              → coupon/ 폴더 전체 (쿠폰 생성 + 발급 + 조회 + 보안)
 #   saga                → saga/ 폴더 전체 (서비스 연계 시나리오)
 #
 #   [개별 시나리오]
-#   user/signup         → 회원가입 (정상 201 / 중복 409 / 어드민 201)
-#   user/login          → 로그인 (정상 200 + 토큰 발급 / 잘못된 비밀번호 401)
-#   user/profile        → 프로필 조회 (정상 200 / 토큰 없음 401)
+#   user/signup              → 회원가입 (정상 201 / 중복 409 / 어드민 201)
+#   user/login               → 로그인 (정상 200 + 토큰 발급 / 잘못된 비밀번호 401)
+#   user/profile             → 프로필 조회 (정상 200 / 토큰 없음 401)
+#   user/token_refresh       → 토큰 갱신 (정상 200 / 잘못된 토큰 401)
+#   user/profile_update      → 프로필 수정 (정상 200 / 탈퇴 200 / 미인증 401)
+#   user/address             → 주소 CRUD + 기본 주소 설정
+#   user/security            → 인증·인가·경로 보안 검증
+#   coupon/coupon_create     → 쿠폰 생성 (정상 201 / 필드누락 400 / 권한오류 403·401)
+#   coupon/coupon_issue      → 쿠폰 발급 (정상 201 / 중복 409 / 품절 409 / 권한오류 403·401)
+#   coupon/coupon_my         → 내 쿠폰 목록·단건 조회 (정상 200 / 없는ID 404 / 미인증 401)
+#   coupon/coupon_security   → 쿠폰 인증·인가 보안 검증
 #
 # ----------------------------------------------------------------
 # 예시
 # ----------------------------------------------------------------
 #
-#   bash e2e/run.sh                   # 모든 시나리오 실행
-#   bash e2e/run.sh user              # user 서비스 시나리오 전체
-#   bash e2e/run.sh user/signup       # 회원가입 시나리오만
-#   bash e2e/run.sh user/login        # 로그인 시나리오만
-#   bash e2e/run.sh user/profile      # 프로필 조회 시나리오만
+#   bash e2e/run.sh                          # 모든 시나리오 실행
+#   bash e2e/run.sh user                     # user 서비스 시나리오 전체
+#   bash e2e/run.sh coupon                   # coupon 서비스 시나리오 전체
+#   bash e2e/run.sh user/signup              # 회원가입 시나리오만
+#   bash e2e/run.sh user/login               # 로그인 시나리오만
+#   bash e2e/run.sh user/profile             # 프로필 조회 시나리오만
+#   bash e2e/run.sh user/token_refresh       # 토큰 갱신 시나리오만
+#   bash e2e/run.sh user/profile_update      # 프로필 수정 시나리오만
+#   bash e2e/run.sh user/address             # 주소 관리 시나리오만
+#   bash e2e/run.sh user/security            # user 보안 시나리오만
+#   bash e2e/run.sh coupon/coupon_create     # 쿠폰 생성 시나리오만
+#   bash e2e/run.sh coupon/coupon_issue      # 쿠폰 발급 시나리오만
+#   bash e2e/run.sh coupon/coupon_my         # 내 쿠폰 조회 시나리오만
+#   bash e2e/run.sh coupon/coupon_security   # coupon 보안 시나리오만
 #
-# ================================================================
-# 사전 조건: 전체 인프라가 기동된 상태여야 한다
-# ================================================================
-#
-#   docker compose up -d
-#   docker compose -f docker-compose.services.yml up -d
-
 GATEWAY_SECRET=local-secret
 ADMIN_SECRET=local-admin-secret
 
@@ -56,7 +67,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user saga user/signup user/login user/profile"
+VALID_TARGETS="user coupon saga user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do
@@ -72,12 +83,23 @@ if [ -n "$TARGET" ]; then
     echo "사용 가능한 대상:"
     echo "  [서비스 그룹]"
     echo "  user              → user/ 폴더 전체"
+    echo "  coupon            → coupon/ 폴더 전체"
     echo "  saga              → saga/ 폴더 전체"
     echo ""
-    echo "  [개별 시나리오]"
-    echo "  user/signup       → 회원가입"
-    echo "  user/login        → 로그인"
-    echo "  user/profile      → 프로필 조회"
+    echo "  [개별 시나리오 — user]"
+    echo "  user/signup              → 회원가입"
+    echo "  user/login               → 로그인"
+    echo "  user/profile             → 프로필 조회"
+    echo "  user/token_refresh       → 토큰 갱신"
+    echo "  user/profile_update      → 프로필 수정 및 탈퇴"
+    echo "  user/address             → 주소 CRUD + 기본 주소 설정"
+    echo "  user/security            → 인증·인가·경로 보안 검증"
+    echo ""
+    echo "  [개별 시나리오 — coupon]"
+    echo "  coupon/coupon_create     → 쿠폰 생성"
+    echo "  coupon/coupon_issue      → 쿠폰 발급"
+    echo "  coupon/coupon_my         → 내 쿠폰 조회"
+    echo "  coupon/coupon_security   → 쿠폰 인증·인가 보안 검증"
     exit 1
   fi
 fi

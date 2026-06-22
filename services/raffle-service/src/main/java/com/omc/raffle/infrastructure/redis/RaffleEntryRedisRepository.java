@@ -36,4 +36,18 @@ public class RaffleEntryRedisRepository {
             throw new RuntimeException("Redis 서버 연동 오류", e);
         }
     }
+
+    /**
+     * Redis에서 유저의 응모 내역을 삭제합니다. (보상 트랜잭션용)
+     * @param raffleId 래플 ID
+     * @param userId 사용자 ID
+     */
+    public void removeEntry(UUID raffleId, UUID userId) {
+        String key = RAFFLE_ENTRY_KEY_PREFIX + raffleId.toString();
+        try {
+            redisTemplate.opsForSet().remove(key, userId.toString());
+        } catch (Exception e) {
+            log.error("[Redis Error] 응모 내역 삭제 중 오류 발생: {}", e.getMessage());
+        }
+    }
 }

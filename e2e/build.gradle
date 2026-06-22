@@ -9,7 +9,10 @@ dependencies {
 
 test {
     useJUnitPlatform()
-    systemProperty 'karate.options', System.getProperty('karate.options', '')
+    def karateOptions = System.getProperty('karate.options')
+    if (karateOptions) systemProperty 'karate.options', karateOptions
     onlyIf { project.hasProperty('runE2E') }
     testLogging { showStandardStreams = true }
+    // E2E는 서버 상태에 따라 결과가 달라지므로 항상 새로 실행
+    outputs.upToDateWhen { false }
 }

@@ -9,9 +9,13 @@ import com.omc.user.domain.repository.UserRepository;
 import com.omc.user.infrastructure.client.KeycloakAdminClient;
 import com.omc.user.infrastructure.client.KeycloakTokenResponse;
 import com.omc.user.presentation.dto.request.LoginRequest;
+import com.omc.user.presentation.dto.request.RefreshTokenRequest;
 import com.omc.user.presentation.dto.request.SignupRequest;
+import com.omc.user.presentation.dto.request.UpdateProfileRequest;
 import com.omc.user.presentation.dto.response.LoginResponse;
 import com.omc.user.presentation.dto.response.SignupResponse;
+import com.omc.user.presentation.dto.response.UpdateProfileResponse;
+import com.omc.user.presentation.dto.response.UserIdResponse;
 import com.omc.user.presentation.dto.response.UserProfileResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,12 +82,45 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public UserProfileResponse getProfile(UUID keycloakId) {
-        User user = userRepository.findByKeycloakId(keycloakId.toString())
+    public UserIdResponse findUserIdByKeycloakId(String keycloakId) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(UserNotFoundException::new);
+        return UserIdResponse.from(user);
+    }
+
+    @Transactional(readOnly = true)
+    public UserProfileResponse getProfile(UUID userId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(UserNotFoundException::new);
         return new UserProfileResponse(
                 user.getUserId(), user.getEmail(), user.getNickname(),
                 user.getSlackId(), user.getRole().name(), user.getCreatedAt()
         );
+    }
+
+    public LoginResponse refresh(RefreshTokenRequest request) {
+        KeycloakTokenResponse token = keycloakAdminClient.refreshToken(request.refreshToken());
+        return new LoginResponse(token.accessToken(), token.refreshToken(), "Bearer", token.expiresIn());
+    }
+
+    @Transactional
+    public UpdateProfileResponse updateProfile(UUID userId, UpdateProfileRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(UserNotFoundException::new);
+        user.update(request.nickname(), request.slackId());
+        return new UpdateProfileResponse(user.getUserId(), user.getNickname(), user.getSlackId());
+    }
+
+    @Transactional
+    public void withdraw(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(UserNotFoundException::new);
+        String keycloakUserId = user.getKeycloakId();
+        userRepository.delete(user);
+        try {
+            keycloakAdminClient.deleteUser(keycloakUserId);
+        } catch (Exception e) {
+            log.warn("Keycloak user deletion failed for {}, manual cleanup may be required", keycloakUserId, e);
+        }
     }
 }

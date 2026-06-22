@@ -95,6 +95,35 @@ public class KeycloakAdminClient {
     }
 
     @SuppressWarnings("unchecked")
+    public KeycloakTokenResponse refreshToken(String refreshToken) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("grant_type", "refresh_token");
+        form.add("client_id", props.getClientId());
+        form.add("refresh_token", refreshToken);
+
+        try {
+            Map<String, Object> response = restClient.post()
+                    .uri(props.getServerUrl() + "/realms/" + props.getRealm() + "/protocol/openid-connect/token")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(form)
+                    .retrieve()
+                    .body(Map.class);
+
+            return new KeycloakTokenResponse(
+                    (String) response.get("access_token"),
+                    (String) response.get("refresh_token"),
+                    ((Number) response.get("expires_in")).longValue()
+            );
+        } catch (HttpClientErrorException e) {
+            // Keycloak 4xx → 클라이언트가 보낸 토큰이 잘못된 것이므로 401 반환
+            throw new BusinessException(UserErrorCode.INVALID_REFRESH_TOKEN);
+        } catch (Exception e) {
+            log.error("Keycloak token refresh failed", e);
+            throw new BusinessException(CommonErrorCode.REMOTE_CALL_FAILED);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
     public KeycloakTokenResponse login(String email, String password) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "password");

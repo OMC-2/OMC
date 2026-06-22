@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Component
@@ -17,6 +18,12 @@ public class PurchaseRedisRepository {
 
     private static final RedisScript<Long> PURCHASE_SCRIPT =
             RedisScript.of(new ClassPathResource("scripts/purchase.lua"), Long.class);
+
+    private static final RedisScript<Long> RECOVERY_SCRIPT =
+            RedisScript.of(new ClassPathResource("scripts/recovery.lua"), Long.class);
+
+    private static final RedisScript<Long> EXPIRE_SCRIPT =
+            RedisScript.of(new ClassPathResource("scripts/expire.lua"), Long.class);
 
     private static final int DEFAULT_HOLD_TTL_SEC = 600;
 
@@ -56,6 +63,49 @@ public class PurchaseRedisRepository {
         );
         return redisTemplate.execute(PURCHASE_SCRIPT, keys,
                 userId.toString(), orderId.toString(), String.valueOf(holdTtlSec));
+    }
+
+    // 만료 epoch 이하인 orderId 목록 조회
+    public Set<String> getExpiredOrderIds(UUID dropId, long nowEpoch) {
+        return redisTemplate.opsForZSet().rangeByScore(holdsKey(dropId), 0, nowEpoch);
+    }
+
+    // 반환값: 1 = ZREM 성공 + 재고 복구, 0 = 이미 없음 (다른 인스턴스가 먼저 처리)
+    public long expireHold(UUID dropId, UUID orderId) {
+        List<String> keys = List.of(holdsKey(dropId), stockKey(dropId));
+        Long result = redisTemplate.execute(EXPIRE_SCRIPT, keys, orderId.toString());
+        return result != null ? result : 0L;
+    }
+
+    // 반환값: 1 = 정상 제거, 0 = 이미 없음 (LATE_PAYMENT)
+    public long removeHold(UUID dropId, UUID orderId) {
+        Long result = redisTemplate.opsForZSet().remove(holdsKey(dropId), orderId.toString());
+        return result != null ? result : 0L;
+    }
+
+    // 반환값: 1 = 복구 완료, 0 = hold 없음 (이미 처리됨)
+    public long recoverStock(UUID dropId, UUID orderId, UUID userId) {
+        List<String> keys = List.of(holdsKey(dropId), stockKey(dropId), purchasedKey(dropId));
+        Long result = redisTemplate.execute(RECOVERY_SCRIPT, keys, orderId.toString(), userId.toString());
+        return result != null ? result : 0L;
+    }
+
+    public boolean isHoldsEmpty(UUID dropId) {
+        Long count = redisTemplate.opsForZSet().zCard(holdsKey(dropId));
+        return count == null || count == 0;
+    }
+
+    public long deleteDropKeys(UUID dropId) {
+        List<String> keys = List.of(
+                stockKey(dropId),
+                purchasedKey(dropId),
+                holdsKey(dropId),
+                queueKey(dropId),
+                holdTtlKey(dropId),
+                productIdKey(dropId)
+        );
+        Long deleted = redisTemplate.delete(keys);
+        return deleted != null ? deleted : 0L;
     }
 
     private static String statusKey(UUID dropId)    { return "drop:" + dropId + ":status"; }

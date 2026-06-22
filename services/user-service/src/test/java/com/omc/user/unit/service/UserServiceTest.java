@@ -6,25 +6,33 @@ import com.omc.user.application.service.UserService;
 import com.omc.user.domain.entity.User;
 import com.omc.user.domain.enums.UserRole;
 import com.omc.user.domain.exception.UserAlreadyExistsException;
+import com.omc.user.domain.exception.UserNotFoundException;
 import com.omc.user.domain.repository.UserRepository;
 import com.omc.user.infrastructure.client.KeycloakAdminClient;
+import com.omc.user.infrastructure.client.KeycloakTokenResponse;
+import com.omc.user.presentation.dto.request.LoginRequest;
+import com.omc.user.presentation.dto.request.RefreshTokenRequest;
 import com.omc.user.presentation.dto.request.SignupRequest;
+import com.omc.user.presentation.dto.request.UpdateProfileRequest;
+import com.omc.user.presentation.dto.response.LoginResponse;
 import com.omc.user.presentation.dto.response.SignupResponse;
+import com.omc.user.presentation.dto.response.UpdateProfileResponse;
+import com.omc.user.presentation.dto.response.UserProfileResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -37,6 +45,10 @@ class UserServiceTest {
 
     @InjectMocks
     private UserService userService;
+
+    // =========================================================================
+    // signup
+    // =========================================================================
 
     @Test
     void signup_success() {
@@ -89,5 +101,215 @@ class UserServiceTest {
                         .isEqualTo(CommonErrorCode.INTERNAL_SERVER_ERROR));
 
         verify(keycloakAdminClient).deleteUser(keycloakId);
+    }
+
+    // =========================================================================
+    // adminSignup
+    // =========================================================================
+
+    @Test
+    void adminSignup_success_returnsAdminRole() {
+        SignupRequest request = new SignupRequest("admin@example.com", "password123", "admin", null);
+        String keycloakId = UUID.randomUUID().toString();
+        UUID userId = UUID.randomUUID();
+
+        User mockUser = mock(User.class);
+        given(mockUser.getUserId()).willReturn(userId);
+        given(mockUser.getEmail()).willReturn("admin@example.com");
+        given(mockUser.getNickname()).willReturn("admin");
+        given(mockUser.getRole()).willReturn(UserRole.ADMIN);
+
+        given(userRepository.existsByEmail("admin@example.com")).willReturn(false);
+        given(keycloakAdminClient.createAdminUser("admin@example.com", "password123", "admin")).willReturn(keycloakId);
+        given(userRepository.save(any(User.class))).willReturn(mockUser);
+
+        SignupResponse response = userService.adminSignup(request);
+
+        assertThat(response.role()).isEqualTo("ADMIN");
+        verify(keycloakAdminClient).createAdminUser("admin@example.com", "password123", "admin");
+    }
+
+    @Test
+    void adminSignup_duplicateEmail_throwsUserAlreadyExistsException() {
+        SignupRequest request = new SignupRequest("admin@example.com", "password123", "admin", null);
+        given(userRepository.existsByEmail("admin@example.com")).willReturn(true);
+
+        assertThatThrownBy(() -> userService.adminSignup(request))
+                .isInstanceOf(UserAlreadyExistsException.class);
+
+        verify(keycloakAdminClient, never()).createAdminUser(any(), any(), any());
+    }
+
+    // =========================================================================
+    // login
+    // =========================================================================
+
+    @Test
+    void login_success_returnsTokens() {
+        LoginRequest request = new LoginRequest("test@example.com", "password123");
+        given(keycloakAdminClient.login("test@example.com", "password123"))
+                .willReturn(new KeycloakTokenResponse("access-token", "refresh-token", 3600L));
+
+        LoginResponse response = userService.login(request);
+
+        assertThat(response.accessToken()).isEqualTo("access-token");
+        assertThat(response.refreshToken()).isEqualTo("refresh-token");
+        assertThat(response.tokenType()).isEqualTo("Bearer");
+        assertThat(response.expiresIn()).isEqualTo(3600L);
+    }
+
+    @Test
+    void login_keycloakFails_propagatesException() {
+        LoginRequest request = new LoginRequest("test@example.com", "wrongpassword");
+        given(keycloakAdminClient.login(any(), any()))
+                .willThrow(new BusinessException(CommonErrorCode.UNAUTHORIZED));
+
+        assertThatThrownBy(() -> userService.login(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(CommonErrorCode.UNAUTHORIZED));
+    }
+
+    // =========================================================================
+    // getProfile
+    // =========================================================================
+
+    @Test
+    void getProfile_success_returnsUserProfileResponse() {
+        UUID userId = UUID.randomUUID();
+        UUID dbUserId = UUID.randomUUID();
+
+        User mockUser = mock(User.class);
+        given(mockUser.getUserId()).willReturn(dbUserId);
+        given(mockUser.getEmail()).willReturn("test@example.com");
+        given(mockUser.getNickname()).willReturn("testuser");
+        given(mockUser.getSlackId()).willReturn("U12345");
+        given(mockUser.getRole()).willReturn(UserRole.USER);
+        given(mockUser.getCreatedAt()).willReturn(LocalDateTime.of(2024, 6, 1, 0, 0));
+        given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
+
+        UserProfileResponse response = userService.getProfile(userId);
+
+        assertThat(response.userId()).isEqualTo(dbUserId);
+        assertThat(response.email()).isEqualTo("test@example.com");
+        assertThat(response.nickname()).isEqualTo("testuser");
+        assertThat(response.slackId()).isEqualTo("U12345");
+        assertThat(response.role()).isEqualTo("USER");
+    }
+
+    @Test
+    void getProfile_userNotFound_throwsUserNotFoundException() {
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.getProfile(userId))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    // =========================================================================
+    // refresh
+    // =========================================================================
+
+    @Test
+    void refresh_success_returnsNewTokens() {
+        RefreshTokenRequest request = new RefreshTokenRequest("old-refresh-token");
+        given(keycloakAdminClient.refreshToken("old-refresh-token"))
+                .willReturn(new KeycloakTokenResponse("new-access-token", "new-refresh-token", 3600L));
+
+        LoginResponse response = userService.refresh(request);
+
+        assertThat(response.accessToken()).isEqualTo("new-access-token");
+        assertThat(response.refreshToken()).isEqualTo("new-refresh-token");
+        assertThat(response.tokenType()).isEqualTo("Bearer");
+        assertThat(response.expiresIn()).isEqualTo(3600L);
+    }
+
+    @Test
+    void refresh_invalidToken_propagatesException() {
+        RefreshTokenRequest request = new RefreshTokenRequest("expired-token");
+        given(keycloakAdminClient.refreshToken("expired-token"))
+                .willThrow(new BusinessException(CommonErrorCode.UNAUTHORIZED));
+
+        assertThatThrownBy(() -> userService.refresh(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(CommonErrorCode.UNAUTHORIZED));
+    }
+
+    // =========================================================================
+    // updateProfile
+    // =========================================================================
+
+    @Test
+    void updateProfile_success_returnsUpdatedFields() {
+        UUID userId = UUID.randomUUID();
+        UUID dbUserId = UUID.randomUUID();
+        UpdateProfileRequest request = new UpdateProfileRequest("newNickname", "U99999");
+
+        User mockUser = mock(User.class);
+        given(mockUser.getUserId()).willReturn(dbUserId);
+        given(mockUser.getNickname()).willReturn("newNickname");
+        given(mockUser.getSlackId()).willReturn("U99999");
+        given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
+
+        UpdateProfileResponse response = userService.updateProfile(userId, request);
+
+        verify(mockUser).update("newNickname", "U99999");
+        assertThat(response.userId()).isEqualTo(dbUserId);
+        assertThat(response.nickname()).isEqualTo("newNickname");
+        assertThat(response.slackId()).isEqualTo("U99999");
+    }
+
+    @Test
+    void updateProfile_userNotFound_throwsUserNotFoundException() {
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updateProfile(userId, new UpdateProfileRequest("nick", null)))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    // =========================================================================
+    // withdraw
+    // =========================================================================
+
+    @Test
+    void withdraw_success_deletesFromDbAndKeycloak() {
+        UUID userId = UUID.randomUUID();
+        String keycloakUserId = UUID.randomUUID().toString();
+
+        User mockUser = mock(User.class);
+        given(mockUser.getKeycloakId()).willReturn(keycloakUserId);
+        given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
+
+        userService.withdraw(userId);
+
+        verify(userRepository).delete(mockUser);
+        verify(keycloakAdminClient).deleteUser(keycloakUserId);
+    }
+
+    @Test
+    void withdraw_keycloakFails_dbDeleteStillProceeds() {
+        UUID userId = UUID.randomUUID();
+        String keycloakUserId = UUID.randomUUID().toString();
+
+        User mockUser = mock(User.class);
+        given(mockUser.getKeycloakId()).willReturn(keycloakUserId);
+        given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
+        willThrow(new RuntimeException("keycloak error")).given(keycloakAdminClient).deleteUser(keycloakUserId);
+
+        assertThatCode(() -> userService.withdraw(userId)).doesNotThrowAnyException();
+        verify(userRepository).delete(mockUser);
+    }
+
+    @Test
+    void withdraw_userNotFound_throwsUserNotFoundException() {
+        UUID userId = UUID.randomUUID();
+        given(userRepository.findById(userId)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.withdraw(userId))
+                .isInstanceOf(UserNotFoundException.class);
+
+        verify(userRepository, never()).delete(any());
     }
 }
