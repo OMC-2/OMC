@@ -73,4 +73,13 @@ public class User {
                 .role(UserRole.ADMIN)
                 .build();
     }
+
+    public void update(String nickname, String slackId) {
+        if (nickname != null && !nickname.isBlank()) {
+            this.nickname = nickname;
+        }
+        if (slackId != null) {
+            this.slackId = slackId;
+        }
+    }
 }

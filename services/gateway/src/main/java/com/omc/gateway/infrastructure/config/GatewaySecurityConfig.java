@@ -1,4 +1,4 @@
-package com.omc.gateway.security;
+package com.omc.gateway.infrastructure.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.exception.CommonErrorCode;
@@ -49,6 +49,7 @@ public class GatewaySecurityConfig {
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/signup").permitAll()
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/admin/signup").permitAll()
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/login").permitAll()
+                .pathMatchers(HttpMethod.POST, "/api/v1/users/token/refresh").permitAll()
                 .pathMatchers("/actuator/**", "/*/actuator/**").permitAll()
                 .pathMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                 .pathMatchers("/internal/**").denyAll()
