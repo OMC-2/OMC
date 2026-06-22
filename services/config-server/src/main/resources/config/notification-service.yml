@@ -40,3 +40,6 @@ feign:
   client:
     user-service:
       url: ${USER_SERVICE_URL:http://user-service}
+
+slack:
+  bot-token: ${SLACK_BOT_TOKEN:}
