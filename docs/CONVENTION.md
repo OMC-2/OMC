@@ -22,19 +22,19 @@
 // ✅ 올바른 Entity 예시
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class UserEntity {
+public class User {
     
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String name;
 
     @Builder
-    private UserEntity(String name) {
+    private User(String name) {
         this.name = name;
     }
 
-    public static UserEntity create(String name) {
-        return UserEntity.builder()
+    public static User create(String name) {
+        return User.builder()
             .name(name)
             .build();
     }
@@ -68,7 +68,7 @@ public record UserResponse(Long id, String name) {
    - `Controller`: `*Controller` 이름 + `@RestController` (또는 `@Controller`)
    - `Service`: `*Service` 이름 + `@Service`
    - `Repository`: `*Repository` 이름 + `@Repository` (또는 인터페이스 상속)
-   - `Entity`: `*Entity` 이름 + `@Entity`
+   - `Entity`: 도메인명 그대로 사용 + `@Entity` 어노테이션 필수 (접미사 불필요)
    - `DTO`: 요청은 `*Request`, 응답은 `*Response` 이름 사용
 
 ---
@@ -113,6 +113,7 @@ com.omc.{service-name}
     ├── redis/                ← RedisTemplate, Lua Script (drop/raffle 비중 큼)
     ├── kafka/                ← KafkaTemplate 설정, 직렬화, 실제 send/listen 어댑터
     ├── client/               ← FeignClient, WebClientConfig (서비스 간 통신 어댑터)
+    ├── filter/               ← GlobalFilter (Gateway 전용 요청 전처리 필터)
     └── config/               ← @Configuration
 ```
 
