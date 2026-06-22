@@ -6,27 +6,11 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
-import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
-
 @AnalyzeClasses(packages = "com.omc.notification", importOptions = ImportOption.DoNotIncludeTests.class)
 public class NotificationServiceArchTest {
 
     @ArchTest
-    static final ArchRule layer_dependency_rule = layeredArchitecture()
-            .consideringAllDependencies()
-            .layer("Controllers").definedBy("..controller..")
-            .layer("Services").definedBy("..service..")
-            .layer("Repositories").definedBy("..repository..")
-            .layer("Entities").definedBy("..entity..")
-            .layer("DTOs").definedBy("..dto..")
-            .layer("Consumers").definedBy("..event.consumer..")
-            .layer("Schedulers").definedBy("..scheduler..")
-
-            .whereLayer("Controllers").mayNotBeAccessedByAnyLayer()
-            .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services", "Consumers", "Schedulers")
-            .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Schedulers")
-            .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "DTOs", "Schedulers")
-            .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services");
+    static final ArchRule layer_dependency_rule = CommonArchRules.layerDependencyRule();
 
     @ArchTest
     static final ArchRule no_direct_user_service_import = CommonArchRules.noDirectServiceCrossImport("notification", "user");
