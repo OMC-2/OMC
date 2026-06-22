@@ -28,12 +28,15 @@ public class CommonArchRules {
                 .layer("DTOs").definedBy("..dto..")
                 .layer("Schedulers").definedBy("..scheduler..")
                 .layer("Events").definedBy("..event..")
+                .layer("Consumers").definedBy("..consumer..")
 
                 .whereLayer("Controllers").mayNotBeAccessedByAnyLayer()
-                .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services", "Schedulers", "Events")
-                .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Repositories", "Schedulers", "Events")
-                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "DTOs", "Schedulers", "Events")
-                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "Schedulers", "Events");
+                .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services", "Schedulers", "Events", "Consumers")
+                .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Repositories", "Schedulers", "Events", "Consumers")
+                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "DTOs", "Schedulers", "Events", "Consumers")
+                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "Schedulers", "Events", "Consumers")
+                .whereLayer("Consumers").mayNotBeAccessedByAnyLayer()
+                .whereLayer("Schedulers").mayNotBeAccessedByAnyLayer();
     }
 
     // 2. MSA 직접 침범 금지 (No direct import across domains)

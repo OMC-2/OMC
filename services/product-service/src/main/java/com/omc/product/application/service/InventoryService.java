@@ -12,7 +12,7 @@ import com.omc.product.domain.exception.ActiveDropExistsException;
 import com.omc.product.domain.exception.InventoryNotFoundException;
 import com.omc.product.domain.enums.OutboxEventType;
 import com.omc.product.domain.repository.*;
-import com.omc.product.infrastructure.client.dto.ActiveDropResponse;
+import com.omc.product.infrastructure.client.ActiveDropResponse;
 import com.omc.product.infrastructure.client.DropInternalClient;
 import com.omc.product.presentation.dto.request.InventoryUpdateRequest;
 import com.omc.product.presentation.dto.response.InventoryResponse;
