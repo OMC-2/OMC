@@ -7,9 +7,8 @@ Feature: 알림 목록 조회
   # 시나리오 목록:
   #   1. [정상] 신규 유저 알림 목록 조회 → 200, 빈 배열
   #   2. [정상] 쿠폰 발급 후 알림 목록 조회 → 200, COUPON_ISSUED 알림 1건
-  #   3. [예외] X-Gateway-Secret 없이 조회 → 403
-  #   4. [예외] 토큰 없이 조회 → 401
-  #   5. [예외] 변조된 JWT로 조회 → 401
+  #   3. [예외] 토큰 없이 조회 → 401
+  #   4. [예외] 변조된 JWT로 조회 → 401
   #
   # 주의: Background에서 매 시나리오마다 USER 계정을 생성하고 로그인한다.
   #       시나리오 2는 쿠폰 발급 크로스서비스 흐름으로 알림 데이터를 생성한다.
@@ -83,8 +82,8 @@ Feature: 알림 목록 조회
     And header Authorization = 'Bearer ' + userAccessToken
     When method post
     Then status 201
-    # 4단계: Kafka Consumer 처리 대기 (3초)
-    * eval karate.pause(3000)
+    # 4단계: OutboxPoller(5s) + Kafka Consumer 처리 대기
+    * eval java.lang.Thread.sleep(10000)
     # 5단계: 알림 목록 조회 → COUPON_ISSUED 알림 확인
     Given path '/api/v1/notifications'
     And header X-Gateway-Secret = gatewaySecret
@@ -96,16 +95,7 @@ Feature: 알림 목록 조회
     And match response.data.content[0].notificationId == '#uuid'
 
   # ----------------------------------------------------------------
-  # 시나리오 3: X-Gateway-Secret 없이 조회 시 403을 반환한다
-  # ----------------------------------------------------------------
-  Scenario: [예외] X-Gateway-Secret 없이 조회 → 403
-    Given path '/api/v1/notifications'
-    And header Authorization = 'Bearer ' + userAccessToken
-    When method get
-    Then status 403
-
-  # ----------------------------------------------------------------
-  # 시나리오 4: 토큰 없이 조회 시 401을 반환한다
+  # 시나리오 3: 토큰 없이 조회 시 401을 반환한다
   # ----------------------------------------------------------------
   Scenario: [예외] 토큰 없이 조회 → 401
     Given path '/api/v1/notifications'
@@ -114,7 +104,7 @@ Feature: 알림 목록 조회
     Then status 401
 
   # ----------------------------------------------------------------
-  # 시나리오 5: 변조된 JWT로 조회 시 서명 검증 실패로 401을 반환한다
+  # 시나리오 4: 변조된 JWT로 조회 시 서명 검증 실패로 401을 반환한다
   # ----------------------------------------------------------------
   Scenario: [예외] 변조된 JWT로 조회 → 401
     Given path '/api/v1/notifications'

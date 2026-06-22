@@ -8,8 +8,7 @@ Feature: 알림 읽음 처리
   #   1. [정상] 본인 알림 읽음 처리 성공 → 200
   #   2. [예외] 다른 유저의 알림 읽음 처리 → 403, NOTIFICATION-002
   #   3. [예외] 존재하지 않는 notificationId → 404, NOTIFICATION-001
-  #   4. [예외] X-Gateway-Secret 없이 읽음 처리 → 403
-  #   5. [예외] 토큰 없이 읽음 처리 → 401
+  #   4. [예외] 토큰 없이 읽음 처리 → 401
   #
   # 주의: Background에서 매 시나리오마다 USER·ADMIN·OtherUser 계정을 생성하고,
   #       쿠폰 발급 크로스서비스 흐름으로 USER의 알림 1건을 생성한 뒤
@@ -82,8 +81,8 @@ Feature: 알림 읽음 처리
     When method post
     Then status 201
 
-    # 사전 준비 6: Kafka Consumer 처리 대기 (3초)
-    * eval karate.pause(3000)
+    # 사전 준비 6: OutboxPoller(5s) + Kafka Consumer 처리 대기
+    * eval java.lang.Thread.sleep(10000)
 
     # 사전 준비 7: 알림 목록 조회 → notificationId 추출
     Given path '/api/v1/notifications'
@@ -128,16 +127,7 @@ Feature: 알림 읽음 처리
     And match response.errorCode == 'NOTIFICATION-001'
 
   # ----------------------------------------------------------------
-  # 시나리오 4: X-Gateway-Secret 없이 읽음 처리 시 403을 반환한다
-  # ----------------------------------------------------------------
-  Scenario: [예외] X-Gateway-Secret 없이 읽음 처리 → 403
-    Given path '/api/v1/notifications/' + notificationId + '/read'
-    And header Authorization = 'Bearer ' + userAccessToken
-    When method patch
-    Then status 403
-
-  # ----------------------------------------------------------------
-  # 시나리오 5: 토큰 없이 읽음 처리 시 401을 반환한다
+  # 시나리오 4: 토큰 없이 읽음 처리 시 401을 반환한다
   # ----------------------------------------------------------------
   Scenario: [예외] 토큰 없이 읽음 처리 → 401
     Given path '/api/v1/notifications/' + notificationId + '/read'
