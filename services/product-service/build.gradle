@@ -1,29 +1,31 @@
 dependencies {
-    // Swagger
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 
-    // Messaging
-    implementation 'org.springframework.kafka:spring-kafka'
-    testImplementation 'org.springframework.kafka:spring-kafka-test'
-
-    // Redis
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-
-    // Flyway
+    // Database
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
-    // OpenFeign
+    // Cache
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Messaging
+    implementation 'org.springframework.kafka:spring-kafka'
+
+    // External API
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
-    // Observability
+    // Monitoring
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-    // Testcontainers
-    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:postgresql'
-    testImplementation 'org.testcontainers:junit-jupiter'
+    // API Documentation
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 
     // Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // Testing
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:junit-jupiter'
 }
