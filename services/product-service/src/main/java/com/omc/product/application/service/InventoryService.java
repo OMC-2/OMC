@@ -2,6 +2,7 @@ package com.omc.product.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.product.application.event.StockFailedEvent;
 import com.omc.product.application.event.dto.request.PaymentCompletedRequest;
 import com.omc.product.domain.entity.FailedEventLog;
 import com.omc.product.domain.entity.Inventory;
@@ -81,19 +82,9 @@ public class InventoryService {
                     )
             );
 
-            // stock.failed payload에 dropId, userId 추가
-            String payload = toJson(Map.of(
-                    "eventId", UUID.randomUUID().toString(),
-                    "orderId", event.orderId(),
-                    "productId", event.productId(),
-                    "dropId", event.dropId(),
-                    "userId", event.userId(),
-                    "quantity", event.quantity()
-            ));
-
             // stock.failed Outbox INSERT → Poller가 Kafka 발행 → Payment Service 환불 트리거
             saveOutbox("INVENTORY", inventory.getInventoryId(),
-                    OutboxEventType.STOCK_FAILED, payload);
+                    OutboxEventType.STOCK_FAILED, buildFailedPayload(event));
         }
     }
 
@@ -125,6 +116,7 @@ public class InventoryService {
     }
 
     private String buildPayload(PaymentCompletedRequest event) {
+
         return toJson(event);
     }
 
@@ -134,5 +126,15 @@ public class InventoryService {
         } catch (JsonProcessingException e) {
             return "{}";
         }
+    }
+
+    private String buildFailedPayload(PaymentCompletedRequest event) {
+        return toJson(new StockFailedEvent(
+                UUID.randomUUID().toString(),
+                event.orderId(),
+                event.productId(),
+                event.dropId(),
+                event.userId()
+        ));
     }
 }
