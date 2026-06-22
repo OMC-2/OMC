@@ -2,6 +2,7 @@ package com.omc.drop.application.event.producer;
 
 import com.omc.drop.infrastructure.kafka.event.DropClosedEvent;
 import com.omc.drop.infrastructure.kafka.event.DropOpenedEvent;
+import com.omc.drop.infrastructure.kafka.event.HoldExpiredEvent;
 import com.omc.drop.infrastructure.kafka.event.RefundRequestedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -19,6 +20,10 @@ public class DropEventProducer {
 
     public void publishDropClosed(DropClosedEvent event) {
         kafkaTemplate.send("drop.closed", event.dropId().toString(), event);
+    }
+
+    public void publishHoldExpired(HoldExpiredEvent event) {
+        kafkaTemplate.send("hold.expired", event.orderId().toString(), event);
     }
 
     public void publishRefundRequested(RefundRequestedEvent event) {

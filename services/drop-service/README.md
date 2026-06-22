@@ -187,7 +187,7 @@ processed_events (
 | `drop.opened` | dropId (1) | 상태 전이 SCHEDULED → OPEN | `eventId`, `dropId`, `startAt`, `endAt`, `totalQty` |
 | `drop.closed` | dropId (1) | 상태 전이 OPEN → CLOSED | `eventId`, `dropId` |
 | `purchase.confirmed` | **orderId (3)** | 선점 성공 → 주문 생성 트리거 | `eventId`, `orderId`, `dropId`, `userId`, `productId`, `holdExpiresAt` |
-| `hold.expired` | orderId (1) | TTL 만료 → 주문 취소 트리거 | `eventId`, `orderId`, `dropId`, `userId` |
+| `hold.expired` | orderId (1) | TTL 만료 → 주문 취소 트리거 | `eventId`, `orderId`, `dropId` |
 | `refund.requested` | orderId (1) | ZREM=0 감지 (만료 후 결제) → 자동 환불 트리거 | `eventId`, `orderId`, `userId`, `reason` |
 
 > 모든 이벤트 payload 첫 필드에 `eventId` 포함 — Consumer가 `processed_events`로 멱등성 체크
