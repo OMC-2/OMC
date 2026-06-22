@@ -38,10 +38,10 @@ import java.util.UUID;
  * - 상품 수정 및 삭제 시 ProductUpdatedEvent를 발행
  * - 캐시 무효화는 트랜잭션 커밋 이후 이벤트 리스너에서 수행
  *
- * 삭제 정책
+ * 삭제 및 수정 정책
  * - 상품 삭제는 Soft Delete 방식으로 처리
  * - 삭제된 상품은 조회 및 수정할 수 없음
- * - 진행 중인 Drop이 존재하는 상품은 삭제할 수 없음
+ * - 진행 중인 Drop이 존재하는 상품은 삭제 및 수정할 수 없음
  */
 @Service
 @Transactional(readOnly = true)
@@ -84,13 +84,16 @@ public class ProductService {
 
     @Transactional
     public ProductResponse updateProduct(UUID productId, ProductUpdateRequest request) {
+        ActiveDropResponse response = dropInternalClient.hasActiveDrop(productId).getData();
+        if (response.hasActiveDrop()) {
+            throw new ActiveDropExistsException();
+        }
         Product product = findActiveProduct(productId);
         product.update(request.name(), request.description(), request.price(),
                 request.imageUrl(), request.status());
         Inventory inventory = inventoryRepository.findByProductId(productId)
                 .orElseThrow(InventoryNotFoundException::new);
 
-        // 트랜잭션 커밋 후 캐시 무효화 이벤트 발행
         eventPublisher.publishEvent(new ProductUpdatedEvent(productId));
 
         return ProductResponse.of(product, inventory);
