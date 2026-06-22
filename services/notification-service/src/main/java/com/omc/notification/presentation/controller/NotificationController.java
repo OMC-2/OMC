@@ -9,6 +9,8 @@ import com.omc.notification.application.service.NotificationService;
 import com.omc.notification.presentation.dto.response.NotificationResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,15 +24,16 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     @GetMapping
-    @PreAuthorize("hasRole('USER')")
-    public ApiResponse<PageResponse<NotificationResponse>> getMyNotifications(Pageable pageable) {
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    public ApiResponse<PageResponse<NotificationResponse>> getMyNotifications(
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         UUID userId = SecurityUtil.getCurrentUserId()
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
         return ApiResponse.success(new PageResponse<>(notificationService.getMyNotifications(userId, pageable)));
     }
 
     @PatchMapping("/{notificationId}/read")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ApiResponse<Void> markAsRead(@PathVariable UUID notificationId) {
         UUID userId = SecurityUtil.getCurrentUserId()
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
