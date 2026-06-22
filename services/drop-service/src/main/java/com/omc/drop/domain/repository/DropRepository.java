@@ -18,7 +18,11 @@ public interface DropRepository extends JpaRepository<Drop, UUID> {
 
     Page<Drop> findAllByStatus(DropStatus status, Pageable pageable);
 
+    boolean existsByProductIdAndStatusIn(UUID productId, List<DropStatus> statuses);
+
     List<Drop> findByStatusAndStartAtLessThanEqual(DropStatus status, LocalDateTime now);
+
+    List<Drop> findByStatus(DropStatus status);
 
     List<Drop> findByStatusAndEndAtLessThanEqual(DropStatus status, LocalDateTime now);
 

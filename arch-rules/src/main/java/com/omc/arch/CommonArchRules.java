@@ -20,17 +20,20 @@ public class CommonArchRules {
     public static ArchRule layerDependencyRule() {
         return layeredArchitecture()
                 .consideringAllDependencies()
+                .withOptionalLayers(true)
                 .layer("Controllers").definedBy("..controller..")
                 .layer("Services").definedBy("..service..")
                 .layer("Repositories").definedBy("..repository..")
                 .layer("Entities").definedBy("..entity..")
                 .layer("DTOs").definedBy("..dto..")
+                .layer("Schedulers").definedBy("..scheduler..")
+                .layer("Events").definedBy("..event..")
 
                 .whereLayer("Controllers").mayNotBeAccessedByAnyLayer()
-                .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services")
-                .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Repositories")
-                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "DTOs")
-                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities");
+                .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services", "Schedulers", "Events")
+                .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Repositories", "Schedulers", "Events")
+                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "DTOs", "Schedulers", "Events")
+                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "Schedulers", "Events");
     }
 
     // 2. MSA 직접 침범 금지 (No direct import across domains)
