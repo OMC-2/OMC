@@ -26,7 +26,7 @@ public class Notification extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Column(name = "slack_id", nullable = false, length = 100)
+    @Column(name = "slack_id", length = 100)
     private String slackId;
 
     @Enumerated(EnumType.STRING)
