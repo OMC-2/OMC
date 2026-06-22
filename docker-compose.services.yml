@@ -264,27 +264,39 @@ services:
 #    networks:
 #      - omc-network
 
-#  coupon-service:
-#    build:
-
-#      context: ./services/coupon-service
-#    container_name: omc-coupon-service
-#    ports:
-#      - "8087:8087"
-#    environment:
-#      CONFIG_SERVER_URI: http://config-server:8888
-#      GATEWAY_SECRET: local-secret
-#    depends_on:
-#      config-server:
-#        condition: service_healthy
-#    healthcheck:
-#      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health || exit 1"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 10
-#      start_period: 60s
-#    networks:
-#      - omc-network
+  coupon-service:
+    build:
+      context: ./services/coupon-service
+    container_name: omc-coupon-service
+    ports:
+      - "8087:8087"
+    environment:
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: postgres:5432
+      DB_USERNAME: omc
+      DB_PASSWORD: password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_URI: kafka:29092
+      GATEWAY_SECRET: local-secret
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - omc-network
 
 #  notification-service:
 #    build:

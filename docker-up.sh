@@ -7,11 +7,13 @@
 #
 #   bash docker-up.sh          # 전체 기동 (빌드 + 인프라 + 서비스)
 #   bash docker-up.sh infra    # 인프라만 기동 (postgres, redis, kafka, keycloak)
-#   bash docker-up.sh services # 빌드 후 서비스만 기동 (eureka, config, gateway, user-service, drop-service)
+#   bash docker-up.sh services # 빌드 후 서비스만 기동 (eureka, config, gateway, user-service, drop-service, coupon-service)
 #
 # ================================================================
 # 기동 순서
 # ================================================================
+#
+#   0단계: 기존 컨테이너 전체 종료 (down --remove-orphans)
 #
 #   1단계: Gradle bootJar 빌드
 #     각 서비스의 FAT JAR을 빌드한다 (Docker 이미지가 JAR을 복사하는 방식)
@@ -26,10 +28,14 @@
 #     → gateway가 Keycloak JWKS URI를 참조하므로 먼저 헬시해야 함
 #
 #   5단계: 서비스 기동
-#     eureka-server → config-server → gateway + user-service + drop-service
+#     eureka-server → config-server → gateway + user-service + drop-service + coupon-service
 #
-#   6단계: gateway + user-service + drop-service healthy 대기
-#     → E2E 테스트 실행 가능 상태 확인
+#   6단계: 서비스 healthy 대기
+#     → actuator/health 기준으로 컨테이너가 정상 기동되었는지 확인
+#
+#   7단계: Gateway 라우팅 확인
+#     → Eureka 전파가 완료되어 Gateway가 실제로 라우팅 가능한지 확인
+#     → 서비스가 healthy여도 Eureka 캐시 갱신 전에는 503이 발생할 수 있음
 #
 # ================================================================
 # 사전 조건
@@ -44,6 +50,12 @@ set -e
 
 COMPOSE_INFRA="docker-compose.yml"
 COMPOSE_SERVICES="docker-compose.services.yml"
+
+# ----------------------------------------------------------------
+# 0단계: 기존 컨테이너 전체 종료
+# ----------------------------------------------------------------
+echo "▶ [0단계] 기존 컨테이너 종료"
+docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" down --remove-orphans
 
 # ----------------------------------------------------------------
 # 헬스체크 대기 함수
@@ -68,6 +80,71 @@ wait_healthy() {
 }
 
 # ----------------------------------------------------------------
+# Gateway 라우팅 대기 함수
+#   Gateway의 Eureka 클라이언트 캐시 갱신을 기다려
+#   실제 라우팅이 가능한 상태가 될 때까지 폴링한다
+#   (서비스가 healthy여도 503 Service Unavailable이 날 수 있음)
+#
+#   $1: 확인할 URL (non-503 응답이 오면 라우팅 성공으로 간주)
+#   $2: 표시 이름
+#   $3: 타임아웃(초), 기본값 90
+# ----------------------------------------------------------------
+wait_gateway_routing() {
+  local url=$1
+  local label=$2
+  local timeout=${3:-90}
+  local elapsed=0
+
+  echo "  ⏳ Gateway → $label 라우팅 대기 중 (Eureka 전파)..."
+  while true; do
+    local code
+    code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+      -H "Content-Type: application/json" \
+      -H "X-Gateway-Secret: local-secret" \
+      -d '{}' \
+      "$url" 2>/dev/null)
+    if [ "$code" != "503" ] && [ -n "$code" ]; then
+      echo "  ✅ Gateway → $label 라우팅 확인 (응답: $code)"
+      break
+    fi
+    if [ "$elapsed" -ge "$timeout" ]; then
+      echo "  ❌ Gateway → $label 라우팅 타임아웃 (${timeout}s 초과, 마지막 응답: $code)"
+      exit 1
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+}
+
+# ----------------------------------------------------------------
+# Eureka 등록 확인 함수
+#   Eureka REST API로 서비스가 UP 상태로 등록되었는지 확인
+#   (Eureka는 서비스명을 대문자로 저장하므로 대문자로 전달)
+#
+#   $1: Eureka 서비스명 (대문자, 예: COUPON-SERVICE)
+#   $2: 타임아웃(초), 기본값 90
+# ----------------------------------------------------------------
+wait_eureka_registered() {
+  local service=$1
+  local timeout=${2:-90}
+  local elapsed=0
+
+  echo "  ⏳ Eureka → $service 등록 확인 중..."
+  while true; do
+    if curl -s "http://localhost:8761/eureka/apps/$service" 2>/dev/null | grep -q "UP"; then
+      echo "  ✅ Eureka → $service 등록 확인"
+      break
+    fi
+    if [ "$elapsed" -ge "$timeout" ]; then
+      echo "  ❌ Eureka → $service 등록 타임아웃 (${timeout}s 초과)"
+      exit 1
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+}
+
+# ----------------------------------------------------------------
 # 1단계: Gradle bootJar 빌드 + Docker 이미지 빌드
 #   Docker 이미지가 build/libs/*.jar을 복사하는 방식이므로
 #   이미지 빌드 전에 반드시 JAR을 먼저 생성해야 한다
@@ -78,13 +155,14 @@ build_services() {
   ./gradlew :services:gateway:bootJar \
             :services:user-service:bootJar \
             :services:drop-service:bootJar \
+            :services:coupon-service:bootJar \
             :services:eureka-server:bootJar \
             :services:config-server:bootJar
 
   echo ""
   echo "▶ [2단계] Docker 이미지 빌드"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" build \
-    eureka-server config-server gateway user-service drop-service
+    eureka-server config-server gateway user-service drop-service coupon-service
 }
 
 # ----------------------------------------------------------------
@@ -109,13 +187,21 @@ start_services() {
   echo ""
   echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service)"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
-    eureka-server config-server gateway user-service drop-service
+    eureka-server config-server gateway user-service drop-service coupon-service
 
   echo ""
-  echo "▶ [6단계] gateway + user-service + drop-service healthy 대기 (최대 180초)"
+  echo "▶ [6단계] gateway + user-service + drop-service + coupon-service healthy 대기 (최대 180초)"
   wait_healthy omc-gateway 180
   wait_healthy omc-user-service 180
   wait_healthy omc-drop-service 180
+  wait_healthy omc-coupon-service 180
+
+  echo ""
+  echo "▶ [7단계] Gateway 라우팅 확인 (Eureka 전파 대기, 최대 90초)"
+  # user-service: permitAll 경로로 실제 라우팅 확인
+  wait_gateway_routing "http://localhost:8080/api/v1/users/signup" "user-service" 90
+  # coupon-service: 쿠폰 경로는 모두 인증 필요 → Eureka API로 등록 여부 직접 확인
+  wait_eureka_registered "COUPON-SERVICE" 90
 }
 
 # ----------------------------------------------------------------
