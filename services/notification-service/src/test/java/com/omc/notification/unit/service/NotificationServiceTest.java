@@ -56,7 +56,8 @@ class NotificationServiceTest {
         // given
         given(processedEventRepository.existsByEventId(eventId)).willReturn(false);
         given(userServiceClient.getSlackId(userId))
-                .willReturn(new UserServiceClient.UserSlackResponse(userId, "U12345"));
+                .willReturn(new UserServiceClient.SlackApiResponse(true, 200, "OK",
+                        new UserServiceClient.UserSlackResponse(userId, "U12345")));
 
         // when
         notificationService.send(eventId, topic, userId,
@@ -87,11 +88,11 @@ class NotificationServiceTest {
     }
 
     // =========================================================================
-    // [send()] slackId 조회 실패 → userId.toString() 폴백
+    // [send()] slackId 조회 실패 → null (전송 스킵)
     // =========================================================================
 
     @Test
-    void send_slackIdResolveFails_fallsBackToUserId() {
+    void send_slackIdResolveFails_savesWithNullSlackId() {
         // given
         given(processedEventRepository.existsByEventId(eventId)).willReturn(false);
         given(userServiceClient.getSlackId(userId)).willThrow(new RuntimeException("Feign 오류"));
@@ -104,7 +105,7 @@ class NotificationServiceTest {
 
         // then
         verify(notificationRepository).save(captor.capture());
-        assertThat(captor.getValue().getSlackId()).isEqualTo(userId.toString());
+        assertThat(captor.getValue().getSlackId()).isNull();
     }
 
     // =========================================================================
@@ -116,7 +117,8 @@ class NotificationServiceTest {
         // given
         given(processedEventRepository.existsByEventId(eventId)).willReturn(false);
         given(userServiceClient.getSlackId(userId))
-                .willReturn(new UserServiceClient.UserSlackResponse(userId, "U12345"));
+                .willReturn(new UserServiceClient.SlackApiResponse(true, 200, "OK",
+                        new UserServiceClient.UserSlackResponse(userId, "U12345")));
         willThrow(new RuntimeException("Slack 오류")).given(slackClient).sendMessage(any(), any());
 
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);

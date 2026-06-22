@@ -89,7 +89,8 @@ class NotificationKafkaIntegrationTest {
         notificationRepository.deleteAll();
         processedEventRepository.deleteAll();
         given(userServiceClient.getSlackId(any(UUID.class)))
-                .willReturn(new UserServiceClient.UserSlackResponse(USER_ID, SLACK_ID));
+                .willReturn(new UserServiceClient.SlackApiResponse(true, 200, "OK",
+                        new UserServiceClient.UserSlackResponse(USER_ID, SLACK_ID)));
     }
 
     // =========================================================================
