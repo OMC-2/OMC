@@ -265,7 +265,7 @@ class PaymentCoreServiceTest {
 
             assertThat(canceledPayment.getPaymentStatus()).isEqualTo(PaymentStatus.CANCELED);
             assertThat(canceledPayment.getCancellationCode()).isEqualTo(CancellationCode.USER_CANCEL);
-            assertThat(canceledPayment.getProviderCancellationId()).isEqualTo("취소아이디");
+            assertThat(canceledPayment.getProviderCancellationId()).isEqualTo("취소 아이디");
             verify(paymentOutboxService).saveRefundDone(canceledPayment);
         }
 
