@@ -89,7 +89,7 @@ public class PaymentOutboxService {
         paymentOutboxEventRepository.save(outboxEvent);
     }
 
-    // 역직렬화
+    // 직렬화
     private String toJson(Object payload) {
         try {
             return objectMapper.writeValueAsString(payload);
