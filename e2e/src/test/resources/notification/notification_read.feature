@@ -25,7 +25,7 @@ Feature: 알림 읽음 처리
     # 사전 준비 1: USER 계정 생성 + 로그인
     Given path '/api/v1/users/signup'
     And header X-Gateway-Secret = gatewaySecret
-    And request { email: #(userEmail), password: #(testPassword), nickname: 'e2ereaduser' }
+    And request { email: #(userEmail), password: #(testPassword), nickname: 'e2ereaduser', slackId: 'U0BAUTPGFDG' }
     When method post
     Then status 201
 

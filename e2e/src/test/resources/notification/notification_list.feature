@@ -22,7 +22,7 @@ Feature: 알림 목록 조회
     # 사전 준비 1: USER 계정 생성 + 로그인
     Given path '/api/v1/users/signup'
     And header X-Gateway-Secret = gatewaySecret
-    And request { email: #(userEmail), password: #(testPassword), nickname: 'e2elistuser' }
+    And request { email: #(userEmail), password: #(testPassword), nickname: 'e2elistuser', slackId: 'U0BAUTPGFDG' }
     When method post
     Then status 201
 
