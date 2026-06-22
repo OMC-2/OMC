@@ -39,11 +39,10 @@ public class PaymentOutboxPublishProcessor {
         }
 
         try {
-            Object payload = deserializePayload(outboxEvent);
             kafkaTemplate.send(
                     outboxEvent.getEventType(),
                     outboxEvent.getAggregateId().toString(),
-                    payload
+                    outboxEvent.getPayload()
             ).get(); // 동기 대기
 
             outboxEvent.markPublished();
@@ -53,17 +52,5 @@ public class PaymentOutboxPublishProcessor {
             outboxEvent.markFailed();
             log.warn("결제 아웃박스 이벤트 payload 역직렬화 또는 발행에 실패했습니다. eventId={}", eventId, e);
         }
-    }
-
-    private Object deserializePayload(PaymentOutboxEvent outboxEvent) throws Exception {
-        return switch (outboxEvent.getEventType()) {
-            case KafkaTopics.PAYMENT_COMPLETED ->
-                objectMapper.readValue(outboxEvent.getPayload(), PaymentCompletedEvent.class);
-            case KafkaTopics.PAYMENT_FAILED ->
-                objectMapper.readValue(outboxEvent.getPayload(), PaymentFailedEvent.class);
-            case KafkaTopics.REFUND_DONE ->
-                objectMapper.readValue(outboxEvent.getPayload(), RefundDoneEvent.class);
-            default -> throw new IllegalStateException("존재하지 않는 아웃박스 이벤트 타입입니다. eventType=" + outboxEvent.getEventType());
-        };
     }
 }

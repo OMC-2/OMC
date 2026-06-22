@@ -28,7 +28,7 @@ spring:
       group-id: payment-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.StringDeserializer
       properties:
         spring.json.trusted.packages: ${KAFKA_TRUSTED_PACKAGES:com.omc.*}
       # enable-auto-commit: false  # offset 자동 커밋 비활성화
@@ -40,7 +40,7 @@ spring:
 
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.springframework.kafka.support.serializer.StringSerializer
       acks: all
       retries: 3
       properties:
