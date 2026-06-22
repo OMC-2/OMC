@@ -19,7 +19,6 @@ import com.omc.payment.presentation.dto.request.RegisterBillingKeyRequest;
 import com.omc.payment.presentation.dto.response.PaymentDetailResponse;
 import com.omc.payment.presentation.dto.response.PaymentResponse;
 import com.omc.payment.presentation.dto.response.RegisterBillingKeyResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -53,7 +52,7 @@ public class PaymentService {
         return PaymentResponse.from(payment);
     }
 
-    public RegisterBillingKeyResponse registerBillingKey(@Valid RegisterBillingKeyRequest request) {
+    public RegisterBillingKeyResponse registerBillingKey(RegisterBillingKeyRequest request) {
         try {
             /*
             * Mocking을 위한 랜덤 키 Fallback
