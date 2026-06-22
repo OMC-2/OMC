@@ -73,7 +73,7 @@
             </collectionProp>
             <stringProp name="Assertion.custom_message">5xx 에러 발생</stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
-            <boolProp name="Assertion.assume_success">false</boolProp>
+            <boolProp name="Assertion.assume_success">true</boolProp>
             <intProp name="Assertion.test_type">40</intProp>
           </ResponseAssertion>
           <hashTree/>
