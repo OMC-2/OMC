@@ -4,7 +4,7 @@ import com.omc.common.response.ApiResponse;
 import com.omc.common.response.PageResponse;
 import com.omc.payment.application.service.PaymentService;
 import com.omc.payment.presentation.dto.request.ConfirmPaymentRequest;
-import com.omc.payment.presentation.dto.request.PaymentCancelRequest;
+import com.omc.payment.presentation.dto.request.CancelPaymentRequest;
 import com.omc.payment.presentation.dto.request.RegisterBillingKeyRequest;
 import com.omc.payment.presentation.dto.response.PaymentDetailResponse;
 import com.omc.payment.presentation.dto.response.PaymentResponse;
@@ -36,7 +36,7 @@ public class PaymentController {
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ApiResponse<PaymentResponse> cancelPayment(
             @PathVariable UUID paymentId,
-            @Valid @RequestBody PaymentCancelRequest request
+            @Valid @RequestBody CancelPaymentRequest request
     ) {
         return ApiResponse.success(paymentService.cancelPayment(paymentId, request));
     }
@@ -59,26 +59,5 @@ public class PaymentController {
             @PageableDefault(size = 10, sort = "requestedAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return ApiResponse.success(paymentService.getPayments(pageable));
-    }
-
-    /*
-     * 클라이언트 통신용 INTERNAL API
-     */
-
-    // 클라이언트가 결제창/SDK 리다이렉트로 받은 providerPaymentId
-    @PostMapping("/internal/payments/confirm")
-    @ResponseStatus(HttpStatus.CREATED)
-    public PaymentResponse confirmPayment(
-            @Valid @RequestBody ConfirmPaymentRequest request
-    ) {
-        return paymentService.confirmPayment(request);
-    }
-
-    // 클라이언트가 결제창/SDK 리다이렉트로 받은 customerKey, authKey
-    @PostMapping("/internal/billing-keys/register")
-    public RegisterBillingKeyResponse registerBillingKey(
-            @Valid @RequestBody RegisterBillingKeyRequest request
-    ) {
-        return paymentService.registerBillingKey(request);
     }
 }
