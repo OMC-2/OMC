@@ -8,6 +8,7 @@ import org.springframework.core.Ordered;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
@@ -26,7 +27,7 @@ public class AuthHeaderInjectionFilter implements GlobalFilter, Ordered {
 
     private final WebClient webClient;
 
-    public AuthHeaderInjectionFilter(WebClient.Builder webClientBuilder) {
+    public AuthHeaderInjectionFilter(@LoadBalanced WebClient.Builder webClientBuilder) {
         this.webClient = webClientBuilder.baseUrl("lb://user-service").build();
     }
 

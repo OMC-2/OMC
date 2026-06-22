@@ -1,4 +1,4 @@
-package com.omc.gateway.security;
+package com.omc.gateway.infrastructure.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.exception.CommonErrorCode;
