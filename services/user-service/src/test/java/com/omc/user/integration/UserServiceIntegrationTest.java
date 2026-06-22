@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -527,7 +528,7 @@ class UserServiceIntegrationTest {
                     .andExpect(jsonPath("$.data.recipientName").value("홍길동"))
                     .andExpect(jsonPath("$.data.isDefault").value(false));
 
-            assertThat(addressRepository.findAllByUserId(savedUser.getUserId())).hasSize(1);
+            assertThat(addressRepository.findByUserId(savedUser.getUserId(), Pageable.unpaged()).getContent()).hasSize(1);
         }
 
         @Test
