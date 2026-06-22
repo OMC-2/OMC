@@ -62,7 +62,8 @@ public record UserResponse(Long id, String name) {
    - `Controller` ➡️ `Service` ➡️ `Repository` 방향으로만 접근할 수 있습니다.
    - 역방향 참조나 `Controller`가 `Repository`를 직접 호출하는 것은 엄격히 금지됩니다.
 2. **모듈(MSA) 간 직접 침범 금지**
-   - `user-service` 내에서 `order-service`의 Java 클래스를 순수하게 `import` 하는 것은 금지됩니다. (반드시 Feign Client나 카프카(Kafka)를 통해 통신해야 합니다.)
+   - `user-service` 내에서 `order-service`의 Java 클래스를 순수하게 `import` 하는 것은 금지됩니다. (반드시 Feign Client, 카프카(Kafka), 또는 `@LoadBalanced`가 적용된 WebClient를 통해 통신해야 합니다.)
+   - 단, Spring Cloud Gateway는 WebFlux(Reactive) 기반이므로 블로킹 방식인 Feign Client 대신 **`@LoadBalanced WebClient`** 를 사용합니다.
 3. **네이밍 및 어노테이션 규칙**
    - `Controller`: `*Controller` 이름 + `@RestController` (또는 `@Controller`)
    - `Service`: `*Service` 이름 + `@Service`
@@ -111,7 +112,7 @@ com.omc.{service-name}
     ├── persistence/          ← Repository 구현 / QueryDSL (필요 시)
     ├── redis/                ← RedisTemplate, Lua Script (drop/raffle 비중 큼)
     ├── kafka/                ← KafkaTemplate 설정, 직렬화, 실제 send/listen 어댑터
-    ├── client/               ← FeignClient
+    ├── client/               ← FeignClient, WebClientConfig (서비스 간 통신 어댑터)
     └── config/               ← @Configuration
 ```
 

@@ -3,7 +3,6 @@ package com.omc.user.application.service;
 import com.omc.common.response.PageResponse;
 import com.omc.user.domain.entity.Address;
 import com.omc.user.domain.exception.AddressNotFoundException;
-import com.omc.user.domain.exception.UserErrorCode;
 import com.omc.user.domain.repository.AddressRepository;
 import com.omc.user.presentation.dto.request.CreateAddressRequest;
 import com.omc.user.presentation.dto.request.UpdateAddressRequest;
@@ -15,7 +14,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -28,7 +26,7 @@ public class AddressService {
     public AddressResponse createAddress(UUID userId, CreateAddressRequest request) {
         boolean shouldBeDefault = Boolean.TRUE.equals(request.isDefault());
         if (shouldBeDefault) {
-            addressRepository.findAllByUserId(userId).forEach(Address::unmarkAsDefault);
+            addressRepository.unmarkAllDefaultByUserId(userId);
         }
         Address address = Address.create(
                 userId,
@@ -74,12 +72,9 @@ public class AddressService {
 
     @Transactional
     public DefaultAddressResponse setDefaultAddress(UUID userId, UUID addressId) {
-        List<Address> all = addressRepository.findAllByUserId(userId);
-        Address target = all.stream()
-                .filter(a -> a.getAddressId().equals(addressId))
-                .findFirst()
+        addressRepository.unmarkAllDefaultByUserId(userId);
+        Address target = addressRepository.findByAddressIdAndUserId(addressId, userId)
                 .orElseThrow(AddressNotFoundException::new);
-        all.forEach(Address::unmarkAsDefault);
         target.markAsDefault();
         return new DefaultAddressResponse(target.getAddressId(), true);
     }

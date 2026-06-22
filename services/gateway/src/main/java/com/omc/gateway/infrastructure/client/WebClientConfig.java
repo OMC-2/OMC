@@ -1,4 +1,4 @@
-package com.omc.gateway.config;
+package com.omc.gateway.infrastructure.client;
 
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;

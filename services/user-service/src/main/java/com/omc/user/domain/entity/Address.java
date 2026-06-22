@@ -1,6 +1,11 @@
 package com.omc.user.domain.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -46,7 +51,7 @@ public class Address {
 
     @Builder
     private Address(UUID userId, String recipientName, String phone, String zipCode,
-                    String address, String addressDetail, boolean isDefault) {
+                    String address, String addressDetail, boolean isDefault, LocalDateTime createdAt) {
         this.userId = userId;
         this.recipientName = recipientName;
         this.phone = phone;
@@ -54,11 +59,7 @@ public class Address {
         this.address = address;
         this.addressDetail = addressDetail;
         this.isDefault = isDefault;
-    }
-
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        this.createdAt = createdAt;
     }
 
     public static Address create(UUID userId, String recipientName, String phone, String zipCode,
@@ -71,6 +72,7 @@ public class Address {
                 .address(address)
                 .addressDetail(addressDetail)
                 .isDefault(isDefault)
+                .createdAt(LocalDateTime.now())
                 .build();
     }
 
