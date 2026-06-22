@@ -1,4 +1,4 @@
-package com.omc.drop.infrastructure.redis;
+package com.omc.drop.infrastructure.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -1,6 +1,6 @@
 package com.omc.drop.application.service;
 
-import com.omc.drop.application.outbox.PurchaseOutboxWorker;
+import com.omc.drop.application.event.outbox.PurchaseOutboxWorker;
 import com.omc.drop.domain.exception.DuplicatePurchaseException;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.DropNotOpenException;
