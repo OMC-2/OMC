@@ -8,7 +8,9 @@ import java.util.UUID;
 
 public record ConfirmBillingPaymentRequest(
         @NotNull UUID orderId,
+        @NotNull UUID raffleId,
         @NotNull UUID entryId,
+        @NotNull UUID productId,
         UUID couponId,
         @NotNull UUID userId,
         @NotBlank String billingKeyId,
