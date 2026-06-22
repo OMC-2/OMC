@@ -74,10 +74,11 @@ public class NotificationService {
 
     private String resolveSlackId(UUID userId) {
         try {
-            return userServiceClient.getSlackId(userId).slackId();
+            UserServiceClient.UserSlackResponse data = userServiceClient.getSlackId(userId).data();
+            return data != null ? data.slackId() : null;
         } catch (Exception e) {
             log.warn("[NotificationService] 슬랙 ID 조회 실패. userId={}, error={}", userId, e.getMessage());
-            return userId.toString();
+            return null;
         }
     }
 

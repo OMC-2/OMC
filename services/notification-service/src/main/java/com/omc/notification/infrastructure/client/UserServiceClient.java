@@ -10,7 +10,9 @@ import java.util.UUID;
 public interface UserServiceClient {
 
     @GetMapping("/internal/v1/users/{userId}/slack")
-    UserSlackResponse getSlackId(@PathVariable UUID userId);
+    SlackApiResponse getSlackId(@PathVariable UUID userId);
 
     record UserSlackResponse(UUID userId, String slackId) {}
+
+    record SlackApiResponse(boolean success, int status, String message, UserSlackResponse data) {}
 }
