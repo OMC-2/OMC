@@ -1,5 +1,6 @@
-package com.omc.payment.application.service;
+package com.omc.payment.application.scheduler;
 
+import com.omc.payment.application.service.PaymentOutboxPublishProcessor;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.OutboxEventStatus;
 import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
