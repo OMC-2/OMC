@@ -1,4 +1,4 @@
-package com.omc.drop.application.outbox;
+package com.omc.drop.application.event.outbox;
 
 import com.omc.drop.infrastructure.kafka.event.PurchaseConfirmedEvent;
 import lombok.RequiredArgsConstructor;

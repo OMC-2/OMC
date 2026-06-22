@@ -1,4 +1,4 @@
-package com.omc.drop.infrastructure.client.dto;
+package com.omc.drop.infrastructure.client;
 
 public record InventorySnapshotResponse(int availableQuantity) {
 }

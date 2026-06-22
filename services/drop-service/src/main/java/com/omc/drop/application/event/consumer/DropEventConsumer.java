@@ -1,4 +1,4 @@
-package com.omc.drop.infrastructure.kafka.consumer;
+package com.omc.drop.application.event.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.drop.application.service.HoldService;

@@ -249,13 +249,60 @@ processed_events (
 ## 7. 부하 테스트
 
 - 대상: `POST /drops/{dropId}/purchase`
-- 조건: 스레드 100 · Ramp-up 1초 · 루프 10 (요청 1,000건)
 - 측정 환경: `(기입: 로컬/Docker, CPU n코어, 메모리 nGB, DB·Kafka 동일 머신 여부)`
 
-| 버전 | 구현 | 처리량 (req/s) | 평균 응답 (ms) | 오류율 |
-| --- | --- | --- | --- | --- |
-| v1 | DB 비관적 락 | `(측정)` | `(측정)` | `(측정)` |
-| v2 | Redis Lua | `(측정)` | `(측정)` | `(측정)` |
+### 7-1. 사전 준비
+
+**인증 우회**
+실제 API는 JWT/X-User-Id 헤더에서 userId를 꺼내며 body는 없다.
+JMeter는 JWT 대량 발급이 비현실적이므로 X-User-Id 헤더로 직접 주입한다.
+CSV Data Set으로 userId 목록을 준비하고, 각 스레드가 순번에 맞는 userId를 헤더에 설정한다.
+
+```
+X-User-Id: {csv에서 읽은 userId}
+```
+
+**Redis 리셋 스크립트**
+매 테스트 실행 전 Redis를 초기 상태로 복원해야 한다.
+리셋 없이 2회차를 돌리면 stock이 이미 0이라 전부 SOLD_OUT으로 의미 없는 결과가 나온다.
+
+```bash
+redis-cli DEL stock:{dropId} purchased:{dropId} holds:{dropId} queue:{dropId}
+redis-cli SET stock:{dropId} 100
+redis-cli SET drop:{dropId}:status OPEN
+```
+
+**409 처리**
+SOLD_OUT(409), DUPLICATE_PURCHASE(409)는 정상 응답이다.
+JMeter Response Assertion을 202·409만 성공으로 설정하고, 5xx만 에러로 처리한다.
+
+### 7-2. 시나리오
+
+**시나리오 1 — 재고 정확성**
+고유 userId 1,000개가 동시에 진입, 재고 100개면 정확히 100명만 성공하는지 검증
+
+```
+스레드: 1,000 · Ramp-up: 0초 (순간 동시)
+요청: POST /drops/{dropId}/purchase (body 없음, X-User-Id 헤더)
+기대: 202 응답 == 100, 409(SOLD_OUT) == 900
+검증: Redis stock:{dropId} == 0, purchased SCARD == 100
+```
+
+**시나리오 2 — 중복 방지**
+동일 userId가 반복 요청해도 1번만 성공하는지 검증
+
+```
+스레드: 10 · 루프: 10 (userId 10개 × 10회 반복)
+기대: userId당 202 == 1, 나머지 409(DUPLICATE_PURCHASE)
+```
+
+**시나리오 3 — 성능 측정**
+시나리오 1 기반으로 TPS·응답시간 측정
+
+| 버전 | 구현 | TPS | 평균 응답 (ms) | p99 (ms) | 에러율 |
+| --- | --- | --- | --- | --- | --- |
+| v1 | DB 비관적 락 | `(측정)` | `(측정)` | `(측정)` | `(측정)` |
+| v2 | Redis Lua | `(측정)` | `(측정)` | `(측정)` | `(측정)` |
 
 > 개선 요약: `(무엇을 바꿔서 어떤 지표가 어떻게 변했는지 1~3줄)`
 
@@ -283,9 +330,27 @@ docker compose up -d        # kafka(9092), redis, postgresql, kafka-ui(8989)
 
 ```
 drop-service
-└── src/main/java/com/team/drop
-    ├── presentation     # Controller, 요청/응답 DTO
-    ├── application      # DropService, PurchaseService, 스케줄러
-    ├── domain           # Drop 엔티티, DropStatus, 도메인 규칙
-    └── infrastructure   # Redis(Lua), Kafka Producer/Consumer, Repository 구현
+└── src/main/java/com/omc/drop
+    ├── presentation
+    │   ├── controller       # DropController, DropAdminController, DropInternalController
+    │   └── dto              # request/, response/
+    ├── application
+    │   ├── service          # DropAdminService, DropQueryService, HoldService, PurchaseService
+    │   ├── scheduler        # DropStatusScheduler, HoldExpireScheduler, DropRedisCleanupScheduler
+    │   └── event
+    │       ├── producer     # DropEventProducer (Kafka 이벤트 발행)
+    │       ├── consumer     # DropEventConsumer (payment.completed/failed, stock.failed 수신)
+    │       └── outbox       # PurchaseOutboxWorker (purchase.confirmed 발행 버퍼)
+    ├── domain
+    │   ├── entity           # Drop, DropProcessedEvent
+    │   ├── enums            # DropStatus
+    │   ├── repository       # DropRepository, DropProcessedEventRepository (JPA 인터페이스)
+    │   └── exception        # 도메인 예외, DropErrorCode
+    └── infrastructure
+        ├── redis            # PurchaseRedisRepository (Lua 스크립트 기반 원자적 처리)
+        ├── kafka
+        │   ├── event        # Kafka 이벤트 record (PaymentCompletedEvent 등)
+        │   └── exception    # EventProcessingException
+        ├── client           # ProductServiceClient (Feign), dto/
+        └── config           # SecurityConfig, JpaConfig, RedisConfig
 ```
