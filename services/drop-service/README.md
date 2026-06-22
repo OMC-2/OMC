@@ -35,9 +35,10 @@ stateDiagram-v2
 OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으로 바꾸지 않고 다음 주기에 재시도한다.
 
 ```
-① product-service 재고 스냅샷 조회
+① product-service 재고 스냅샷 조회 (GET /internal/v1/products/{productId}/inventories/snapshot)
+   → availableQuantity 사용 / product-service 장애 시 드롭 생성 시 저장한 totalQty로 폴백
 ② Redis 워밍 (SETNX — 키 없을 때만 세팅, 멀티 인스턴스 재고 초기화 방지)
-   stock:{dropId}      = totalQty
+   stock:{dropId}      = availableQuantity
    drop:{dropId}:status = "OPEN"
    hold_ttl:{dropId}   = holdTtlSec   ← 진입 경로 DB 무접촉을 위한 캐싱
    product_id:{dropId} = productId    ← purchase.confirmed 이벤트 조립용 캐싱
@@ -100,6 +101,14 @@ sequenceDiagram
 | GET | `/drops/{dropId}/purchase/me` | USER | 내 접수 상태·대기 순번 (P2) | 200 |
 
 진입 API 실패 코드: `DROP_NOT_OPEN`(409) · `SOLD_OUT`(409) · `DUPLICATE_PURCHASE`(409) · `DROP_NOT_FOUND`(404)
+
+### Internal API (서비스 간 전용, `/internal/**` 인증 제외)
+
+| Method | Path | 제공처 | 설명 | 응답 |
+| --- | --- | --- | --- | --- |
+| GET | `/internal/v1/drops/products/{productId}/active` | drop-service | 해당 상품의 활성 드롭(SCHEDULED·OPEN) 존재 여부 | `{ hasActiveDrop: true }` |
+
+> product-service가 상품 삭제·수정 전 활성 드롭 여부를 확인하기 위해 호출한다.
 
 ---
 

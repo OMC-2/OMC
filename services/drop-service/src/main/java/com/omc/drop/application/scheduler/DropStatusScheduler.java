@@ -4,6 +4,8 @@ import com.omc.drop.application.event.producer.DropEventProducer;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
+import com.omc.drop.infrastructure.client.ProductServiceClient;
+import com.omc.drop.infrastructure.client.dto.InventorySnapshotResponse;
 import com.omc.drop.infrastructure.kafka.event.DropClosedEvent;
 import com.omc.drop.infrastructure.kafka.event.DropOpenedEvent;
 import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
@@ -24,6 +26,7 @@ public class DropStatusScheduler {
     private final DropRepository dropRepository;
     private final PurchaseRedisRepository purchaseRedisRepository;
     private final DropEventProducer dropEventProducer;
+    private final ProductServiceClient productServiceClient;
 
     @Scheduled(fixedDelay = 5000)
     @Transactional
@@ -33,8 +36,8 @@ public class DropStatusScheduler {
 
         for (Drop drop : candidates) {
             try {
-                // TODO: product-service GET /internal/v1/products/{productId}/stock 로 최신 재고 조회 후 설정 (현재는 드롭 생성 시 입력된 totalQty 사용)
-                purchaseRedisRepository.warmup(drop.getDropId(), drop.getTotalQty(), drop.getHoldTtlSec(), drop.getProductId());
+                int availableQty = getAvailableQty(drop);
+                purchaseRedisRepository.warmup(drop.getDropId(), availableQty, drop.getHoldTtlSec(), drop.getProductId());
             } catch (Exception e) {
                 // Redis 워밍 실패 시 전이 생략 — 다음 폴링 주기에 재시도
                 log.error("Redis 워밍 실패로 OPEN 전이 생략: dropId={}", drop.getDropId(), e);
@@ -47,6 +50,16 @@ public class DropStatusScheduler {
                 dropEventProducer.publishDropOpened(DropOpenedEvent.from(drop));
                 log.info("드롭 OPEN 전이 완료: dropId={}", drop.getDropId());
             }
+        }
+    }
+
+    private int getAvailableQty(Drop drop) {
+        try {
+            InventorySnapshotResponse snapshot = productServiceClient.getInventorySnapshot(drop.getProductId()).getData();
+            return snapshot.availableQuantity();
+        } catch (Exception e) {
+            log.warn("product-service 재고 조회 실패, totalQty 폴백. dropId={}", drop.getDropId(), e);
+            return drop.getTotalQty();
         }
     }
 

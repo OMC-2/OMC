@@ -27,6 +27,7 @@ public class SecurityConfig {
             .addFilterBefore(new GatewayHeaderAuthFilter(gatewaySecret), UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/actuator/**").permitAll()
+                .requestMatchers("/internal/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/drops", "/api/v1/drops/*").permitAll()
                 .anyRequest().authenticated()
             );
