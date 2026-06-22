@@ -25,7 +25,7 @@ public class SecurityConfig {
             // GatewayHeaderAuthFilter를 등록해서 SecurityContext 생성
             .addFilterBefore(new GatewayHeaderAuthFilter(gatewaySecret), UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/internal/**").permitAll()
+                .requestMatchers("/internal/v1/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/actuator/**").permitAll()
                 .anyRequest().authenticated()
             );

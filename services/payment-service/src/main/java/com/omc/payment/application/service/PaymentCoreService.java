@@ -2,19 +2,29 @@ package com.omc.payment.application.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
+import com.omc.common.response.ApiResponse;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
 import com.omc.payment.domain.entity.Payment;
-import com.omc.payment.domain.enums.*;
+import com.omc.payment.domain.enums.CancellationCode;
+import com.omc.payment.domain.enums.PaymentMethod;
+import com.omc.payment.domain.enums.PaymentStatus;
+import com.omc.payment.domain.enums.Provider;
+import com.omc.payment.domain.enums.SalesType;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.repository.PaymentRepository;
+import com.omc.payment.infrastructure.client.CouponServiceClient;
+import com.omc.payment.infrastructure.client.CouponUserCouponResponse;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.UUID;
 
 @Service
@@ -25,6 +35,7 @@ public class PaymentCoreService {
     private final PaymentRepository paymentRepository;
     private final PaymentGatewayPort paymentGatewayPort;
     private final PaymentOutboxService paymentOutboxService;
+    private final CouponServiceClient couponServiceClient;
 
     @Transactional
     public Payment confirmPayment(
@@ -45,6 +56,8 @@ public class PaymentCoreService {
         if (existingPayment != null) {
             return existingPayment;
         }
+
+        validateCoupon(couponId, originalAmount, discountAmount);
 
         Payment payment = paymentRepository.save(
                 Payment.create(
@@ -97,12 +110,14 @@ public class PaymentCoreService {
             return existingPayment;
         }
 
+        validateCoupon(couponId, originalAmount, discountAmount);
+
         Payment payment = paymentRepository.save(
                 Payment.create(
                         orderId,
                         null,
-                        entryId,
                         raffleId,
+                        entryId,
                         productId,
                         couponId,
                         userId,
@@ -226,7 +241,7 @@ public class PaymentCoreService {
             PaymentGatewayResult.Confirm result = paymentGatewayPort.confirmBillingPayment(
                     new PaymentGatewayCommand.ConfirmBilling(
                             billingKeyId,
-                            customerKey,
+                            resolvedCustomerKey,
                             orderId.toString(),
                             "래플 자동결제",
                             finalAmount
@@ -269,5 +284,66 @@ public class PaymentCoreService {
         if (originalAmount - discountAmount != finalAmount) {
             throw new BusinessException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);
         }
+    }
+
+    // 쿠폰이 있으면 결제 직전에 상태와 할인 금액을 다시 확인
+    private void validateCoupon(UUID couponId, Long originalAmount, Long discountAmount) {
+        long resolvedDiscountAmount = discountAmount == null ? 0L : discountAmount;
+
+        if (couponId == null) {
+            if (resolvedDiscountAmount != 0L) {
+                throw new BusinessException(PaymentErrorCode.PAYMENT_INVALID_COUPON, "쿠폰 없이 할인 금액을 적용할 수 없습니다.");
+            }
+            return;
+        }
+
+        CouponUserCouponResponse coupon = getUserCoupon(couponId);
+        if (!"RESERVED".equals(coupon.status())) {
+            throw new BusinessException(PaymentErrorCode.PAYMENT_INVALID_COUPON, "쿠폰 상태가 RESERVED가 아닙니다.");
+        }
+
+        long expectedDiscountAmount = calculateCouponDiscountAmount(coupon, originalAmount);
+        if (expectedDiscountAmount != resolvedDiscountAmount) {
+            throw new BusinessException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH, "쿠폰 할인 금액이 일치하지 않습니다.");
+        }
+    }
+
+    // coupon-service 내부 조회 응답을 받아 결제 검증에 사용
+    private CouponUserCouponResponse getUserCoupon(UUID couponId) {
+        try {
+            ApiResponse<CouponUserCouponResponse> response = couponServiceClient.getUserCoupon(couponId);
+            if (response == null || response.getData() == null) {
+                throw new BusinessException(CommonErrorCode.REMOTE_RESPONSE_PARSE_ERROR, "쿠폰 서비스 응답이 비어 있습니다.");
+            }
+            return response.getData();
+        } catch (FeignException e) {
+            throw new BusinessException(CommonErrorCode.REMOTE_CALL_FAILED, "쿠폰 서비스 호출에 실패했습니다.");
+        }
+    }
+
+    // 쿠폰 타입에 맞춰 실제 할인 금액을 다시 계산
+    private long calculateCouponDiscountAmount(CouponUserCouponResponse coupon, Long originalAmount) {
+        BigDecimal originalAmountValue = BigDecimal.valueOf(originalAmount);
+
+        if ("AMOUNT".equals(coupon.discountType())) {
+            return coupon.discountValue().setScale(0, RoundingMode.DOWN).longValue();
+        }
+
+        // 소수점 버림 정책 적용
+        if ("RATE".equals(coupon.discountType())) {
+            BigDecimal calculated = originalAmountValue
+                    .multiply(coupon.discountValue())
+                    .divide(BigDecimal.valueOf(100), 0, RoundingMode.DOWN);
+
+            // 최대 할인 금액 적용
+            if (coupon.maxDiscountAmount() != null) {
+                BigDecimal maxDiscount = coupon.maxDiscountAmount().setScale(0, RoundingMode.DOWN);
+                calculated = calculated.min(maxDiscount);
+            }
+
+            return calculated.longValue();
+        }
+
+        throw new BusinessException(PaymentErrorCode.PAYMENT_INVALID_COUPON, "지원하지 않는 쿠폰 할인 타입입니다.");
     }
 }
