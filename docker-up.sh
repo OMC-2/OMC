@@ -156,13 +156,14 @@ build_services() {
             :services:user-service:bootJar \
             :services:drop-service:bootJar \
             :services:coupon-service:bootJar \
+            :services:notification-service:bootJar \
             :services:eureka-server:bootJar \
             :services:config-server:bootJar
 
   echo ""
   echo "▶ [2단계] Docker 이미지 빌드"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" build \
-    eureka-server config-server gateway user-service drop-service coupon-service
+    eureka-server config-server gateway user-service drop-service coupon-service notification-service
 }
 
 # ----------------------------------------------------------------
@@ -185,16 +186,17 @@ start_infra() {
 # ----------------------------------------------------------------
 start_services() {
   echo ""
-  echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service)"
+  echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service / notification-service)"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
-    eureka-server config-server gateway user-service drop-service coupon-service
+    eureka-server config-server gateway user-service drop-service coupon-service notification-service
 
   echo ""
-  echo "▶ [6단계] gateway + user-service + drop-service + coupon-service healthy 대기 (최대 180초)"
+  echo "▶ [6단계] gateway + user-service + drop-service + coupon-service + notification-service healthy 대기 (최대 180초)"
   wait_healthy omc-gateway 180
   wait_healthy omc-user-service 180
   wait_healthy omc-drop-service 180
   wait_healthy omc-coupon-service 180
+  wait_healthy omc-notification-service 180
 
   echo ""
   echo "▶ [7단계] Gateway 라우팅 확인 (Eureka 전파 대기, 최대 90초)"
@@ -202,6 +204,8 @@ start_services() {
   wait_gateway_routing "http://localhost:8080/api/v1/users/signup" "user-service" 90
   # coupon-service: 쿠폰 경로는 모두 인증 필요 → Eureka API로 등록 여부 직접 확인
   wait_eureka_registered "COUPON-SERVICE" 90
+  # notification-service: Eureka 등록 확인
+  wait_eureka_registered "NOTIFICATION-SERVICE" 90
 }
 
 # ----------------------------------------------------------------

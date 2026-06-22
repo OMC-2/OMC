@@ -298,30 +298,37 @@ services:
     networks:
       - omc-network
 
-#  notification-service:
-#    build:
-
-#      context: ./services/notification-service
-#    container_name: omc-notification-service
-#    ports:
-#      - "8088:8088"
-#    environment:
-#      CONFIG_SERVER_URI: http://config-server:8888
-#      KAFKA_URI: kafka:29092
-#      GATEWAY_SECRET: local-secret
-#    depends_on:
-#      config-server:
-#        condition: service_healthy
-#      kafka:
-#        condition: service_healthy
-#    healthcheck:
-#      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health || exit 1"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 10
-#      start_period: 60s
-#    networks:
-#      - omc-network
+  notification-service:
+    build:
+      context: ./services/notification-service
+    container_name: omc-notification-service
+    ports:
+      - "8088:8088"
+    environment:
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: postgres:5432
+      DB_USERNAME: omc
+      DB_PASSWORD: password
+      KAFKA_URI: kafka:29092
+      GATEWAY_SECRET: local-secret
+      USER_SERVICE_URL: http://user-service:8081
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - omc-network
 
 networks:
   omc-network:

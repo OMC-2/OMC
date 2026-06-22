@@ -99,6 +99,7 @@ public class CouponService {
         );
 
         String payload = toJson(Map.of(
+                "eventId", UUID.randomUUID().toString(),
                 "couponId", couponId.toString(),
                 "userId", userId.toString()
         ));

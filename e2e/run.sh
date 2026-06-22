@@ -15,6 +15,7 @@
 #   [서비스 그룹]
 #   user                → user/ 폴더 전체 (회원가입 + 로그인 + 프로필)
 #   coupon              → coupon/ 폴더 전체 (쿠폰 생성 + 발급 + 조회 + 보안)
+#   notification        → notification/ 폴더 전체 (알림 목록 + 읽음 처리 + 보안)
 #   saga                → saga/ 폴더 전체 (서비스 연계 시나리오)
 #
 #   [개별 시나리오]
@@ -29,6 +30,9 @@
 #   coupon/coupon_issue      → 쿠폰 발급 (정상 201 / 중복 409 / 품절 409 / 권한오류 403·401)
 #   coupon/coupon_my         → 내 쿠폰 목록·단건 조회 (정상 200 / 없는ID 404 / 미인증 401)
 #   coupon/coupon_security   → 쿠폰 인증·인가 보안 검증
+#   notification/notification_list     → 알림 목록 조회 (빈 목록 / 쿠폰발급 후 조회 / 인증오류)
+#   notification/notification_read     → 읽음 처리 (본인/타인/미존재 / 인증오류)
+#   notification/notification_security → 알림 인증·인가 보안 검증
 #
 # ----------------------------------------------------------------
 # 예시
@@ -37,6 +41,7 @@
 #   bash e2e/run.sh                          # 모든 시나리오 실행
 #   bash e2e/run.sh user                     # user 서비스 시나리오 전체
 #   bash e2e/run.sh coupon                   # coupon 서비스 시나리오 전체
+#   bash e2e/run.sh notification             # notification 서비스 시나리오 전체
 #   bash e2e/run.sh user/signup              # 회원가입 시나리오만
 #   bash e2e/run.sh user/login               # 로그인 시나리오만
 #   bash e2e/run.sh user/profile             # 프로필 조회 시나리오만
@@ -48,6 +53,9 @@
 #   bash e2e/run.sh coupon/coupon_issue      # 쿠폰 발급 시나리오만
 #   bash e2e/run.sh coupon/coupon_my         # 내 쿠폰 조회 시나리오만
 #   bash e2e/run.sh coupon/coupon_security   # coupon 보안 시나리오만
+#   bash e2e/run.sh notification/notification_list     # 알림 목록 조회 시나리오만
+#   bash e2e/run.sh notification/notification_read     # 읽음 처리 시나리오만
+#   bash e2e/run.sh notification/notification_security # 알림 보안 시나리오만
 #
 GATEWAY_SECRET=local-secret
 ADMIN_SECRET=local-admin-secret
@@ -67,7 +75,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user coupon saga user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security"
+VALID_TARGETS="user coupon notification saga user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do
@@ -84,6 +92,7 @@ if [ -n "$TARGET" ]; then
     echo "  [서비스 그룹]"
     echo "  user              → user/ 폴더 전체"
     echo "  coupon            → coupon/ 폴더 전체"
+    echo "  notification      → notification/ 폴더 전체"
     echo "  saga              → saga/ 폴더 전체"
     echo ""
     echo "  [개별 시나리오 — user]"
@@ -100,6 +109,11 @@ if [ -n "$TARGET" ]; then
     echo "  coupon/coupon_issue      → 쿠폰 발급"
     echo "  coupon/coupon_my         → 내 쿠폰 조회"
     echo "  coupon/coupon_security   → 쿠폰 인증·인가 보안 검증"
+    echo ""
+    echo "  [개별 시나리오 — notification]"
+    echo "  notification/notification_list     → 알림 목록 조회"
+    echo "  notification/notification_read     → 읽음 처리"
+    echo "  notification/notification_security → 알림 인증·인가 보안 검증"
     exit 1
   fi
 fi

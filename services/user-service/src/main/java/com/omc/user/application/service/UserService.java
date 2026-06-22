@@ -17,6 +17,7 @@ import com.omc.user.presentation.dto.response.SignupResponse;
 import com.omc.user.presentation.dto.response.UpdateProfileResponse;
 import com.omc.user.presentation.dto.response.UserIdResponse;
 import com.omc.user.presentation.dto.response.UserProfileResponse;
+import com.omc.user.presentation.dto.response.UserSlackResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -79,6 +80,13 @@ public class UserService {
     public LoginResponse login(LoginRequest request) {
         KeycloakTokenResponse token = keycloakAdminClient.login(request.email(), request.password());
         return new LoginResponse(token.accessToken(), token.refreshToken(), "Bearer", token.expiresIn());
+    }
+
+    @Transactional(readOnly = true)
+    public UserSlackResponse findSlackIdByUserId(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(UserNotFoundException::new);
+        return new UserSlackResponse(user.getUserId(), user.getSlackId());
     }
 
     @Transactional(readOnly = true)
