@@ -8,7 +8,8 @@ public final class PaymentGatewayCommand {
     public record Confirm(
             String providerPaymentId, // 결제 식별자
             String orderId,
-            Long amount
+            Long amount,
+            String idempotencyKey
     ) {}
 
     public record RegisterBillingKey(
@@ -21,13 +22,15 @@ public final class PaymentGatewayCommand {
             String customerKey,
             String orderId,
             String orderName,
-            Long amount
+            Long amount,
+            String idempotencyKey
     ) {
     }
 
     public record Cancel(
             String providerPaymentId,
             String cancelReason,
-            Long amount
+            Long amount,
+            String idempotencyKey
     ) {}
 }

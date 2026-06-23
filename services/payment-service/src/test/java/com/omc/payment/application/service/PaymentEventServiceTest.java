@@ -8,6 +8,7 @@ import com.omc.payment.infrastructure.config.KafkaTopics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -17,6 +18,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,9 +41,23 @@ class PaymentEventServiceTest {
 
     @Mock private PaymentInboxService paymentInboxService;
     @Mock private PaymentCoreService paymentCoreService;
+    @Mock private PaymentIdempotencyService paymentIdempotencyService;
 
     @InjectMocks
     private PaymentEventService paymentEventService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(paymentIdempotencyService.confirmKey(any(UUID.class)))
+                .thenAnswer(invocation -> "payment:confirm:" + invocation.getArgument(0));
+        lenient().when(paymentIdempotencyService.cancelKey(any(UUID.class)))
+                .thenAnswer(invocation -> "payment:cancel:" + invocation.getArgument(0));
+        lenient().doAnswer(invocation -> {
+            Runnable action = invocation.getArgument(1);
+            action.run();
+            return null;
+        }).when(paymentIdempotencyService).execute(anyString(), any(Runnable.class));
+    }
 
     @Nested
     @DisplayName("주문 생성 이벤트 처리")

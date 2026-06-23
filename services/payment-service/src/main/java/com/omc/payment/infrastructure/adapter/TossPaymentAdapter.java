@@ -30,7 +30,8 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
         PaymentResponse response = post(
                 "/v1/payments/confirm",
                 new ConfirmRequest(command.providerPaymentId(), command.orderId(), command.amount()),
-                PaymentResponse.class
+                PaymentResponse.class,
+                command.idempotencyKey()
         );
         return new PaymentGatewayResult.Confirm(response.PaymentKey());
     }
@@ -41,7 +42,8 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
         BillingKeyResponse response = post(
                 "/v1/billing/authorizations/issue",
                 new BillingKeyRequest(command.authKey(), command.customerKey()),
-                BillingKeyResponse.class
+                BillingKeyResponse.class,
+                null
         );
         return new PaymentGatewayResult.RegisterBillingKey(response.billingKey());
     }
@@ -58,6 +60,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
                         command.amount()
                 ),
                 PaymentResponse.class,
+                command.idempotencyKey(),
                 command.billingKeyId()
         );
         return new PaymentGatewayResult.Confirm(response.PaymentKey());
@@ -70,7 +73,8 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
                 "/v1/payments/{paymentKey}/cancel",
                 new CancelRequest(command.cancelReason(), command.amount()),
                 PaymentResponse.class,
-                command.providerPaymentId()
+                command.providerPaymentId(),
+                command.idempotencyKey()
         );
         // lastTransactionKey가 없을 경우 paymentKey 폴백
         String providerCancellationKey = response.lastTransactionKey() == null
@@ -81,10 +85,21 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     }
 
     // Toss Post 호출 공통 로직
-    private <T> T post(String uri, Object body, Class<T> responseType, Object... uriVariables) {
+    private <T> T post(
+            String uri,
+            Object body,
+            Class<T> responseType,
+            String idempotencyKey,
+            Object... uriVariables
+    ) {
         try {
-            return tossPaymentRestClient.post()
-                    .uri(uri, uriVariables)
+            RestClient.RequestBodySpec requestBodySpec = tossPaymentRestClient.post()
+                    .uri(uri, uriVariables);
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                requestBodySpec.header("Idempotency-Key", idempotencyKey);
+            }
+
+            return requestBodySpec
                     .body(body)
                     .retrieve()
                     .body(responseType);
