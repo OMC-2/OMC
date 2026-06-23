@@ -11,7 +11,10 @@ import java.util.UUID;
 public record PaymentResponse(
         UUID paymentId,
         UUID orderId,
+        UUID dropId,
+        UUID raffleId,
         UUID entryId,
+        UUID productId,
         UUID userId,
         SalesType salesType,
         Long finalAmount,
@@ -24,7 +27,10 @@ public record PaymentResponse(
         return new PaymentResponse(
                 payment.getPaymentId(),
                 payment.getOrderId(),
+                payment.getDropId(),
+                payment.getRaffleId(),
                 payment.getEntryId(),
+                payment.getProductId(),
                 payment.getUserId(),
                 payment.getSalesType(),
                 payment.getFinalAmount(),

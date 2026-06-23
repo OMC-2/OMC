@@ -42,8 +42,17 @@ public class Payment extends BaseEntity {
     @Column(name = "order_id", nullable = false, unique = true)
     private UUID orderId;
 
+    @Column(name = "drop_id")
+    private UUID dropId;
+
+    @Column(name = "raffle_id")
+    private UUID raffleId;
+
     @Column(name = "entry_id", unique = true)
     private UUID entryId;
+
+    @Column(name = "product_id")
+    private UUID productId;
 
     @Column(name = "coupon_id")
     private UUID couponId;
@@ -117,7 +126,10 @@ public class Payment extends BaseEntity {
 
     public static Payment create(
             UUID orderId,
+            UUID dropId,
+            UUID raffleId,
             UUID entryId,
+            UUID productId,
             UUID couponId,
             UUID userId,
             SalesType salesType,
@@ -146,7 +158,10 @@ public class Payment extends BaseEntity {
 
         return Payment.builder()
                 .orderId(Objects.requireNonNull(orderId, "주문 ID는 null일 수 없습니다."))
+                .dropId(dropId)
+                .raffleId(raffleId)
                 .entryId(entryId)
+                .productId(productId)
                 .couponId(couponId)
                 .userId(Objects.requireNonNull(userId, "유저 ID는 null일 수 없습니다."))
                 .salesType(resolvedSalesType)
@@ -215,7 +230,10 @@ public class Payment extends BaseEntity {
     private Payment(
             UUID paymentId,
             UUID orderId,
+            UUID dropId,
+            UUID raffleId,
             UUID entryId,
+            UUID productId,
             UUID couponId,
             UUID userId,
             SalesType salesType,
@@ -239,7 +257,10 @@ public class Payment extends BaseEntity {
     ) {
         this.paymentId = paymentId;
         this.orderId = orderId;
+        this.dropId = dropId;
+        this.raffleId = raffleId;
         this.entryId = entryId;
+        this.productId = productId;
         this.couponId = couponId;
         this.userId = userId;
         this.salesType = salesType;

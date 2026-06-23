@@ -1,6 +1,7 @@
 package com.omc.product.application.scheduler;
 
 import com.omc.product.domain.entity.OutboxEvent;
+import com.omc.product.domain.enums.OutboxEventType;
 import com.omc.product.domain.enums.OutboxStatus;
 import com.omc.product.domain.repository.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +24,9 @@ public class OutboxPollerScheduler {
     private final OutboxEventRepository outboxEventRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    // event_type → Kafka 토픽명 매핑
-    private static final Map<String, String> TOPIC_MAP = Map.of(
-            "STOCK_DEDUCTED", "stock.deducted",
-            "STOCK_FAILED",   "stock.failed"
+    private static final Map<OutboxEventType, String> TOPIC_MAP = Map.of(
+            OutboxEventType.STOCK_DEDUCTED, "stock.deducted",
+            OutboxEventType.STOCK_FAILED,   "stock.failed"
     );
 
     @Scheduled(fixedDelay = 500)  // 0.5초 주기
@@ -43,8 +43,7 @@ public class OutboxPollerScheduler {
             }
 
             try {
-                kafkaTemplate.send(topic, event.getAggregateId().toString(), event.getPayload())
-                        .get(); // 동기 ACK 대기
+                kafkaTemplate.send(topic, event.getAggregateId().toString(), event.getPayload()).get();
                 event.publish();
                 log.debug("[OutboxPoller] 발행 완료. eventId={}, topic={}", event.getEventId(), topic);
             } catch (Exception e) {

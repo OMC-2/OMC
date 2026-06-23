@@ -9,7 +9,7 @@ import com.omc.product.domain.exception.ProductAlreadyDeletedException;
 import com.omc.product.domain.exception.ProductNotFoundException;
 import com.omc.product.domain.repository.InventoryRepository;
 import com.omc.product.domain.repository.ProductRepository;
-import com.omc.product.infrastructure.client.dto.ActiveDropResponse;
+import com.omc.product.infrastructure.client.ActiveDropResponse;
 import com.omc.product.infrastructure.client.DropInternalClient;
 import com.omc.product.presentation.dto.request.ProductCreateRequest;
 import com.omc.product.presentation.dto.request.ProductUpdateRequest;

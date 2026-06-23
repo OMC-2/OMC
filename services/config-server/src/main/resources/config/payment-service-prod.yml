@@ -19,6 +19,33 @@ spring:
     default-schema: payment_db
   kafka:
     bootstrap-servers: ${KAFKA_URI}
+    consumer:
+      group-id: payment-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.StringDeserializer
+      properties:
+        spring.json.trusted.packages: ${KAFKA_TRUSTED_PACKAGES:com.omc.*}
+      # enable-auto-commit: false  # offset 자동 커밋 비활성화
+
+      listener:
+        concurrency: ${KAFKA_LISTENER_CONCURRENCY:3}  # consumer 병렬 처리 개수
+        missing-topics-fatal: false  # 토픽이 없어도 서버 다운 X
+        # ack-mode: manual_immediate  # 처리 성공 후 수동 ack
+
+      producer:
+        key-serializer: org.apache.kafka.common.serialization.StringSerializer
+        value-serializer: org.springframework.kafka.support.serializer.StringSerializer
+        acks: all
+        retries: 3
+        properties:
+          enable.idempotence: true  # producer 재시도 중 중복 적재 최소화
+          max.in.flight.requests.per.connection: 5  # idempotence와 함께 안전한 최대 in-flight 요청 수
+
+kafka:
+  topic:
+    default-partitions: ${KAFKA_TOPIC_DEFAULT_PARTITIONS:3}  # 토픽 기본 파티션 수
+    default-replication-factor: ${KAFKA_TOPIC_DEFAULT_REPLICATION_FACTOR:1}  # 토픽 기본 replication factor
 
 gateway:
   secret: ${GATEWAY_SECRET}
