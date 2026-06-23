@@ -1,6 +1,9 @@
 server:
   port: 8086
 
+gateway:
+  secret: ${GATEWAY_SECRET:omc-internal-secret}
+
 spring:
   datasource:
     url: jdbc:h2:mem:omc_raffle;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
@@ -28,9 +31,7 @@ spring:
       group-id: raffle-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "com.omc.*"
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer

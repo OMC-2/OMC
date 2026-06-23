@@ -4,7 +4,11 @@
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    
+    // UUIDv7 support
+    implementation 'com.github.f4b6a3:uuid-creator:5.3.7'
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
     compileOnly 'org.springdoc:springdoc-openapi-starter-common:2.8.9'
 }

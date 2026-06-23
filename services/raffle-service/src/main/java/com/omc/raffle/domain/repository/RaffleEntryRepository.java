@@ -1,6 +1,7 @@
 package com.omc.raffle.domain.repository;
 
 import com.omc.raffle.domain.entity.RaffleEntry;
+import com.omc.raffle.domain.projection.RaffleEntryProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -17,4 +18,8 @@ public interface RaffleEntryRepository extends JpaRepository<RaffleEntry, UUID> 
     
     // 특정 드롭의 전체 응모 내역 조회 (추첨 진행 시 사용)
     List<RaffleEntry> findAllByRaffleId(UUID raffleId);
+
+    // OOM 방지를 위해 ID와 UserID만 조회 (추첨 셔플용)
+    @org.springframework.data.jpa.repository.Query("SELECT r.id as id, r.userId as userId FROM RaffleEntry r WHERE r.raffleId = :raffleId")
+    List<RaffleEntryProjection> findProjectionsByRaffleId(@org.springframework.data.repository.query.Param("raffleId") UUID raffleId);
 }
