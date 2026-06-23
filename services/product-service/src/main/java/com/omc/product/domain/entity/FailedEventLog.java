@@ -33,7 +33,6 @@ import java.util.UUID;
 public class FailedEventLog {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "log_id")
     private UUID logId;
 
@@ -55,9 +54,9 @@ public class FailedEventLog {
     @Column(name = "error_message", nullable = false, columnDefinition = "TEXT")
     private String errorMessage;
 
-     @Enumerated(EnumType.STRING)
-     @Column(nullable = false, length = 50)
-     private FailedEventStatus status;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    private FailedEventStatus status;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -68,44 +67,44 @@ public class FailedEventLog {
     @Column(name = "resolved_by")
     private UUID resolvedBy;
 
-     @Builder(access = AccessLevel.PRIVATE)
-     private FailedEventLog(
-             String originalTopic,
-             String consumerGroup,
-             String aggregateType,
-             UUID aggregateId,
-             String originalPayload,
-             String errorMessage,
-             FailedEventStatus status,
-             LocalDateTime createdAt
-     ) {
-         this.originalTopic = originalTopic;
-         this.consumerGroup = consumerGroup;
-         this.aggregateType = aggregateType;
-         this.aggregateId = aggregateId;
-         this.originalPayload = originalPayload;
-         this.errorMessage = errorMessage;
-         this.status = status;
-         this.createdAt = createdAt;
-     }
+    @Builder(access = AccessLevel.PRIVATE)
+    private FailedEventLog(
+            String originalTopic,
+            String consumerGroup,
+            String aggregateType,
+            UUID aggregateId,
+            String originalPayload,
+            String errorMessage,
+            FailedEventStatus status,
+            LocalDateTime createdAt
+    ) {
+        this.originalTopic = originalTopic;
+        this.consumerGroup = consumerGroup;
+        this.aggregateType = aggregateType;
+        this.aggregateId = aggregateId;
+        this.originalPayload = originalPayload;
+        this.errorMessage = errorMessage;
+        this.status = status;
+        this.createdAt = createdAt;
+    }
 
-     public static FailedEventLog create(
-             String originalTopic,
-             String consumerGroup,
-             String aggregateType,
-             UUID aggregateId,
-             String originalPayload,
-             String errorMessage
-     ) {
-         return FailedEventLog.builder()
-                 .originalTopic(originalTopic)
-                 .consumerGroup(consumerGroup)
-                 .aggregateType(aggregateType)
-                 .aggregateId(aggregateId)
-                 .originalPayload(originalPayload)
-                 .errorMessage(errorMessage)
-                 .status(FailedEventStatus.UNRESOLVED)
-                 .createdAt(LocalDateTime.now())
-                 .build();
-     }
+    public static FailedEventLog create(
+            String originalTopic,
+            String consumerGroup,
+            String aggregateType,
+            UUID aggregateId,
+            String originalPayload,
+            String errorMessage
+    ) {
+        return FailedEventLog.builder()
+                .originalTopic(originalTopic)
+                .consumerGroup(consumerGroup)
+                .aggregateType(aggregateType)
+                .aggregateId(aggregateId)
+                .originalPayload(originalPayload)
+                .errorMessage(errorMessage)
+                .status(FailedEventStatus.UNRESOLVED)
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
 }
