@@ -10,6 +10,10 @@ Feature: 쿠폰 발급
   #   3. [예외] 재고 소진 후 발급 시도 → 409, COUPON-004
   #   4. [예외] 토큰 없이 발급 → 401
   #   5. [예외] ADMIN 토큰으로 발급 → 403
+  #   6. [정상] 서로 다른 유저 5명 쿠폰 발급 성공 → 모두 201
+  #   7. [예외] 만료된 쿠폰 발급 시도 → 400, COUPON-006
+  #   8. [예외] 시작 전 쿠폰 발급 시도 → 400, COUPON-007
+  #   9. [예외] 존재하지 않는 쿠폰 발급 시도 → 404, COUPON-001
   #
   # 주의: Background에서 매 시나리오마다 ADMIN·USER 계정을 생성하고,
   #       ADMIN으로 쿠폰 2개(일반 100개, 재고1개)를 생성한 뒤 시나리오가 시작된다.
@@ -53,6 +57,24 @@ Feature: 쿠폰 발급
     When method post
     Then status 201
     * def limitedCouponId = response.data.couponId
+
+    # 사전 준비 4: 만료된 쿠폰 생성 (만료 테스트용)
+    Given path '/api/v1/coupons'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + adminAccessToken
+    And request { name: '만료 쿠폰', discountType: 'AMOUNT', discountValue: 500, totalQuantity: 100, startedAt: '2020-01-01T00:00:00', expiredAt: '2020-12-31T23:59:59' }
+    When method post
+    Then status 201
+    * def expiredCouponId = response.data.couponId
+
+    # 사전 준비 5: 시작 전 쿠폰 생성 (시작 전 테스트용)
+    Given path '/api/v1/coupons'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + adminAccessToken
+    And request { name: '시작 전 쿠폰', discountType: 'AMOUNT', discountValue: 500, totalQuantity: 100, startedAt: '2099-01-01T00:00:00', expiredAt: '2099-12-31T23:59:59' }
+    When method post
+    Then status 201
+    * def notStartedCouponId = response.data.couponId
 
     # 사전 준비 4: USER 계정 생성 + 로그인
     Given path '/api/v1/users/signup'
@@ -243,3 +265,37 @@ Feature: 쿠폰 발급
     When method post
     Then status 201
     And match response.data.status == 'AVAILABLE'
+
+  # ----------------------------------------------------------------
+  # 시나리오 7: 만료된 쿠폰 발급 시도 시 400과 COUPON-006을 반환한다
+  # ----------------------------------------------------------------
+  Scenario: [예외] 만료된 쿠폰 발급 시도 → 400, COUPON-006
+    Given path '/api/v1/coupons/' + expiredCouponId + '/issue'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + userAccessToken
+    When method post
+    Then status 400
+    And match response.errorCode == 'COUPON-006'
+
+  # ----------------------------------------------------------------
+  # 시나리오 8: 시작 전 쿠폰 발급 시도 시 400과 COUPON-007을 반환한다
+  # ----------------------------------------------------------------
+  Scenario: [예외] 시작 전 쿠폰 발급 시도 → 400, COUPON-007
+    Given path '/api/v1/coupons/' + notStartedCouponId + '/issue'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + userAccessToken
+    When method post
+    Then status 400
+    And match response.errorCode == 'COUPON-007'
+
+  # ----------------------------------------------------------------
+  # 시나리오 9: 존재하지 않는 쿠폰 발급 시도 시 404와 COUPON-001을 반환한다
+  # ----------------------------------------------------------------
+  Scenario: [예외] 존재하지 않는 쿠폰 발급 시도 → 404, COUPON-001
+    * def fakeCouponId = java.util.UUID.randomUUID()
+    Given path '/api/v1/coupons/' + fakeCouponId + '/issue'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + userAccessToken
+    When method post
+    Then status 404
+    And match response.errorCode == 'COUPON-001'
