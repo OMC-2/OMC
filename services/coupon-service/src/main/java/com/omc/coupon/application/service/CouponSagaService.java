@@ -1,9 +1,12 @@
 package com.omc.coupon.application.service;
 
-import com.omc.coupon.domain.entity.ProcessedEvent;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.coupon.domain.entity.OutboxEvent;
 import com.omc.coupon.domain.entity.UserCoupon;
+import com.omc.coupon.domain.enums.OutboxEventType;
 import com.omc.coupon.domain.enums.UserCouponStatus;
-import com.omc.coupon.domain.repository.ProcessedEventRepository;
+import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +14,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,7 +24,9 @@ import java.util.UUID;
 public class CouponSagaService {
 
     private final UserCouponRepository userCouponRepository;
-    private final ProcessedEventRepository processedEventRepository;
+    private final ProcessedEventIdempotencyService processedEventIdempotencyService;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
 
     /**
      * payment.completed → RESERVED → USED 확정
@@ -37,9 +43,18 @@ public class CouponSagaService {
             return;
         }
 
-        userCoupon.get().confirm();
-        log.info("[CouponSagaService] 쿠폰 사용 확정. orderId={}, userCouponId={}",
-                orderId, userCoupon.get().getUserCouponId());
+        UserCoupon uc = userCoupon.get();
+        uc.confirm();
+
+        String payload = toJson(Map.of(
+                "eventId",  UUID.randomUUID().toString(),
+                "couponId", uc.getCoupon().getCouponId().toString(),
+                "userId",   uc.getUserId().toString(),
+                "orderId",  orderId.toString()
+        ));
+        outboxEventRepository.save(OutboxEvent.create("UserCoupon", uc.getUserCouponId(), OutboxEventType.COUPON_USED, payload));
+
+        log.info("[CouponSagaService] 쿠폰 사용 확정. orderId={}, userCouponId={}", orderId, uc.getUserCouponId());
     }
 
     /**
@@ -82,9 +97,17 @@ public class CouponSagaService {
                 orderId, userCoupon.get().getUserCouponId());
     }
 
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("JSON 직렬화 실패", e);
+        }
+    }
+
     private boolean markProcessed(String eventId, String topic) {
         try {
-            processedEventRepository.save(ProcessedEvent.create(eventId, topic));
+            processedEventIdempotencyService.markProcessed(eventId, topic);
             return true;
         } catch (DataIntegrityViolationException e) {
             log.warn("[CouponSagaService] 중복 이벤트 스킵. eventId={}", eventId);

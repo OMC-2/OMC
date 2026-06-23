@@ -38,12 +38,13 @@ public class OutboxPollerScheduler {
         for (OutboxEvent event : pending) {
             String topic = TOPIC_MAP.get(event.getEventType().name());
             if (topic == null) {
-                log.warn("[OutboxPoller] 알 수 없는 event_type={}", event.getEventType());
+                log.warn("[OutboxPoller] 알 수 없는 event_type={}, FAILED 처리", event.getEventType());
+                event.markFailed();
                 continue;
             }
 
             try {
-                kafkaTemplate.send(topic, event.getAggregateId().toString(), event.getPayload()).get();
+                kafkaTemplate.send(topic, event.getAggregateId().toString(), event.getPayload()).get(12, java.util.concurrent.TimeUnit.SECONDS);
                 event.publish();
                 log.debug("[OutboxPoller] 발행 완료. eventId={}, topic={}", event.getEventId(), topic);
             } catch (Exception e) {

@@ -22,6 +22,7 @@ import com.omc.coupon.presentation.dto.response.CouponResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -94,7 +95,7 @@ class CouponServiceTest {
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
         given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.empty());
-        given(userCouponRepository.save(any(UserCoupon.class))).willReturn(userCouponMock);
+        given(userCouponRepository.saveAndFlush(any(UserCoupon.class))).willReturn(userCouponMock);
         given(userCouponMock.getUserCouponId()).willReturn(userCouponId);
         given(userCouponMock.getCoupon()).willReturn(couponMock); // NPE 방지
         given(userCouponMock.getStatus()).willReturn(UserCouponStatus.AVAILABLE);
@@ -173,6 +174,31 @@ class CouponServiceTest {
 
         verify(couponRedisRepository).incrementStock(couponId.toString()); // Redis 롤백
         verify(userCouponRepository, never()).save(any());
+    }
+
+    // =========================================================================
+    // [시나리오 4-3] saveAndFlush에서 UNIQUE 위반 → Redis 재고 롤백 + 예외
+    // =========================================================================
+
+    @Test
+    void issueCoupon_uniqueViolationOnFlush_rollbacksRedisAndThrows() {
+        // given
+        Coupon couponMock = mock(Coupon.class);
+
+        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponMock.isIssuable()).willReturn(true);
+        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
+        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
+        given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.empty());
+        given(userCouponRepository.saveAndFlush(any(UserCoupon.class)))
+                .willThrow(new DataIntegrityViolationException("UNIQUE constraint violation"));
+
+        // when & then
+        assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
+                .isInstanceOf(CouponAlreadyIssuedException.class);
+
+        verify(couponRedisRepository).incrementStock(couponId.toString()); // Redis 재고 롤백
+        verify(outboxEventRepository, never()).save(any());                 // Outbox 저장 안 됨
     }
 
     // =========================================================================

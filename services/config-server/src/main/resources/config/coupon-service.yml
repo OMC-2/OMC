@@ -35,6 +35,9 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
     consumer:
       group-id: coupon-service
       auto-offset-reset: earliest

@@ -1,18 +1,17 @@
 package com.omc.notification.application.service;
 
 import com.omc.notification.domain.entity.Notification;
-import com.omc.notification.domain.entity.ProcessedEvent;
 import com.omc.notification.domain.enums.NotificationType;
 import com.omc.notification.domain.exception.NotificationErrorCode;
 import com.omc.notification.domain.exception.NotificationNotFoundException;
 import com.omc.notification.domain.repository.NotificationRepository;
-import com.omc.notification.domain.repository.ProcessedEventRepository;
 import com.omc.notification.infrastructure.client.SlackClient;
 import com.omc.notification.infrastructure.client.UserServiceClient;
 import com.omc.notification.presentation.dto.response.NotificationResponse;
 import com.omc.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -26,7 +25,7 @@ import java.util.UUID;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
-    private final ProcessedEventRepository processedEventRepository;
+    private final ProcessedEventIdempotencyService processedEventIdempotencyService;
     private final UserServiceClient userServiceClient;
     private final SlackClient slackClient;
 
@@ -35,8 +34,10 @@ public class NotificationService {
                      NotificationType type, String title, String content,
                      UUID referenceId, String referenceType) {
 
-        if (processedEventRepository.existsByEventId(eventId)) {
-            log.info("[NotificationService] 중복 이벤트 무시. eventId={}", eventId);
+        try {
+            processedEventIdempotencyService.markProcessed(eventId, topic);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("[NotificationService] 중복 이벤트 무시. eventId={}", eventId);
             return;
         }
 
@@ -44,7 +45,6 @@ public class NotificationService {
 
         Notification notification = Notification.create(userId, slackId, type, title, content, referenceId, referenceType);
         notificationRepository.save(notification);
-        processedEventRepository.save(ProcessedEvent.create(eventId, topic));
 
         sendToSlack(notification);
     }

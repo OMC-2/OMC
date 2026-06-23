@@ -2,13 +2,13 @@ package com.omc.notification.unit.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.notification.application.service.NotificationService;
+import com.omc.notification.application.service.ProcessedEventIdempotencyService;
 import com.omc.notification.domain.entity.Notification;
 import com.omc.notification.domain.enums.NotificationStatus;
 import com.omc.notification.domain.enums.NotificationType;
 import com.omc.notification.domain.exception.NotificationErrorCode;
 import com.omc.notification.domain.exception.NotificationNotFoundException;
 import com.omc.notification.domain.repository.NotificationRepository;
-import com.omc.notification.domain.repository.ProcessedEventRepository;
 import com.omc.notification.infrastructure.client.SlackClient;
 import com.omc.notification.infrastructure.client.UserServiceClient;
 import com.omc.notification.presentation.dto.response.NotificationResponse;
@@ -18,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -27,7 +28,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
@@ -36,7 +39,7 @@ import static org.mockito.Mockito.*;
 class NotificationServiceTest {
 
     @Mock private NotificationRepository notificationRepository;
-    @Mock private ProcessedEventRepository processedEventRepository;
+    @Mock private ProcessedEventIdempotencyService processedEventIdempotencyService;
     @Mock private UserServiceClient userServiceClient;
     @Mock private SlackClient slackClient;
 
@@ -54,7 +57,7 @@ class NotificationServiceTest {
     @Test
     void send_success() {
         // given
-        given(processedEventRepository.existsByEventId(eventId)).willReturn(false);
+        doNothing().when(processedEventIdempotencyService).markProcessed(anyString(), anyString());
         given(userServiceClient.getSlackId(userId))
                 .willReturn(new UserServiceClient.SlackApiResponse(true, 200, "OK",
                         new UserServiceClient.UserSlackResponse(userId, "U12345")));
@@ -65,7 +68,7 @@ class NotificationServiceTest {
 
         // then
         verify(notificationRepository).save(any(Notification.class));
-        verify(processedEventRepository).save(any());
+        verify(processedEventIdempotencyService).markProcessed(eq(eventId), eq(topic));
         verify(slackClient).sendMessage(eq("U12345"), any());
     }
 
@@ -76,7 +79,8 @@ class NotificationServiceTest {
     @Test
     void send_duplicateEvent_ignored() {
         // given
-        given(processedEventRepository.existsByEventId(eventId)).willReturn(true);
+        willThrow(new DataIntegrityViolationException("duplicate"))
+                .given(processedEventIdempotencyService).markProcessed(anyString(), anyString());
 
         // when
         notificationService.send(eventId, topic, userId,
@@ -94,7 +98,7 @@ class NotificationServiceTest {
     @Test
     void send_slackIdResolveFails_savesWithNullSlackId() {
         // given
-        given(processedEventRepository.existsByEventId(eventId)).willReturn(false);
+        doNothing().when(processedEventIdempotencyService).markProcessed(anyString(), anyString());
         given(userServiceClient.getSlackId(userId)).willThrow(new RuntimeException("Feign 오류"));
 
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
@@ -115,7 +119,7 @@ class NotificationServiceTest {
     @Test
     void send_slackSendFails_marksNotificationFailed() {
         // given
-        given(processedEventRepository.existsByEventId(eventId)).willReturn(false);
+        doNothing().when(processedEventIdempotencyService).markProcessed(anyString(), anyString());
         given(userServiceClient.getSlackId(userId))
                 .willReturn(new UserServiceClient.SlackApiResponse(true, 200, "OK",
                         new UserServiceClient.UserSlackResponse(userId, "U12345")));

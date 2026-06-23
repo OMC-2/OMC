@@ -45,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CouponSagaIntegrationTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine")
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine")
             .withDatabaseName("testdb")
             .withUsername("test")
             .withPassword("test");
@@ -136,6 +136,24 @@ class CouponSagaIntegrationTest {
         assertThat(confirmed.getUsedAt()).isNotNull();
 
         assertThat(processedEventRepository.findById(eventId)).isPresent();
+    }
+
+    // =========================================================================
+    // [시나리오 1-2] confirmCoupon → COUPON_USED Outbox 저장 확인
+    // =========================================================================
+    @Test
+    void confirmCoupon_savesOutboxEvent() {
+        UUID orderId = UUID.randomUUID();
+        Coupon coupon = createAndSaveCoupon();
+        createReservedUserCoupon(coupon, orderId);
+        String eventId = "evt-confirm-outbox-001";
+
+        couponSagaService.confirmCoupon(eventId, "payment.completed", orderId);
+
+        assertThat(outboxEventRepository.count()).isEqualTo(1);
+        var outbox = outboxEventRepository.findAll().get(0);
+        assertThat(outbox.getEventType().name()).isEqualTo("COUPON_USED");
+        assertThat(outbox.getPayload()).contains(orderId.toString());
     }
 
     // =========================================================================

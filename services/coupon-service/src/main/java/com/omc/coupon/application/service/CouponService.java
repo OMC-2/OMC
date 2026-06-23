@@ -20,6 +20,7 @@ import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import com.omc.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -85,24 +86,32 @@ public class CouponService {
 
         // DB 중복 체크 (Redis Set과 이중 방어)
         userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId).ifPresent(uc -> {
-            couponRedisRepository.incrementStock(couponId.toString()); // 롤백
+            couponRedisRepository.incrementStock(couponId.toString()); // 재고 롤백
+            couponRedisRepository.markIssued(couponId.toString(), userId.toString()); // Redis Set 동기화
             throw new CouponAlreadyIssuedException();
         });
 
-        // UserCoupon 저장 + Outbox 저장 (같은 트랜잭션)
-        UserCoupon userCoupon = userCouponRepository.save(
-                UserCoupon.builder()
-                        .userId(userId)
-                        .coupon(coupon)
-                        .expiredAt(coupon.getExpiredAt())
-                        .build()
-        );
+        // UserCoupon 저장 (saveAndFlush로 즉시 INSERT → UNIQUE 위반 시 여기서 예외 발생, 재고 롤백)
+        UserCoupon userCoupon;
+        try {
+            userCoupon = userCouponRepository.saveAndFlush(
+                    UserCoupon.builder()
+                            .userId(userId)
+                            .coupon(coupon)
+                            .expiredAt(coupon.getExpiredAt())
+                            .build()
+            );
+        } catch (DataIntegrityViolationException e) {
+            couponRedisRepository.incrementStock(couponId.toString());
+            throw new CouponAlreadyIssuedException();
+        }
 
         String payload = toJson(Map.of(
                 "eventId", UUID.randomUUID().toString(),
                 "couponId", couponId.toString(),
                 "userId", userId.toString()
         ));
+        // UserCoupon 저장 + Outbox 저장 같은 트랜잭션으로 묶임
         outboxEventRepository.save(OutboxEvent.create(
                 "UserCoupon", userCoupon.getUserCouponId(), OutboxEventType.COUPON_ISSUED, payload
         ));

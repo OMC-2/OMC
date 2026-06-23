@@ -8,5 +8,7 @@ public enum NotificationType {
     RAFFLE_WIN,
     RAFFLE_LOSE,
     COUPON_ISSUED,
-    REFUND_COMPLETED
+    COUPON_USED,
+    REFUND_COMPLETED,
+    PAYMENT_FAILED
 }

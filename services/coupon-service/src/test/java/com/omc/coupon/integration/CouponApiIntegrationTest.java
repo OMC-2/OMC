@@ -47,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CouponApiIntegrationTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine")
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine")
             .withDatabaseName("testdb")
             .withUsername("test")
             .withPassword("test");
@@ -240,6 +240,126 @@ class CouponApiIntegrationTest {
 
     // =========================================================================
     // [시나리오 6] GET /api/v1/coupons/me/{userCouponId} → 404
+    // 타 유저 소유 쿠폰 조회 시 소유권 검증으로 404 반환
+    // =========================================================================
+    // =========================================================================
+    // [시나리오 7] POST /api/v1/coupons/{couponId}/issue → 400 (만료된 쿠폰)
+    // =========================================================================
+    @Test
+    void issueCoupon_expired_returns400() throws Exception {
+        Coupon coupon = couponRepository.save(Coupon.builder()
+                .name("만료 쿠폰")
+                .discountType(DiscountType.AMOUNT)
+                .discountValue(new BigDecimal("1000"))
+                .totalQuantity(100)
+                .startedAt(LocalDateTime.now().minusDays(10))
+                .expiredAt(LocalDateTime.now().minusDays(1))
+                .build());
+        redisTemplate.opsForValue().set("coupon:stock:" + coupon.getCouponId(), "100");
+
+        mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
+                        .header("X-Gateway-Secret", GATEWAY_SECRET)
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", "USER"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("COUPON-006"));
+
+        assertThat(userCouponRepository.count()).isZero();
+    }
+
+    // =========================================================================
+    // [시나리오 8] POST /api/v1/coupons/{couponId}/issue → 400 (시작 전 쿠폰)
+    // =========================================================================
+    @Test
+    void issueCoupon_notStarted_returns400() throws Exception {
+        Coupon coupon = couponRepository.save(Coupon.builder()
+                .name("시작 전 쿠폰")
+                .discountType(DiscountType.AMOUNT)
+                .discountValue(new BigDecimal("1000"))
+                .totalQuantity(100)
+                .startedAt(LocalDateTime.now().plusDays(1))
+                .expiredAt(LocalDateTime.now().plusDays(30))
+                .build());
+        redisTemplate.opsForValue().set("coupon:stock:" + coupon.getCouponId(), "100");
+
+        mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
+                        .header("X-Gateway-Secret", GATEWAY_SECRET)
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", "USER"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("COUPON-007"));
+
+        assertThat(userCouponRepository.count()).isZero();
+    }
+
+    // =========================================================================
+    // [시나리오 9] POST /api/v1/coupons/{couponId}/issue → 404 (존재하지 않는 쿠폰)
+    // =========================================================================
+    @Test
+    void issueCoupon_notFound_returns404() throws Exception {
+        UUID fakeCouponId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", fakeCouponId)
+                        .header("X-Gateway-Secret", GATEWAY_SECRET)
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", "USER"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("COUPON-001"));
+    }
+
+    // =========================================================================
+    // [시나리오 10] 재고 소진 시 Redis 재고가 정확히 0으로 복구된다
+    // totalQuantity=1 → 발급 성공 → 재고 0 → 추가 발급 시도 → Redis 재고 여전히 0
+    // =========================================================================
+    @Test
+    void issueCoupon_outOfStock_redisStockRemainsZero() throws Exception {
+        Coupon coupon = createAndSaveCoupon(1);
+        redisTemplate.opsForValue().set("coupon:stock:" + coupon.getCouponId(), "1");
+
+        mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
+                        .header("X-Gateway-Secret", GATEWAY_SECRET)
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", "USER"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
+                        .header("X-Gateway-Secret", GATEWAY_SECRET)
+                        .header("X-User-Id", OTHER_USER_ID.toString())
+                        .header("X-User-Role", "USER"))
+                .andExpect(status().isConflict());
+
+        String stock = redisTemplate.opsForValue().get("coupon:stock:" + coupon.getCouponId());
+        assertThat(stock).isEqualTo("0");
+    }
+
+    // =========================================================================
+    // [시나리오 11] 중복 발급 시도 후 Redis 재고가 그대로 유지된다
+    // 발급 성공(재고 99) → 동일 유저 재발급 시도 → 재고 여전히 99
+    // =========================================================================
+    @Test
+    void issueCoupon_duplicate_redisStockUnchanged() throws Exception {
+        Coupon coupon = createAndSaveCoupon(100);
+        redisTemplate.opsForValue().set("coupon:stock:" + coupon.getCouponId(), "100");
+
+        mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
+                        .header("X-Gateway-Secret", GATEWAY_SECRET)
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", "USER"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
+                        .header("X-Gateway-Secret", GATEWAY_SECRET)
+                        .header("X-User-Id", USER_ID.toString())
+                        .header("X-User-Role", "USER"))
+                .andExpect(status().isConflict());
+
+        String stock = redisTemplate.opsForValue().get("coupon:stock:" + coupon.getCouponId());
+        assertThat(stock).isEqualTo("99");
+        assertThat(userCouponRepository.count()).isEqualTo(1);
+    }
+
+    // =========================================================================
+    // [시나리오 12] GET /api/v1/coupons/me/{userCouponId} → 404
     // 타 유저 소유 쿠폰 조회 시 소유권 검증으로 404 반환
     // =========================================================================
     @Test
