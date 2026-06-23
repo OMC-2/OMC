@@ -13,6 +13,7 @@ import com.omc.notification.presentation.dto.response.NotificationResponse;
 import com.omc.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -35,8 +36,10 @@ public class NotificationService {
                      NotificationType type, String title, String content,
                      UUID referenceId, String referenceType) {
 
-        if (processedEventRepository.existsByEventId(eventId)) {
-            log.info("[NotificationService] 중복 이벤트 무시. eventId={}", eventId);
+        try {
+            processedEventRepository.save(ProcessedEvent.create(eventId, topic));
+        } catch (DataIntegrityViolationException e) {
+            log.warn("[NotificationService] 중복 이벤트 무시. eventId={}", eventId);
             return;
         }
 
@@ -44,7 +47,6 @@ public class NotificationService {
 
         Notification notification = Notification.create(userId, slackId, type, title, content, referenceId, referenceType);
         notificationRepository.save(notification);
-        processedEventRepository.save(ProcessedEvent.create(eventId, topic));
 
         sendToSlack(notification);
     }
