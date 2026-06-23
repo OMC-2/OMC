@@ -81,4 +81,8 @@ public class OutboxEvent {
             this.status = OutboxStatus.FAILED;
         }
     }
+
+    public void markFailed() {
+        this.status = OutboxStatus.FAILED;
+    }
 }
