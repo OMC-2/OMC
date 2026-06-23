@@ -3,7 +3,7 @@ package com.omc.product.application.event;
 import java.util.UUID;
 
 public record PaymentCompletedEvent(
-        String eventId,     // 멱등성 키
+        String eventId,
         UUID orderId,
         UUID productId,
         UUID userId,

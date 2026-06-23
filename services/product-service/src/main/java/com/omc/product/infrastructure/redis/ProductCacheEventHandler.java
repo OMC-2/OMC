@@ -1,5 +1,6 @@
-package com.omc.product.application.event;
+package com.omc.product.infrastructure.redis;
 
+import com.omc.product.application.event.ProductUpdatedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
