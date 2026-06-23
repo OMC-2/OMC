@@ -2,9 +2,10 @@ package com.omc.payment.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.payment.application.event.producer.PaymentCompletedEvent;
-import com.omc.payment.application.event.producer.PaymentFailedEvent;
-import com.omc.payment.application.event.producer.RefundDoneEvent;
+import com.omc.payment.application.event.dto.outbound.PaymentCompletedEvent;
+import com.omc.payment.application.event.dto.outbound.PaymentFailedEvent;
+import com.omc.payment.application.event.dto.outbound.RefundDoneEvent;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.payment.domain.entity.Payment;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.OutboxAggregateType;
@@ -23,7 +24,7 @@ public class PaymentOutboxService {
     private final ObjectMapper objectMapper;
 
     public void savePaymentCompleted(Payment payment) {
-        UUID eventId = UUID.randomUUID();
+        UUID eventId = UuidV7Generator.generate();
         PaymentCompletedEvent event = new PaymentCompletedEvent(
                 eventId.toString(),
                 payment.getSalesType(),
@@ -42,7 +43,7 @@ public class PaymentOutboxService {
     }
 
     public void savePaymentFailed(Payment payment) {
-        UUID eventId = UUID.randomUUID();
+        UUID eventId = UuidV7Generator.generate();
         String failureReason = payment.getFailureMessage() == null || payment.getFailureMessage().isBlank()
                 ? payment.getFailureCode()
                 : payment.getFailureMessage();
@@ -63,7 +64,7 @@ public class PaymentOutboxService {
     }
 
     public void saveRefundDone(Payment payment) {
-        UUID eventId = UUID.randomUUID();
+        UUID eventId = UuidV7Generator.generate();
         String refundReason = payment.getCancelledMessage();
 
         RefundDoneEvent event = new RefundDoneEvent(

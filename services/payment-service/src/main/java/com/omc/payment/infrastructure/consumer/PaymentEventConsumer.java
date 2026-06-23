@@ -1,9 +1,9 @@
 package com.omc.payment.infrastructure.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.payment.application.event.consumer.OrderCreatedEvent;
-import com.omc.payment.application.event.consumer.RefundRequestedEvent;
-import com.omc.payment.application.event.consumer.StockFailedEvent;
+import com.omc.payment.application.event.dto.inbound.OrderCreatedEvent;
+import com.omc.payment.application.event.dto.inbound.RefundRequestedEvent;
+import com.omc.payment.application.event.dto.inbound.StockFailedEvent;
 import com.omc.payment.application.service.PaymentEventService;
 import com.omc.payment.infrastructure.config.KafkaTopics;
 import lombok.RequiredArgsConstructor;

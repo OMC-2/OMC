@@ -1,8 +1,8 @@
 package com.omc.payment.application.service;
 
-import com.omc.payment.application.event.consumer.OrderCreatedEvent;
-import com.omc.payment.application.event.consumer.RefundRequestedEvent;
-import com.omc.payment.application.event.consumer.StockFailedEvent;
+import com.omc.payment.application.event.dto.inbound.OrderCreatedEvent;
+import com.omc.payment.application.event.dto.inbound.RefundRequestedEvent;
+import com.omc.payment.application.event.dto.inbound.StockFailedEvent;
 import com.omc.payment.domain.enums.CancellationCode;
 import com.omc.payment.infrastructure.config.KafkaTopics;
 import lombok.RequiredArgsConstructor;
