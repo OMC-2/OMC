@@ -38,7 +38,7 @@ public class PaymentCoreService {
     private final CouponServiceClient couponServiceClient;
     private final PaymentIdempotencyService paymentIdempotencyService;
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public Payment confirmPayment(
             UUID orderId,
             UUID dropId,
@@ -86,7 +86,7 @@ public class PaymentCoreService {
         return confirmWithGateway(payment, orderId, finalAmount, resolvedProviderPaymentId);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public Payment confirmBillingPayment(
             UUID orderId,
             UUID entryId,
