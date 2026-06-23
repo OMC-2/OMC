@@ -21,6 +21,7 @@ import com.omc.payment.infrastructure.client.CouponUserCouponResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -36,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -58,9 +60,18 @@ class PaymentCoreServiceTest {
     @Mock private PaymentGatewayPort paymentGatewayPort;
     @Mock private PaymentOutboxService paymentOutboxService;
     @Mock private CouponServiceClient couponServiceClient;
+    @Mock private PaymentIdempotencyService paymentIdempotencyService;
 
     @InjectMocks
     private PaymentCoreService paymentCoreService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(paymentIdempotencyService.confirmKey(any(UUID.class)))
+                .thenAnswer(invocation -> "payment:confirm:" + invocation.getArgument(0));
+        lenient().when(paymentIdempotencyService.cancelKey(any(UUID.class)))
+                .thenAnswer(invocation -> "payment:cancel:" + invocation.getArgument(0));
+    }
 
     @Nested
     @DisplayName("일반 결제 승인")
