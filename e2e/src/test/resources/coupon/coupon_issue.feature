@@ -151,3 +151,95 @@ Feature: 쿠폰 발급
     And header Authorization = 'Bearer ' + adminAccessToken
     When method post
     Then status 403
+
+  # ----------------------------------------------------------------
+  # 시나리오 6: 서로 다른 유저 5명이 같은 쿠폰을 각각 발급받으면 모두 201을 반환한다
+  # ----------------------------------------------------------------
+  Scenario: [정상] 서로 다른 유저 5명 쿠폰 발급 성공 → 모두 201
+    # user1: Background에서 생성된 userAccessToken 사용
+    Given path '/api/v1/coupons/' + normalCouponId + '/issue'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + userAccessToken
+    When method post
+    Then status 201
+    And match response.data.status == 'AVAILABLE'
+
+    # user2
+    * def user2Email = 'e2e-issue-multi2-' + java.util.UUID.randomUUID() + '@example.com'
+    Given path '/api/v1/users/signup'
+    And header X-Gateway-Secret = gatewaySecret
+    And request { email: #(user2Email), password: #(testPassword), nickname: 'e2emissuemulti2' }
+    When method post
+    Then status 201
+    Given path '/api/v1/users/login'
+    And header X-Gateway-Secret = gatewaySecret
+    And request { email: #(user2Email), password: #(testPassword) }
+    When method post
+    Then status 200
+    * def user2Token = response.data.accessToken
+    Given path '/api/v1/coupons/' + normalCouponId + '/issue'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + user2Token
+    When method post
+    Then status 201
+    And match response.data.status == 'AVAILABLE'
+
+    # user3
+    * def user3Email = 'e2e-issue-multi3-' + java.util.UUID.randomUUID() + '@example.com'
+    Given path '/api/v1/users/signup'
+    And header X-Gateway-Secret = gatewaySecret
+    And request { email: #(user3Email), password: #(testPassword), nickname: 'e2emissuemulti3' }
+    When method post
+    Then status 201
+    Given path '/api/v1/users/login'
+    And header X-Gateway-Secret = gatewaySecret
+    And request { email: #(user3Email), password: #(testPassword) }
+    When method post
+    Then status 200
+    * def user3Token = response.data.accessToken
+    Given path '/api/v1/coupons/' + normalCouponId + '/issue'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + user3Token
+    When method post
+    Then status 201
+    And match response.data.status == 'AVAILABLE'
+
+    # user4
+    * def user4Email = 'e2e-issue-multi4-' + java.util.UUID.randomUUID() + '@example.com'
+    Given path '/api/v1/users/signup'
+    And header X-Gateway-Secret = gatewaySecret
+    And request { email: #(user4Email), password: #(testPassword), nickname: 'e2emissuemulti4' }
+    When method post
+    Then status 201
+    Given path '/api/v1/users/login'
+    And header X-Gateway-Secret = gatewaySecret
+    And request { email: #(user4Email), password: #(testPassword) }
+    When method post
+    Then status 200
+    * def user4Token = response.data.accessToken
+    Given path '/api/v1/coupons/' + normalCouponId + '/issue'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + user4Token
+    When method post
+    Then status 201
+    And match response.data.status == 'AVAILABLE'
+
+    # user5
+    * def user5Email = 'e2e-issue-multi5-' + java.util.UUID.randomUUID() + '@example.com'
+    Given path '/api/v1/users/signup'
+    And header X-Gateway-Secret = gatewaySecret
+    And request { email: #(user5Email), password: #(testPassword), nickname: 'e2emissuemulti5' }
+    When method post
+    Then status 201
+    Given path '/api/v1/users/login'
+    And header X-Gateway-Secret = gatewaySecret
+    And request { email: #(user5Email), password: #(testPassword) }
+    When method post
+    Then status 200
+    * def user5Token = response.data.accessToken
+    Given path '/api/v1/coupons/' + normalCouponId + '/issue'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + user5Token
+    When method post
+    Then status 201
+    And match response.data.status == 'AVAILABLE'
