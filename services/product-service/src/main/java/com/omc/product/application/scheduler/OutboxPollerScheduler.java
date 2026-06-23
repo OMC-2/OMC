@@ -4,6 +4,7 @@ import com.omc.product.domain.entity.OutboxEvent;
 import com.omc.product.domain.enums.OutboxEventType;
 import com.omc.product.domain.enums.OutboxStatus;
 import com.omc.product.domain.repository.OutboxEventRepository;
+import com.omc.product.infrastructure.kafka.KafkaTopics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -25,8 +26,8 @@ public class OutboxPollerScheduler {
     private final KafkaTemplate<String, String> kafkaTemplate;
 
     private static final Map<OutboxEventType, String> TOPIC_MAP = Map.of(
-            OutboxEventType.STOCK_DEDUCTED, "stock.deducted",
-            OutboxEventType.STOCK_FAILED,   "stock.failed"
+            OutboxEventType.STOCK_DEDUCTED, KafkaTopics.STOCK_DEDUCTED,
+            OutboxEventType.STOCK_FAILED,   KafkaTopics.STOCK_FAILED
     );
 
     @Scheduled(fixedDelay = 500)  // 0.5초 주기
