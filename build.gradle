@@ -16,6 +16,7 @@ allprojects {
 subprojects {
     apply plugin: 'java'
     apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'jacoco'
 
     java {
         toolchain {
@@ -44,6 +45,23 @@ subprojects {
 
     test {
         useJUnitPlatform()
+        finalizedBy 'jacocoTestReport'
+    }
+
+    jacocoTestReport {
+        dependsOn test
+        reports {
+            html.required = true
+            xml.required = true
+        }
+        afterEvaluate {
+            classDirectories.setFrom(files(classDirectories.files.collect {
+                fileTree(dir: it, includes: [
+                    'com/omc/*/presentation/controller/**',
+                    'com/omc/*/application/service/**'
+                ])
+            }))
+        }
     }
 }
 
@@ -83,6 +101,23 @@ configure(subprojects.findAll { it.name in jpaServiceModules }) {
         implementation project(':common')
         implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
         implementation 'org.springframework.cloud:spring-cloud-starter-config'
+    }
+
+    jacocoTestCoverageVerification {
+        violationRules {
+            rule {
+                element = 'CLASS'
+                includes = [
+                    'com.omc.*.presentation.controller.*',
+                    'com.omc.*.application.service.*'
+                ]
+                limit {
+                    counter = 'LINE'
+                    value = 'COVEREDRATIO'
+                    minimum = 0.80
+                }
+            }
+        }
     }
 }
 

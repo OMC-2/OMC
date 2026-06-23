@@ -1,2 +1,53 @@
 server:
   port: 8087
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_URL:localhost:5432}/omc?currentSchema=coupon_db
+    username: ${DB_USERNAME:omc}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    default-schema: coupon_db
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: coupon_db
+        jdbc:
+          time_zone: Asia/Seoul
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_URI:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: coupon-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+gateway:
+  secret: ${GATEWAY_SECRET:local-secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

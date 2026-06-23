@@ -6,9 +6,12 @@ import com.omc.common.response.ApiResponse;
 import com.omc.common.security.SecurityUtil;
 import com.omc.user.application.service.UserService;
 import com.omc.user.presentation.dto.request.LoginRequest;
+import com.omc.user.presentation.dto.request.RefreshTokenRequest;
 import com.omc.user.presentation.dto.request.SignupRequest;
+import com.omc.user.presentation.dto.request.UpdateProfileRequest;
 import com.omc.user.presentation.dto.response.LoginResponse;
 import com.omc.user.presentation.dto.response.SignupResponse;
+import com.omc.user.presentation.dto.response.UpdateProfileResponse;
 import com.omc.user.presentation.dto.response.UserProfileResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -58,11 +61,32 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(userService.login(request)));
     }
 
+    @PostMapping("/token/refresh")
+    public ResponseEntity<ApiResponse<LoginResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(userService.refresh(request)));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserProfileResponse>> getMyProfile() {
         UUID userId = SecurityUtil.getCurrentUserId()
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
         return ResponseEntity.ok(ApiResponse.success(userService.getProfile(userId)));
+    }
+
+    @PatchMapping("/me")
+    public ResponseEntity<ApiResponse<UpdateProfileResponse>> updateMyProfile(
+            @RequestBody UpdateProfileRequest request) {
+        UUID userId = SecurityUtil.getCurrentUserId()
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
+        return ResponseEntity.ok(ApiResponse.success(userService.updateProfile(userId, request)));
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<ApiResponse<Void>> withdraw() {
+        UUID userId = SecurityUtil.getCurrentUserId()
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
+        userService.withdraw(userId);
+        return ResponseEntity.ok(ApiResponse.ok());
     }
 
     // =====================================================================

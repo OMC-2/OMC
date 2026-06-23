@@ -10,4 +10,36 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // Integration Test
+    testImplementation 'org.testcontainers:postgresql:1.21.3'
+    testImplementation 'org.testcontainers:junit-jupiter:1.21.3'
+    testImplementation 'org.testcontainers:testcontainers:1.21.3'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.testcontainers') {
+            details.useVersion '1.21.3'
+        }
+    }
+}
+
+test {
+    useJUnitPlatform {
+        if (System.getenv('CI') != null) {
+            excludeTags 'integration'
+        }
+    }
+    systemProperty "api.version", "1.44"
+    environment "DOCKER_API_VERSION", "1.44"
+    environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+
+    def standardSocket = new File('/var/run/docker.sock')
+    def macDesktopSocket = new File("${System.getProperty('user.home')}/Library/Containers/com.docker.docker/Data/docker-cli.sock")
+    if (!standardSocket.exists() && macDesktopSocket.exists()) {
+        environment "DOCKER_HOST", "unix://${macDesktopSocket.absolutePath}"
+        environment "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", macDesktopSocket.absolutePath
+    }
 }
