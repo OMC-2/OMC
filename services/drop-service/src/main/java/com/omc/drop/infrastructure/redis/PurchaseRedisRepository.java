@@ -95,6 +95,20 @@ public class PurchaseRedisRepository {
         return count == null || count == 0;
     }
 
+    public int getStock(UUID dropId) {
+        String val = redisTemplate.opsForValue().get(stockKey(dropId));
+        return val != null ? Integer.parseInt(val) : 0;
+    }
+
+    public boolean hasPurchased(UUID dropId, UUID userId) {
+        Boolean result = redisTemplate.opsForSet().isMember(purchasedKey(dropId), userId.toString());
+        return Boolean.TRUE.equals(result);
+    }
+
+    public boolean hasHold(UUID dropId, UUID orderId) {
+        return redisTemplate.opsForZSet().score(holdsKey(dropId), orderId.toString()) != null;
+    }
+
     public long deleteDropKeys(UUID dropId) {
         List<String> keys = List.of(
                 stockKey(dropId),
