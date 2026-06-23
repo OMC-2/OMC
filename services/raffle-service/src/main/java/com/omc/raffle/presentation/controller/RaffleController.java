@@ -1,8 +1,8 @@
 package com.omc.raffle.presentation.controller;
 
 import com.omc.common.response.ApiResponse;
-import com.omc.raffle.application.dto.request.RaffleApplyRequest;
-import com.omc.raffle.application.dto.response.RaffleApplyResponse;
+import com.omc.raffle.presentation.dto.request.RaffleApplyRequest;
+import com.omc.raffle.presentation.dto.response.RaffleApplyResponse;
 import com.omc.raffle.application.service.RaffleAppService;
 import com.omc.raffle.application.service.RaffleResultService;
 import com.omc.raffle.presentation.dto.request.RaffleEnterRequest;
@@ -66,3 +66,4 @@ public class RaffleController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
+

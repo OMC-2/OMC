@@ -1,8 +1,8 @@
 package com.omc.raffle.application.service;
 
 import com.omc.common.exception.BusinessException;
-import com.omc.raffle.application.dto.request.RaffleApplyRequest;
-import com.omc.raffle.application.dto.response.RaffleApplyResponse;
+import com.omc.raffle.presentation.dto.request.RaffleApplyRequest;
+import com.omc.raffle.presentation.dto.response.RaffleApplyResponse;
 import com.omc.raffle.domain.entity.Raffle;
 import com.omc.raffle.domain.entity.RaffleEntry;
 import com.omc.raffle.domain.enums.RaffleStatus;
@@ -150,4 +150,5 @@ class RaffleAppServiceTest {
         }
     }
 }
+
 
