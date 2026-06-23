@@ -1,4 +1,4 @@
-package com.omc.product.infrastructure.redis;
+package com.omc.product.application.event.consumer;
 
 import com.omc.product.application.event.ProductUpdatedEvent;
 import lombok.RequiredArgsConstructor;
