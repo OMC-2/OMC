@@ -1,4 +1,4 @@
-package com.omc.raffle.presentation.dto.request;
+package com.omc.raffle.application.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
@@ -12,4 +12,5 @@ public record RaffleApplyRequest(
         @NotNull(message = "최종 결제 금액은 필수입니다.") java.math.BigDecimal finalAmount
 ) {
 }
+
 
