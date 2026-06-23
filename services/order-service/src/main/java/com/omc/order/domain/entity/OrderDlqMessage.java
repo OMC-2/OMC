@@ -38,16 +38,14 @@ public class OrderDlqMessage {
   private String messageKey;
 
   //원본 메시지 value(JSON 문자열) 그대로, 재발행 시 그대로 다시 publish
-  @Lob
-  @Column(name = "payload", nullable = false)
+  @Column(name = "payload", nullable = false, columnDefinition = "TEXT")
   private String payload;
 
   @Column(name = "error_class", length = 500)
   private String errorClass;
 
   //실패 당시 예외 메시지(진단용)
-  @Lob
-  @Column(name = "error_message")
+  @Column(name = "error_message", columnDefinition = "TEXT")
   private String errorMessage;
 
   //원본 파티션/오프셋(진단용)

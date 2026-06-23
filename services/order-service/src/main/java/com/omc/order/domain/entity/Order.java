@@ -76,7 +76,7 @@ public class Order extends BaseEntity implements Persistable<UUID> {
   private Long finalAmount;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "cancel_reason", length = 50)
+  @Column(name = "cancel_reason", columnDefinition = "varchar(50)")
   private CancelReason cancelReason;
 
   @Column(name = "expires_at")
