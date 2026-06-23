@@ -14,6 +14,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.omc.common.util.UuidV7Generator;
+
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,13 +48,14 @@ public class CouponSagaService {
         UserCoupon uc = userCoupon.get();
         uc.confirm();
 
+        UUID outboxEventId = UuidV7Generator.generate();
         String payload = toJson(Map.of(
-                "eventId",  UUID.randomUUID().toString(),
+                "eventId",  outboxEventId.toString(),
                 "couponId", uc.getCoupon().getCouponId().toString(),
                 "userId",   uc.getUserId().toString(),
                 "orderId",  orderId.toString()
         ));
-        outboxEventRepository.save(OutboxEvent.create("UserCoupon", uc.getUserCouponId(), OutboxEventType.COUPON_USED, payload));
+        outboxEventRepository.save(OutboxEvent.create(outboxEventId, "UserCoupon", uc.getUserCouponId(), OutboxEventType.COUPON_USED, payload));
 
         log.info("[CouponSagaService] 쿠폰 사용 확정. orderId={}, userCouponId={}", orderId, uc.getUserCouponId());
     }

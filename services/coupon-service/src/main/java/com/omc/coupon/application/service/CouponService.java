@@ -18,6 +18,7 @@ import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import com.omc.common.exception.BusinessException;
+import com.omc.common.util.UuidV7Generator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -106,14 +107,15 @@ public class CouponService {
             throw new CouponAlreadyIssuedException();
         }
 
+        UUID outboxEventId = UuidV7Generator.generate();
         String payload = toJson(Map.of(
-                "eventId", UUID.randomUUID().toString(),
+                "eventId", outboxEventId.toString(),
                 "couponId", couponId.toString(),
                 "userId", userId.toString()
         ));
         // UserCoupon 저장 + Outbox 저장 같은 트랜잭션으로 묶임
         outboxEventRepository.save(OutboxEvent.create(
-                "UserCoupon", userCoupon.getUserCouponId(), OutboxEventType.COUPON_ISSUED, payload
+                outboxEventId, "UserCoupon", userCoupon.getUserCouponId(), OutboxEventType.COUPON_ISSUED, payload
         ));
 
         // Redis 발급 목록에 추가 (중복 방지용 Set)
