@@ -3,5 +3,6 @@ package com.omc.raffle.domain.enums;
 public enum OutboxStatus {
     INIT,
     PUBLISHED,
-    FAILED
+    FAILED,
+    DEAD
 }

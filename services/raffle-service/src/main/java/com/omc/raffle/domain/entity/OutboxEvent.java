@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.util.UUID;
+import com.omc.common.util.UuidUtil;
 
 @Entity
 @Table(name = "p_outbox_events")
@@ -36,14 +37,18 @@ public class OutboxEvent extends BaseTimeEntity {
     @Column(name = "status", nullable = false, length = 20)
     private OutboxStatus status;
 
+    @Column(name = "retry_count", nullable = false)
+    private int retryCount;
+
     @Builder
     private OutboxEvent(String aggregateId, String aggregateType, String eventType, String payload) {
-        this.id = UUID.randomUUID();
+        this.id = UuidUtil.v7();
         this.aggregateId = aggregateId;
         this.aggregateType = aggregateType;
         this.eventType = eventType;
         this.payload = payload;
         this.status = OutboxStatus.INIT;
+        this.retryCount = 0;
     }
 
     public static OutboxEvent create(String aggregateId, String aggregateType, String eventType, String payload) {
@@ -60,6 +65,11 @@ public class OutboxEvent extends BaseTimeEntity {
     }
 
     public void markAsFailed() {
-        this.status = OutboxStatus.FAILED;
+        this.retryCount++;
+        if (this.retryCount >= 3) {
+            this.status = OutboxStatus.DEAD;
+        } else {
+            this.status = OutboxStatus.FAILED;
+        }
     }
 }

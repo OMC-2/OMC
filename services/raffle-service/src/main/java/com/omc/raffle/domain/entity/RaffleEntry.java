@@ -10,6 +10,7 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.omc.common.util.UuidUtil;
 
 /**
  * 래플 응모 내역을 관리하는 엔티티.
@@ -52,7 +53,7 @@ public class RaffleEntry extends BaseTimeEntity {
 
     @Builder
     private RaffleEntry(UUID raffleId, UUID userId, UUID billingKeyId, UUID couponId, java.math.BigDecimal originalAmount, java.math.BigDecimal discountAmount, java.math.BigDecimal finalAmount) {
-        this.id = UUID.randomUUID();
+        this.id = UuidUtil.v7();
         this.raffleId = raffleId;
         this.userId = userId;
         this.billingKeyId = billingKeyId;
