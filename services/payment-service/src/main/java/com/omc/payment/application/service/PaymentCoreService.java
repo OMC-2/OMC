@@ -243,7 +243,7 @@ public class PaymentCoreService {
                             billingKeyId,
                             resolvedCustomerKey,
                             orderId.toString(),
-                            "래플 자동결제",
+                            "래플 자동 결제",
                             finalAmount
                     )
             );

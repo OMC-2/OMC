@@ -36,14 +36,18 @@ public class PaymentService {
     private final PaymentGatewayPort paymentGatewayPort;
     private final PaymentCoreService paymentCoreService;
 
+
     @Transactional
-    public PaymentResponse confirmPayment(ConfirmPaymentRequest request) {
+    public PaymentResponse confirmPayment(ConfirmPaymentRequest request, UUID userId) {
+        if (userId == null) {
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
+        }
         Payment payment = paymentCoreService.confirmPayment(
                 request.orderID(),
                 request.dropId(),
                 request.productId(),
                 request.couponID(),
-                getCurrentUserId(),
+                userId,
                 request.originalAmount(),
                 request.discountAmount(),
                 request.finalAmount(),

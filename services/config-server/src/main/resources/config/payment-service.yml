@@ -9,7 +9,7 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create
     show-sql: true
     properties:
       hibernate:
@@ -28,7 +28,7 @@ spring:
       group-id: payment-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
         spring.json.trusted.packages: ${KAFKA_TRUSTED_PACKAGES:com.omc.*}
       # enable-auto-commit: false  # offset 자동 커밋 비활성화
@@ -40,7 +40,7 @@ spring:
 
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
       retries: 3
       properties:
@@ -56,6 +56,8 @@ gateway:
   secret: local-secret
 
 payment:
+  pg:
+    mode: test
   toss:
     base-url: ${TOSS_BASE_URL:https://api.tosspayments.com}
     secret-key: ${TOSS_SECRET_KEY:}
