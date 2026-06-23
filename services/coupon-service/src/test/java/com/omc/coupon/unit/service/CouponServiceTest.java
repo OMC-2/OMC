@@ -94,7 +94,7 @@ class CouponServiceTest {
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
         given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.empty());
-        given(userCouponRepository.save(any(UserCoupon.class))).willReturn(userCouponMock);
+        given(userCouponRepository.saveAndFlush(any(UserCoupon.class))).willReturn(userCouponMock);
         given(userCouponMock.getUserCouponId()).willReturn(userCouponId);
         given(userCouponMock.getCoupon()).willReturn(couponMock); // NPE 방지
         given(userCouponMock.getStatus()).willReturn(UserCouponStatus.AVAILABLE);
