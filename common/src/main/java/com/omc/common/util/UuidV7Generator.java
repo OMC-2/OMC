@@ -1,4 +1,4 @@
-package com.omc.payment.common.util;
+package com.omc.common.util;
 
 import java.time.Instant;
 import java.util.UUID;
