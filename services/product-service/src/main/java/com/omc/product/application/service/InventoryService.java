@@ -14,6 +14,7 @@ import com.omc.product.domain.enums.OutboxEventType;
 import com.omc.product.domain.repository.*;
 import com.omc.product.infrastructure.client.ActiveDropResponse;
 import com.omc.product.infrastructure.client.DropInternalClient;
+import com.omc.product.infrastructure.kafka.KafkaTopics;
 import com.omc.product.presentation.dto.request.InventoryUpdateRequest;
 import com.omc.product.presentation.dto.response.InventoryResponse;
 import com.omc.product.presentation.dto.response.InventorySnapshotResponse;
@@ -54,8 +55,6 @@ import java.util.UUID;
 public class InventoryService {
 
     private static final String CONSUMER_GROUP = "product-service";
-    private static final String TOPIC_PAYMENT_COMPLETED = "payment.completed";
-    private static final int MAX_RETRY = 3;
 
     private final InventoryRepository inventoryRepository;
     private final ProcessedEventRepository processedEventRepository;
@@ -77,12 +76,12 @@ public class InventoryService {
 
         try {
 
-            inventory.confirmDeduct(event.quantity());
+            inventory.confirmDeduct(1);
 
             saveOutbox("INVENTORY", inventory.getInventoryId(),
                     OutboxEventType.STOCK_DEDUCTED, buildPayload(event));
             processedEventRepository.save(
-                    ProcessedEvent.create(event.eventId(), TOPIC_PAYMENT_COMPLETED)
+                    ProcessedEvent.create(event.eventId(), KafkaTopics.PAYMENT_COMPLETED)
             );
 
             log.info("[InventoryService] 재고 확정 차감 완료. productId={}, orderId={}",
@@ -96,7 +95,7 @@ public class InventoryService {
             // 실패 로그 기록
             failedEventLogRepository.save(
                     FailedEventLog.create(
-                            TOPIC_PAYMENT_COMPLETED,
+                            KafkaTopics.PAYMENT_COMPLETED,
                             CONSUMER_GROUP,
                             "INVENTORY",
                             inventory.getInventoryId(),

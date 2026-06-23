@@ -8,6 +8,5 @@ public record PaymentCompletedEvent(
         UUID productId,
         UUID userId,
         UUID dropId,
-        int quantity,
-        long amount
+        Long finalAmount
 ) {}

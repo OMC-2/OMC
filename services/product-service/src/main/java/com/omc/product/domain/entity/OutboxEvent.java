@@ -34,7 +34,6 @@ import java.util.UUID;
 public class OutboxEvent {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "event_id")
     private UUID eventId;
 
