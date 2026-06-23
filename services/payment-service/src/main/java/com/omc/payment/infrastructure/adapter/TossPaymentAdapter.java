@@ -9,6 +9,7 @@ import com.omc.payment.application.port.out.PaymentGatewayResult;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -16,6 +17,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "payment.pg.mode", havingValue = "toss", matchIfMissing = true)
 @RequiredArgsConstructor
 public class TossPaymentAdapter implements PaymentGatewayPort {
 
