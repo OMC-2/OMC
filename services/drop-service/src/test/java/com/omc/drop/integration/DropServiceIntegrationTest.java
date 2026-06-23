@@ -88,6 +88,7 @@ class DropServiceIntegrationTest {
     @Autowired DropRepository dropRepository;
     @Autowired PurchaseRedisRepository purchaseRedisRepository;
     @Autowired DropProcessedEventRepository processedEventRepository;
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     @Autowired EmbeddedKafkaBroker embeddedKafkaBroker;
     @Autowired HoldExpireScheduler holdExpireScheduler;
 
