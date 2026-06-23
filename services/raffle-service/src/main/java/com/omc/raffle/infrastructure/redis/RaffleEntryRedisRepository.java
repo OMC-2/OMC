@@ -28,7 +28,15 @@ public class RaffleEntryRedisRepository {
         String key = RAFFLE_ENTRY_KEY_PREFIX + raffleId.toString();
         try {
             Long result = redisTemplate.opsForSet().add(key, userId.toString());
-            return result != null && result > 0L;
+            boolean isAdded = result != null && result > 0L;
+            if (isAdded) {
+                Long expire = redisTemplate.getExpire(key);
+                if (expire == null || expire < 0) {
+                    // 래플 중복 방지 데이터가 영구적으로 쌓이는 것을 방지하기 위해 30일 TTL 설정 (최초 생성 시에만)
+                    redisTemplate.expire(key, 30, java.util.concurrent.TimeUnit.DAYS);
+                }
+            }
+            return isAdded;
         } catch (Exception e) {
             log.error("[Redis Error] 중복 검증 중 오류 발생: {}", e.getMessage());
             // Redis 장애 시 안전하게 실패하도록 하거나, DB 조회로 Fallback 할 수 있습니다.

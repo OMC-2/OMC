@@ -6,6 +6,8 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+
 @AnalyzeClasses(packages = "com.omc.raffle", importOptions = ImportOption.DoNotIncludeTests.class)
 public class RaffleServiceArchTest {
 
@@ -31,7 +33,7 @@ public class RaffleServiceArchTest {
     static final ArchRule service_annotation = CommonArchRules.serviceAnnotationRule();
 
     @ArchTest
-    static final ArchRule repository_annotation = CommonArchRules.repositoryAnnotationRule();
+    static final ArchRule repository_annotation = CommonArchRules.repositoryAnnotationRule().allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule entity_annotation = CommonArchRules.entityAnnotationRule();

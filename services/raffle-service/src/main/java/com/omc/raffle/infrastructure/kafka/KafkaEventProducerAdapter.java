@@ -27,8 +27,7 @@ public class KafkaEventProducerAdapter implements EventProducerPort {
                 log.error("Failed to send message to Kafka topic: {}", topic, ex);
                 return false;
             }
-            log.info("Successfully sent message to Kafka topic: {}, partition: {}, offset: {}", 
-                    topic, result.getRecordMetadata().partition(), result.getRecordMetadata().offset());
+            log.info("Successfully sent message to Kafka topic: {}", topic);
             return true;
         });
     }

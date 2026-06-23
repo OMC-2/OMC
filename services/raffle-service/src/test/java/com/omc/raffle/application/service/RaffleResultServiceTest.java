@@ -5,7 +5,7 @@ import com.omc.raffle.domain.entity.RaffleResult;
 import com.omc.raffle.domain.enums.RaffleResultStatus;
 import com.omc.raffle.domain.exception.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleResultRepository;
-import com.omc.raffle.presentation.dto.response.RaffleResultResponse;
+import com.omc.raffle.application.dto.response.RaffleResultResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -69,3 +69,4 @@ class RaffleResultServiceTest {
         }
     }
 }
+
