@@ -52,6 +52,7 @@ public class GatewaySecurityConfig {
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/token/refresh").permitAll()
                 .pathMatchers("/actuator/**", "/*/actuator/**").permitAll()
                 .pathMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
+                .pathMatchers(HttpMethod.GET, "/api/v1/drops", "/api/v1/drops/**").permitAll()
                 .pathMatchers("/internal/**").denyAll()
                 .pathMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/webjars/**").permitAll()
                 .anyExchange().authenticated()
