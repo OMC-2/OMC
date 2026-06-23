@@ -227,7 +227,6 @@ public class Payment extends BaseEntity {
 
     @Builder(access = AccessLevel.PRIVATE)
     private Payment(
-            UUID paymentId,
             UUID orderId,
             UUID dropId,
             UUID raffleId,
@@ -254,7 +253,6 @@ public class Payment extends BaseEntity {
             LocalDateTime failedAt,
             LocalDateTime canceledAt
     ) {
-        this.paymentId = paymentId;
         this.orderId = orderId;
         this.dropId = dropId;
         this.raffleId = raffleId;
