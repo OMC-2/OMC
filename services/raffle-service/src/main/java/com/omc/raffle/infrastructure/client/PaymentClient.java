@@ -24,5 +24,5 @@ public interface PaymentClient {
     @PostMapping("/internal/v1/payments/billing-keys")
     void preAuthCard(@RequestBody PreAuthRequest request);
 
-    record PreAuthRequest(UUID billingKeyId, BigDecimal amount) {}
+    record PreAuthRequest(String billingKeyId, BigDecimal amount) {}
 }

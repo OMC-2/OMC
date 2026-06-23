@@ -88,7 +88,7 @@ class RaffleConcurrencyTest {
 
         UUID userId = UUID.randomUUID();
         RaffleApplyRequest request = new RaffleApplyRequest(
-                userId, UUID.randomUUID(), null,
+                userId, "bk_" + UUID.randomUUID().toString(), null,
                 BigDecimal.valueOf(100000), BigDecimal.ZERO, BigDecimal.valueOf(100000)
         );
 
@@ -129,7 +129,7 @@ class RaffleConcurrencyTest {
             executorService.submit(() -> {
                 try {
                     RaffleApplyRequest request = new RaffleApplyRequest(
-                            UUID.randomUUID(), UUID.randomUUID(), null,
+                            UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
                             BigDecimal.valueOf(100000), BigDecimal.ZERO, BigDecimal.valueOf(100000)
                     );
                     raffleAppService.apply(raffleId, request);
@@ -150,3 +150,4 @@ class RaffleConcurrencyTest {
         assertEquals(threadCount, dbCount, "DB에 " + threadCount + "건이 저장되어야 합니다.");
     }
 }
+

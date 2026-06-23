@@ -57,7 +57,7 @@ class RaffleAppServiceTest {
             // given
             UUID raffleId = UUID.randomUUID();
             RaffleApplyRequest request = new RaffleApplyRequest(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
@@ -87,7 +87,7 @@ class RaffleAppServiceTest {
             // given
             UUID raffleId = UUID.randomUUID();
             RaffleApplyRequest request = new RaffleApplyRequest(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
@@ -107,7 +107,7 @@ class RaffleAppServiceTest {
             // given
             UUID raffleId = UUID.randomUUID();
             RaffleApplyRequest request = new RaffleApplyRequest(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
@@ -129,7 +129,7 @@ class RaffleAppServiceTest {
             // given
             UUID raffleId = UUID.randomUUID();
             RaffleApplyRequest request = new RaffleApplyRequest(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
@@ -150,3 +150,4 @@ class RaffleAppServiceTest {
         }
     }
 }
+

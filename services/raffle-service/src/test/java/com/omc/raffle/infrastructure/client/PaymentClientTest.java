@@ -30,11 +30,11 @@ class PaymentClientTest {
     @DisplayName("결제 가승인 요청을 정상적으로 처리할 수 있다.")
     void preAuth_success() {
         // given
-        UUID billingKeyId = UUID.randomUUID();
+        String billingKeyId = "bk_" + UUID.randomUUID().toString();
         BigDecimal amount = BigDecimal.valueOf(100);
 
         stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
-                .withRequestBody(matchingJsonPath("$.billingKeyId", equalTo(billingKeyId.toString())))
+                .withRequestBody(matchingJsonPath("$.billingKeyId", equalTo(billingKeyId)))
                 .withRequestBody(matchingJsonPath("$.amount", equalTo("100")))
                 .willReturn(aResponse()
                         .withHeader("Content-Type", "application/json")
@@ -48,7 +48,7 @@ class PaymentClientTest {
     @DisplayName("결제 서버가 500 에러를 반환하면 FeignException이 발생한다.")
     void preAuth_serverError() {
         // given
-        UUID billingKeyId = UUID.randomUUID();
+        String billingKeyId = "bk_" + UUID.randomUUID().toString();
         BigDecimal amount = BigDecimal.valueOf(100);
 
         stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
@@ -65,7 +65,7 @@ class PaymentClientTest {
     @DisplayName("결제 서버가 404를 반환하면 FeignException.NotFound가 발생한다.")
     void preAuth_notFound() {
         // given
-        UUID billingKeyId = UUID.randomUUID();
+        String billingKeyId = "bk_" + UUID.randomUUID().toString();
         BigDecimal amount = BigDecimal.valueOf(100);
 
         // NOTE: Feign 기본 설정에는 커넥션 타임아웃이 없어 RetryableException 검증이 불가능합니다.
@@ -81,3 +81,4 @@ class PaymentClientTest {
         });
     }
 }
+

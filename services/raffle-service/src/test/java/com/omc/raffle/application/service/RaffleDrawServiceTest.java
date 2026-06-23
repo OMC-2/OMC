@@ -189,7 +189,7 @@ class RaffleDrawServiceTest {
 
     private RaffleEntry saveEntry(UUID raffleId, UUID userId) {
         return raffleEntryRepository.save(
-                RaffleEntry.create(raffleId, userId, UUID.randomUUID(), null,
+                RaffleEntry.create(raffleId, userId, "bk_" + UUID.randomUUID().toString(), null,
                         BigDecimal.valueOf(100000), BigDecimal.ZERO, BigDecimal.valueOf(100000)));
     }
 
@@ -197,3 +197,4 @@ class RaffleDrawServiceTest {
         return results.stream().filter(r -> r.getResult() == status).count();
     }
 }
+

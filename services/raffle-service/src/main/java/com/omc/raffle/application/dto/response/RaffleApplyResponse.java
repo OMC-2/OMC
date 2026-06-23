@@ -8,7 +8,7 @@ public record RaffleApplyResponse(
         UUID entryId,
         UUID raffleId,
         UUID userId,
-        UUID billingKeyId,
+        String billingKeyId,
         UUID couponId,
         java.math.BigDecimal originalAmount,
         java.math.BigDecimal discountAmount,

@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public record RaffleApplyRequest(
         @NotNull(message = "사용자 ID는 필수입니다.") UUID userId,
-        @NotNull(message = "결제 수단(빌링키) ID는 필수입니다.") UUID billingKeyId,
+        @NotNull(message = "결제 수단(빌링키) ID는 필수입니다.") String billingKeyId,
         UUID couponId,
         @NotNull(message = "원래 금액은 필수입니다.") java.math.BigDecimal originalAmount,
         @NotNull(message = "할인 금액은 필수입니다.") java.math.BigDecimal discountAmount,

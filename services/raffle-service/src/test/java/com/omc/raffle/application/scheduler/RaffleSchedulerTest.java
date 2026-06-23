@@ -11,9 +11,16 @@ import com.omc.raffle.EmbeddedRedisConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import net.javacrumbs.shedlock.core.LockProvider;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Optional;
+import net.javacrumbs.shedlock.core.SimpleLock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,16 +33,23 @@ class RaffleSchedulerTest {
     @Autowired
     private RaffleScheduler scheduler;
 
+    @MockBean
+    private LockProvider lockProvider;
+
     @Autowired
     private RaffleRepository raffleRepository;
 
     @BeforeEach
     void setUp() {
+        SimpleLock mockLock = mock(SimpleLock.class);
+        when(lockProvider.lock(any())).thenReturn(Optional.of(mockLock));
         raffleRepository.deleteAllInBatch();
     }
 
     @AfterEach
     void tearDown() {
+        SimpleLock mockLock = mock(SimpleLock.class);
+        when(lockProvider.lock(any())).thenReturn(Optional.of(mockLock));
         raffleRepository.deleteAllInBatch();
     }
 
@@ -78,3 +92,5 @@ class RaffleSchedulerTest {
         assertEquals(RaffleStatus.CLOSED, updated.getStatus());
     }
 }
+
+

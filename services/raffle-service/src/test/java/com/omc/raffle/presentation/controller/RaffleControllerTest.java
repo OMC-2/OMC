@@ -60,7 +60,7 @@ class RaffleControllerTest {
             // given
             UUID raffleId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            UUID billingKeyId = UUID.randomUUID();
+            String billingKeyId = "bk_" + UUID.randomUUID().toString();
             RaffleEnterRequest request = new RaffleEnterRequest(
                     billingKeyId,
                     null,
@@ -140,3 +140,4 @@ class RaffleControllerTest {
         }
     }
 }
+
