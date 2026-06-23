@@ -39,7 +39,7 @@ import static org.mockito.Mockito.verify;
         partitions = 1,
         topics = {
                 "order.confirmed", "drop.opened", "order.cancelled", "order.shipped",
-                "raffle.winner.selected", "raffle.loser.notified", "coupon.issued", "refund.done"
+                "raffle.winner.selected", "raffle.loser.notified", "coupon.issued", "coupon.used", "refund.done"
         },
         bootstrapServersProperty = "spring.kafka.bootstrap-servers"
 )
@@ -181,6 +181,52 @@ class NotificationKafkaIntegrationTest {
     }
 
     // =========================================================================
+    // [CouponUsedConsumer] 정상 수신 → Notification DB 저장 + Slack 전송
+    // =========================================================================
+
+    @Test
+    void couponUsed_consumed_savesNotificationAndSendsSlack() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = couponUsedPayload(eventId, USER_ID);
+
+        kafkaTemplate.send("coupon.used", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        var saved = notificationRepository.findAll().get(0);
+        assertThat(saved.getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.COUPON_USED);
+        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+    }
+
+    // =========================================================================
+    // [CouponUsedConsumer] 동일 eventId 2회 발행 → 멱등성 (1건만 저장)
+    // =========================================================================
+
+    @Test
+    void couponUsed_duplicateEvent_idempotent() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = couponUsedPayload(eventId, USER_ID);
+
+        kafkaTemplate.send("coupon.used", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        kafkaTemplate.send("coupon.used", payload);
+
+        await().atMost(3, SECONDS).untilAsserted(() ->
+                assertThat(processedEventRepository.count()).isGreaterThanOrEqualTo(1)
+        );
+
+        assertThat(notificationRepository.count()).isEqualTo(1);
+        verify(slackClient, times(1)).sendMessage(any(), any());
+    }
+
+    // =========================================================================
     // Payload helpers
     // =========================================================================
 
@@ -194,6 +240,17 @@ class NotificationKafkaIntegrationTest {
                     "totalAmount": 50000
                 }
                 """.formatted(eventId, UUID.randomUUID(), userId);
+    }
+
+    private String couponUsedPayload(String eventId, UUID userId) {
+        return """
+                {
+                    "eventId": "%s",
+                    "couponId": "%s",
+                    "userId": "%s",
+                    "orderId": "%s"
+                }
+                """.formatted(eventId, UUID.randomUUID(), userId, UUID.randomUUID());
     }
 
     private String dropOpenedPayload(String eventId, UUID... userIds) {

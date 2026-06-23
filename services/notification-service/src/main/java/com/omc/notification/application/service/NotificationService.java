@@ -1,12 +1,10 @@
 package com.omc.notification.application.service;
 
 import com.omc.notification.domain.entity.Notification;
-import com.omc.notification.domain.entity.ProcessedEvent;
 import com.omc.notification.domain.enums.NotificationType;
 import com.omc.notification.domain.exception.NotificationErrorCode;
 import com.omc.notification.domain.exception.NotificationNotFoundException;
 import com.omc.notification.domain.repository.NotificationRepository;
-import com.omc.notification.domain.repository.ProcessedEventRepository;
 import com.omc.notification.infrastructure.client.SlackClient;
 import com.omc.notification.infrastructure.client.UserServiceClient;
 import com.omc.notification.presentation.dto.response.NotificationResponse;
@@ -27,7 +25,7 @@ import java.util.UUID;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
-    private final ProcessedEventRepository processedEventRepository;
+    private final ProcessedEventIdempotencyService processedEventIdempotencyService;
     private final UserServiceClient userServiceClient;
     private final SlackClient slackClient;
 
@@ -37,7 +35,7 @@ public class NotificationService {
                      UUID referenceId, String referenceType) {
 
         try {
-            processedEventRepository.save(ProcessedEvent.create(eventId, topic));
+            processedEventIdempotencyService.markProcessed(eventId, topic);
         } catch (DataIntegrityViolationException e) {
             log.warn("[NotificationService] 중복 이벤트 무시. eventId={}", eventId);
             return;

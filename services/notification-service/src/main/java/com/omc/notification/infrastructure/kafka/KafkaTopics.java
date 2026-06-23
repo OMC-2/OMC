@@ -11,5 +11,6 @@ public final class KafkaTopics {
     public static final String RAFFLE_WINNER        = "raffle.winner.selected";
     public static final String RAFFLE_LOSER         = "raffle.loser.notified";
     public static final String COUPON_ISSUED        = "coupon.issued";
+    public static final String COUPON_USED          = "coupon.used";
     public static final String REFUND_DONE          = "refund.done";
 }
