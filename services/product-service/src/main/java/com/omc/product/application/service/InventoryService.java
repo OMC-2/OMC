@@ -76,7 +76,7 @@ public class InventoryService {
 
         try {
 
-            inventory.confirmDeduct(event.quantity());
+            inventory.confirmDeduct(1);
 
             saveOutbox("INVENTORY", inventory.getInventoryId(),
                     OutboxEventType.STOCK_DEDUCTED, buildPayload(event));
