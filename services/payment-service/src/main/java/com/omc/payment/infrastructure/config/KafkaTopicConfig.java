@@ -40,6 +40,33 @@ public class KafkaTopicConfig {
     }
 
     /*
+     * DLT 토픽
+     * */
+    @Bean
+    public NewTopic orderCreatedDltTopic(
+            @Value("${kafka.topic.default-partitions:1}") int partitions,
+            @Value("${kafka.topic.default-replication-factor:1}") short replicationFactor
+    ) {
+        return topic(KafkaTopics.ORDER_CREATED_DLT, partitions, replicationFactor);
+    }
+
+    @Bean
+    public NewTopic refundRequestedDltTopic(
+            @Value("${kafka.topic.default-partitions:1}") int partitions,
+            @Value("${kafka.topic.default-replication-factor:1}") short replicationFactor
+    ) {
+        return topic(KafkaTopics.REFUND_REQUESTED_DLT, partitions, replicationFactor);
+    }
+
+    @Bean
+    public NewTopic stockFailedDltTopic(
+            @Value("${kafka.topic.default-partitions:1}") int partitions,
+            @Value("${kafka.topic.default-replication-factor:1}") short replicationFactor
+    ) {
+        return topic(KafkaTopics.STOCK_FAILED_DLT, partitions, replicationFactor);
+    }
+
+    /*
      * 발행 도픽
      * */
     @Bean
