@@ -107,7 +107,7 @@ public class OrderService {
         .discountAmount(payload.discountAmount())
         .finalAmount(payload.finalAmount())
         .couponId(payload.couponId())
-        .billingKeyId(payload.billingKeyId())
+        .billingKeyId(payload.billingKeyId() != null ? payload.billingKeyId().toString() : null)
         .build();
     orderEventProducer.sendOrderCreated(createdEvent);
   }

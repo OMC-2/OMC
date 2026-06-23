@@ -17,5 +17,5 @@ public record OrderCreatedEvent(
     Long discountAmount,
     Long finalAmount,
     UUID couponId,
-    UUID billingKeyId
+    String billingKeyId
 ) {}
