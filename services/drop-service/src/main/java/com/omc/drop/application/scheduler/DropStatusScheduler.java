@@ -5,7 +5,7 @@ import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.infrastructure.client.ProductServiceClient;
-import com.omc.drop.infrastructure.client.dto.InventorySnapshotResponse;
+import com.omc.drop.infrastructure.client.InventorySnapshotResponse;
 import com.omc.drop.infrastructure.kafka.event.DropClosedEvent;
 import com.omc.drop.infrastructure.kafka.event.DropOpenedEvent;
 import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;

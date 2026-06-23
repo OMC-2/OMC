@@ -115,11 +115,38 @@ services:
       retries: 10
       start_period: 90s
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: omc-prometheus
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - omc-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: omc-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - omc-network
+
 volumes:
   postgres_data:
   redis_data:
+  grafana_data:
 
 networks:
   omc-network:
     driver: bridge
     name: omc-network
+
+

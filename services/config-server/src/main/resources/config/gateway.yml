@@ -10,6 +10,11 @@ spring:
           predicates:
             - Path=/api/v1/users/**
 
+        - id: product-service-admin
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/admin/products/**
+
         - id: product-service
           uri: lb://product-service
           predicates:

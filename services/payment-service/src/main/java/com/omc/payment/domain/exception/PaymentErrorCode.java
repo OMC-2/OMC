@@ -16,6 +16,7 @@ public enum PaymentErrorCode implements ErrorCode {
     // 400 BAD_REQUEST
     PAYMENT_FAILED(HttpStatus.BAD_REQUEST, "PAYMENT-002", "결제 처리에 실패했습니다."),
     PAYMENT_INVALID_STATUS(HttpStatus.BAD_REQUEST, "PAYMENT-003", "현재 결제 상태에서 허용되지 않는 작업입니다."),
+    PAYMENT_INVALID_COUPON(HttpStatus.BAD_REQUEST, "PAYMENT-008", "쿠폰 정보가 유효하지 않습니다."),
     PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "PAYMENT-006", "결제 금액이 일치하지 않습니다."),
 
     // 409 CONFLICT

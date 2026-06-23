@@ -32,7 +32,6 @@ import java.util.UUID;
 public class Inventory extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "inventory_id")
     private UUID inventoryId;
 
