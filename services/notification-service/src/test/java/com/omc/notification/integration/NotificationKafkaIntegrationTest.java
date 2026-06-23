@@ -39,7 +39,8 @@ import static org.mockito.Mockito.verify;
         partitions = 1,
         topics = {
                 "order.confirmed", "drop.opened", "order.cancelled", "order.shipped",
-                "raffle.winner.selected", "raffle.loser.notified", "coupon.issued", "coupon.used", "refund.done"
+                "raffle.winner.selected", "raffle.loser.notified", "coupon.issued", "coupon.used",
+                "refund.done", "payment.failed"
         },
         bootstrapServersProperty = "spring.kafka.bootstrap-servers"
 )
@@ -227,6 +228,178 @@ class NotificationKafkaIntegrationTest {
     }
 
     // =========================================================================
+    // [OrderCancelledConsumer] 정상 수신 → Notification DB 저장 + Slack 전송
+    // =========================================================================
+
+    @Test
+    void orderCancelled_consumed_savesNotificationAndSendsSlack() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = orderCancelledPayload(eventId, USER_ID);
+
+        kafkaTemplate.send("order.cancelled", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        var saved = notificationRepository.findAll().get(0);
+        assertThat(saved.getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.ORDER_CANCELLED);
+        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+    }
+
+    // =========================================================================
+    // [OrderShippedConsumer] 정상 수신 → Notification DB 저장 + Slack 전송
+    // =========================================================================
+
+    @Test
+    void orderShipped_consumed_savesNotificationAndSendsSlack() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = orderShippedPayload(eventId, USER_ID);
+
+        kafkaTemplate.send("order.shipped", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        var saved = notificationRepository.findAll().get(0);
+        assertThat(saved.getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.ORDER_SHIPPED);
+        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+    }
+
+    // =========================================================================
+    // [RaffleWinnerConsumer] 정상 수신 → Notification DB 저장 + Slack 전송
+    // =========================================================================
+
+    @Test
+    void raffleWinner_consumed_savesNotificationAndSendsSlack() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = rafflePayload(eventId, USER_ID);
+
+        kafkaTemplate.send("raffle.winner.selected", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        var saved = notificationRepository.findAll().get(0);
+        assertThat(saved.getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.RAFFLE_WIN);
+        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+    }
+
+    // =========================================================================
+    // [RaffleLoserConsumer] 정상 수신 → Notification DB 저장 + Slack 전송
+    // =========================================================================
+
+    @Test
+    void raffleLoser_consumed_savesNotificationAndSendsSlack() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = rafflePayload(eventId, USER_ID);
+
+        kafkaTemplate.send("raffle.loser.notified", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        var saved = notificationRepository.findAll().get(0);
+        assertThat(saved.getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.RAFFLE_LOSE);
+        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+    }
+
+    // =========================================================================
+    // [CouponIssuedConsumer] 정상 수신 → Notification DB 저장 + Slack 전송
+    // =========================================================================
+
+    @Test
+    void couponIssued_consumed_savesNotificationAndSendsSlack() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = couponIssuedPayload(eventId, USER_ID);
+
+        kafkaTemplate.send("coupon.issued", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        var saved = notificationRepository.findAll().get(0);
+        assertThat(saved.getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.COUPON_ISSUED);
+        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+    }
+
+    // =========================================================================
+    // [RefundDoneConsumer] 정상 수신 → Notification DB 저장 + Slack 전송
+    // =========================================================================
+
+    @Test
+    void refundDone_consumed_savesNotificationAndSendsSlack() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = refundDonePayload(eventId, USER_ID);
+
+        kafkaTemplate.send("refund.done", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        var saved = notificationRepository.findAll().get(0);
+        assertThat(saved.getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.REFUND_COMPLETED);
+        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+    }
+
+    // =========================================================================
+    // [PaymentFailedConsumer] 정상 수신 → Notification DB 저장 + Slack 전송
+    // =========================================================================
+
+    @Test
+    void paymentFailed_consumed_savesNotificationAndSendsSlack() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = paymentFailedPayload(eventId, USER_ID);
+
+        kafkaTemplate.send("payment.failed", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        var saved = notificationRepository.findAll().get(0);
+        assertThat(saved.getUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getNotificationType()).isEqualTo(NotificationType.PAYMENT_FAILED);
+        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+    }
+
+    // =========================================================================
+    // [PaymentFailedConsumer] 동일 eventId 2회 발행 → 멱등성 (1건만 저장)
+    // =========================================================================
+
+    @Test
+    void paymentFailed_duplicateEvent_idempotent() {
+        String eventId = UUID.randomUUID().toString();
+        String payload = paymentFailedPayload(eventId, USER_ID);
+
+        kafkaTemplate.send("payment.failed", payload);
+
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                assertThat(notificationRepository.count()).isEqualTo(1)
+        );
+
+        kafkaTemplate.send("payment.failed", payload);
+
+        await().atMost(3, SECONDS).untilAsserted(() ->
+                assertThat(processedEventRepository.count()).isGreaterThanOrEqualTo(1)
+        );
+
+        assertThat(notificationRepository.count()).isEqualTo(1);
+        verify(slackClient, times(1)).sendMessage(any(), any());
+    }
+
+    // =========================================================================
     // Payload helpers
     // =========================================================================
 
@@ -251,6 +424,68 @@ class NotificationKafkaIntegrationTest {
                     "orderId": "%s"
                 }
                 """.formatted(eventId, UUID.randomUUID(), userId, UUID.randomUUID());
+    }
+
+    private String orderCancelledPayload(String eventId, UUID userId) {
+        return """
+                {
+                    "eventId": "%s",
+                    "orderId": "%s",
+                    "userId": "%s",
+                    "reason": "재고 부족"
+                }
+                """.formatted(eventId, UUID.randomUUID(), userId);
+    }
+
+    private String orderShippedPayload(String eventId, UUID userId) {
+        return """
+                {
+                    "eventId": "%s",
+                    "orderId": "%s",
+                    "userId": "%s"
+                }
+                """.formatted(eventId, UUID.randomUUID(), userId);
+    }
+
+    private String rafflePayload(String eventId, UUID userId) {
+        return """
+                {
+                    "eventId": "%s",
+                    "raffleId": "%s",
+                    "userId": "%s"
+                }
+                """.formatted(eventId, UUID.randomUUID(), userId);
+    }
+
+    private String couponIssuedPayload(String eventId, UUID userId) {
+        return """
+                {
+                    "eventId": "%s",
+                    "couponId": "%s",
+                    "userId": "%s"
+                }
+                """.formatted(eventId, UUID.randomUUID(), userId);
+    }
+
+    private String refundDonePayload(String eventId, UUID userId) {
+        return """
+                {
+                    "eventId": "%s",
+                    "orderId": "%s",
+                    "userId": "%s",
+                    "amount": 30000
+                }
+                """.formatted(eventId, UUID.randomUUID(), userId);
+    }
+
+    private String paymentFailedPayload(String eventId, UUID userId) {
+        return """
+                {
+                    "eventId": "%s",
+                    "orderId": "%s",
+                    "userId": "%s"
+                }
+                """.formatted(eventId, UUID.randomUUID(), userId);
     }
 
     private String dropOpenedPayload(String eventId, UUID... userIds) {
