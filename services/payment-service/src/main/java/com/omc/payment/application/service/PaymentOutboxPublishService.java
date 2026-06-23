@@ -1,13 +1,9 @@
 package com.omc.payment.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.payment.application.event.producer.PaymentCompletedEvent;
-import com.omc.payment.application.event.producer.PaymentFailedEvent;
-import com.omc.payment.application.event.producer.RefundDoneEvent;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.OutboxEventStatus;
 import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
-import com.omc.payment.infrastructure.config.KafkaTopics;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +15,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class PaymentOutboxPublishProcessor {
+public class PaymentOutboxPublishService {
 
     private final PaymentOutboxEventRepository paymentOutboxEventRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;

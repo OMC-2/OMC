@@ -1,4 +1,4 @@
-package com.omc.payment.application.event.producer;
+package com.omc.payment.application.event.dto.outbound;
 
 import com.omc.payment.domain.enums.SalesType;
 

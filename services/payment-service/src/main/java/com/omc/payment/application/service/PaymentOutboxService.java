@@ -2,10 +2,10 @@ package com.omc.payment.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.payment.application.event.producer.PaymentCompletedEvent;
-import com.omc.payment.application.event.producer.PaymentFailedEvent;
-import com.omc.payment.application.event.producer.RefundDoneEvent;
-import com.omc.payment.common.util.UuidV7Generator;
+import com.omc.payment.application.event.dto.outbound.PaymentCompletedEvent;
+import com.omc.payment.application.event.dto.outbound.PaymentFailedEvent;
+import com.omc.payment.application.event.dto.outbound.RefundDoneEvent;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.payment.domain.entity.Payment;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.OutboxAggregateType;

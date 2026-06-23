@@ -1,6 +1,6 @@
 package com.omc.payment.application.scheduler;
 
-import com.omc.payment.application.service.PaymentOutboxPublishProcessor;
+import com.omc.payment.application.service.PaymentOutboxPublishService;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.OutboxEventStatus;
 import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
@@ -18,7 +18,7 @@ import java.util.List;
 public class PaymentOutboxPublisher {
 
     private final PaymentOutboxEventRepository paymentOutboxEventRepository;
-    private final PaymentOutboxPublishProcessor paymentOutboxPublishProcessor;
+    private final PaymentOutboxPublishService paymentOutboxPublishService;
 
     @Value("${payment.outbox.publisher.max-retry-count:3}")
     private int maxRetryCount;
@@ -38,7 +38,7 @@ public class PaymentOutboxPublisher {
         }
         log.debug("결제 아웃박스 이벤트 {}건 발행을 시작합니다.", pendingEvents.size());
         for (PaymentOutboxEvent pendingEvent : pendingEvents) {
-            paymentOutboxPublishProcessor.publish(pendingEvent.getEventId());
+            paymentOutboxPublishService.publish(pendingEvent.getEventId());
         }
     }
 }

@@ -1,4 +1,4 @@
-package com.omc.payment.application.event.producer;
+package com.omc.payment.application.event.dto.outbound;
 
 import java.util.UUID;
 
