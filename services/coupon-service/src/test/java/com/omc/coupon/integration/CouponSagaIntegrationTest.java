@@ -45,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CouponSagaIntegrationTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine")
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine")
             .withDatabaseName("testdb")
             .withUsername("test")
             .withPassword("test");
