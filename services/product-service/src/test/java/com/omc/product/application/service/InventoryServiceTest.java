@@ -55,7 +55,7 @@ class InventoryServiceTest {
         inventory = mock(Inventory.class);
         event = new PaymentCompletedEvent(
                 UUID.randomUUID().toString(), orderId, productId,
-                UUID.randomUUID(), UUID.randomUUID(), 1, 648000L
+                UUID.randomUUID(), UUID.randomUUID(), 648000L
         );
     }
 
@@ -68,7 +68,7 @@ class InventoryServiceTest {
 
         inventoryService.confirmDeduct(event);
 
-        verify(inventory, times(1)).confirmDeduct(event.quantity());
+        verify(inventory, times(1)).confirmDeduct(1);
         verify(outboxEventRepository, times(1)).save(any(OutboxEvent.class));
         verify(processedEventRepository, times(1)).save(any(ProcessedEvent.class));
         verify(failedEventLogRepository, never()).save(any());
