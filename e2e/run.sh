@@ -17,6 +17,7 @@
 #   coupon              → coupon/ 폴더 전체 (쿠폰 생성 + 발급 + 조회 + 보안)
 #   notification        → notification/ 폴더 전체 (알림 목록 + 읽음 처리 + 보안)
 #   drop                → drop/ 폴더 전체 (드롭 Admin CRUD + 조회 + 구매 선점)
+#   payment             → payment/ 폴더 전체 (결제 승인 + 조회 + 취소 + 보안)
 #   saga                → saga/ 폴더 전체 (서비스 연계 시나리오)
 #
 #   [개별 시나리오]
@@ -37,6 +38,8 @@
 #   drop/drop_admin_crud     → 드롭 Admin CRUD (생성 201 / 권한 403·401 / 수정 200 / 삭제 204)
 #   drop/drop_query          → 드롭 조회 (목록 200 / status 필터 / 단건 200 / 없는ID 404)
 #   drop/drop_purchase       → 구매 선점 (정상 202 / 중복 409 / 재고소진 409 / 미오픈 409 / 미인증 401)
+#   payment/payment_flow                → 결제 승인·조회·취소
+#   payment/payment_security            → 결제 인증·인가 보안
 #
 # ----------------------------------------------------------------
 # 예시
@@ -47,6 +50,7 @@
 #   bash e2e/run.sh coupon                   # coupon 서비스 시나리오 전체
 #   bash e2e/run.sh notification             # notification 서비스 시나리오 전체
 #   bash e2e/run.sh drop                     # drop 서비스 시나리오 전체
+#   bash e2e/run.sh payment                  # payment 서비스 시나리오 전체
 #   bash e2e/run.sh user/signup              # 회원가입 시나리오만
 #   bash e2e/run.sh user/login               # 로그인 시나리오만
 #   bash e2e/run.sh user/profile             # 프로필 조회 시나리오만
@@ -64,6 +68,8 @@
 #   bash e2e/run.sh drop/drop_admin_crud     # 드롭 Admin CRUD 시나리오만
 #   bash e2e/run.sh drop/drop_query          # 드롭 조회 시나리오만
 #   bash e2e/run.sh drop/drop_purchase       # 드롭 구매 선점 시나리오만
+#   bash e2e/run.sh payment/payment_flow                # 결제 승인·조회·취소
+#   bash e2e/run.sh payment/payment_security            # 결제 보안 시나리오만
 #
 GATEWAY_SECRET=local-secret
 ADMIN_SECRET=local-admin-secret
@@ -84,7 +90,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user coupon notification drop saga user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase"
+VALID_TARGETS="user coupon notification drop saga user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do
@@ -102,6 +108,7 @@ if [ -n "$TARGET" ]; then
     echo "  user              → user/ 폴더 전체"
     echo "  coupon            → coupon/ 폴더 전체"
     echo "  notification      → notification/ 폴더 전체"
+    echo "  payment           → payment/ 폴더 전체"
     echo "  saga              → saga/ 폴더 전체"
     echo ""
     echo "  [개별 시나리오 — user]"
@@ -128,6 +135,10 @@ if [ -n "$TARGET" ]; then
     echo "  drop/drop_admin_crud     → 드롭 Admin CRUD"
     echo "  drop/drop_query          → 드롭 조회"
     echo "  drop/drop_purchase       → 드롭 구매 선점"
+    echo ""
+    echo "  [개별 시나리오 — payment]"
+    echo "  payment/payment_flow     → 결제 승인·조회·취소"
+    echo "  payment/payment_security → 결제 인증·인가 보안 검증"
     exit 1
   fi
 fi
@@ -135,5 +146,6 @@ fi
 JAVA_HOME=$JAVA_HOME \
 GATEWAY_SECRET=$GATEWAY_SECRET \
 ADMIN_SECRET=$ADMIN_SECRET \
+PAYMENT_SERVICE_URL=${PAYMENT_SERVICE_URL:-http://localhost:8085} \
 ./gradlew :e2e:test -PrunE2E \
   $([ -n "$KARATE_OPTS" ] && echo "-Dkarate.options=$KARATE_OPTS")

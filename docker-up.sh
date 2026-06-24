@@ -155,6 +155,7 @@ build_services() {
   ./gradlew :services:gateway:bootJar \
             :services:user-service:bootJar \
             :services:drop-service:bootJar \
+            :services:payment-service:bootJar \
             :services:coupon-service:bootJar \
             :services:notification-service:bootJar \
             :services:eureka-server:bootJar \
@@ -163,7 +164,7 @@ build_services() {
   echo ""
   echo "▶ [2단계] Docker 이미지 빌드"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" build \
-    eureka-server config-server gateway user-service drop-service coupon-service notification-service
+    eureka-server config-server gateway user-service drop-service payment-service coupon-service notification-service
 }
 
 # ----------------------------------------------------------------
@@ -186,15 +187,16 @@ start_infra() {
 # ----------------------------------------------------------------
 start_services() {
   echo ""
-  echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service / notification-service)"
+  echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service / payment-service / notification-service)"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
-    eureka-server config-server gateway user-service drop-service coupon-service notification-service
+    eureka-server config-server gateway user-service drop-service payment-service coupon-service notification-service
 
   echo ""
-  echo "▶ [6단계] gateway + user-service + drop-service + coupon-service + notification-service healthy 대기 (최대 180초)"
+  echo "▶ [6단계] gateway + user-service + drop-service + payment-service + coupon-service + notification-service healthy 대기 (최대 180초)"
   wait_healthy omc-gateway 180
   wait_healthy omc-user-service 180
   wait_healthy omc-drop-service 180
+  wait_healthy omc-payment-service 180
   wait_healthy omc-coupon-service 180
   wait_healthy omc-notification-service 180
 
@@ -206,6 +208,8 @@ start_services() {
   wait_eureka_registered "COUPON-SERVICE" 90
   # notification-service: Eureka 등록 확인
   wait_eureka_registered "NOTIFICATION-SERVICE" 90
+  # payment-service: 사용자 결제 API Gateway 라우팅 확인
+  wait_eureka_registered "PAYMENT-SERVICE" 90
 }
 
 # ----------------------------------------------------------------
