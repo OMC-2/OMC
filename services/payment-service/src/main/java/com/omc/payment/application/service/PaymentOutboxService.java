@@ -37,7 +37,8 @@ public class PaymentOutboxService {
                 payment.getCouponId(),
                 payment.getOriginalAmount(),
                 payment.getDiscountAmount(),
-                payment.getFinalAmount()
+                payment.getFinalAmount(),
+                payment.getPaymentId()
         );
         save(eventId, payment.getPaymentId(), KafkaTopics.PAYMENT_COMPLETED, event);
     }
