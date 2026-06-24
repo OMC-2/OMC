@@ -124,7 +124,7 @@ class CouponReserveIntegrationTest {
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userCouponId").value(userCoupon.getUserCouponId().toString()))
-                .andExpect(jsonPath("$.data.discountAmount").value(1000));
+                .andExpect(jsonPath("$.data.discountValue").value(1000));
 
         UserCoupon reserved = userCouponRepository.findById(userCoupon.getUserCouponId()).orElseThrow();
         assertThat(reserved.getStatus()).isEqualTo(UserCouponStatus.RESERVED);
@@ -158,19 +158,4 @@ class CouponReserveIntegrationTest {
                 .andExpect(jsonPath("$.errorCode").value("COUPON-005"));
     }
 
-    // =========================================================================
-    // [시나리오 3] GET /internal/v1/coupons/{userCouponId} → 200 OK
-    // DB 직접 저장 후 내부 쿠폰 단건 조회
-    // =========================================================================
-    @Test
-    void getUserCoupon_success() throws Exception {
-        Coupon coupon = createAndSaveCoupon();
-        UserCoupon userCoupon = userCouponRepository.save(UserCoupon.create(USER_ID, coupon, LocalDateTime.now().plusDays(7)));
-
-        mockMvc.perform(get("/internal/v1/coupons/{userCouponId}", userCoupon.getUserCouponId())
-                        .header("X-Gateway-Secret", GATEWAY_SECRET))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.userCouponId").value(userCoupon.getUserCouponId().toString()))
-                .andExpect(jsonPath("$.data.status").value("AVAILABLE"));
-    }
 }

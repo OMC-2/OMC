@@ -10,7 +10,7 @@ import com.omc.coupon.domain.exception.CouponErrorCode;
 import com.omc.coupon.domain.exception.UserCouponNotFoundException;
 import com.omc.coupon.domain.repository.UserCouponRepository;
 import com.omc.coupon.presentation.dto.request.CouponReserveRequest;
-import com.omc.coupon.presentation.dto.response.CouponReserveResponse;
+import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -52,12 +52,18 @@ class CouponReserveServiceTest {
 
         given(userCouponRepository.findById(userCouponId)).willReturn(Optional.of(userCouponMock));
         given(userCouponMock.getUserId()).willReturn(userId);
+        given(userCouponMock.getUserCouponId()).willReturn(userCouponId);
         given(userCouponMock.getCoupon()).willReturn(couponMock);
+        given(userCouponMock.getStatus()).willReturn(UserCouponStatus.RESERVED);
+        given(userCouponMock.getExpiredAt()).willReturn(null);
+        given(couponMock.getCouponId()).willReturn(UUID.randomUUID());
+        given(couponMock.getName()).willReturn("테스트 쿠폰");
         given(couponMock.getDiscountType()).willReturn(DiscountType.AMOUNT);
         given(couponMock.getDiscountValue()).willReturn(new BigDecimal("1000"));
+        given(couponMock.getMaxDiscountAmount()).willReturn(null);
 
         // when
-        CouponReserveResponse response = couponReserveService.reserve(request);
+        UserCouponResponse response = couponReserveService.reserve(request);
 
         // then
         verify(userCouponMock).reserve(orderId); // AVAILABLE → RESERVED 호출 확인
