@@ -88,3 +88,6 @@ harness/
 # JMeter load test results
 scripts/load-test/dashboard/
 scripts/load-test/results.jtl
+
+# JMeter binary
+apache-jmeter-5.6.3/
