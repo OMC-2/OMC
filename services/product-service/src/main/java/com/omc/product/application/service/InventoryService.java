@@ -3,6 +3,7 @@ package com.omc.product.application.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.util.UuidV7Generator;
+import com.omc.product.application.StockDeductedEvent;
 import com.omc.product.application.event.StockFailedEvent;
 import com.omc.product.application.event.PaymentCompletedEvent;
 import com.omc.product.domain.entity.FailedEventLog;
@@ -67,6 +68,8 @@ public class InventoryService {
     @Transactional
     public void confirmDeduct(PaymentCompletedEvent event) {
 
+        UUID outboxEventId = UuidV7Generator.generate();
+
         if (processedEventRepository.existsByEventId(event.eventId())) {
             log.info("[InventoryService] 이미 처리된 이벤트 스킵. eventId={}", event.eventId());
             return;
@@ -79,8 +82,8 @@ public class InventoryService {
 
             inventory.confirmDeduct(1);
 
-            saveOutbox("INVENTORY", inventory.getInventoryId(),
-                    OutboxEventType.STOCK_DEDUCTED, buildPayload(event));
+            saveOutbox(outboxEventId, "INVENTORY", inventory.getInventoryId(),
+                    OutboxEventType.STOCK_DEDUCTED, buildPayload(event, outboxEventId));
             processedEventRepository.save(
                     ProcessedEvent.create(event.eventId(), KafkaTopics.PAYMENT_COMPLETED)
             );
@@ -105,8 +108,8 @@ public class InventoryService {
                     )
             );
 
-            saveOutbox("INVENTORY", inventory.getInventoryId(),
-                    OutboxEventType.STOCK_FAILED, buildFailedPayload(event));
+            saveOutbox(outboxEventId, "INVENTORY", inventory.getInventoryId(),
+                    OutboxEventType.STOCK_FAILED, buildFailedPayload(event, outboxEventId));
         }
     }
 
@@ -134,16 +137,21 @@ public class InventoryService {
         return InventoryResponse.from(inventory);
     }
 
-    private void saveOutbox(String aggregateType, UUID aggregateId,
+    private void saveOutbox(UUID eventId, String aggregateType, UUID aggregateId,
                             OutboxEventType eventType, String payload) {
         outboxEventRepository.save(
-                OutboxEvent.create(aggregateType, aggregateId, eventType, payload)
+                OutboxEvent.create(eventId, aggregateType, aggregateId, eventType, payload)
         );
     }
 
-    private String buildPayload(PaymentCompletedEvent event) {
-
-        return toJson(event);
+    private String buildPayload(PaymentCompletedEvent event, UUID eventId) {
+        return toJson(new StockDeductedEvent(
+                eventId.toString(),
+                event.orderId(),
+                event.productId(),
+                event.userId(),
+                event.dropId()
+        ));
     }
 
     private String toJson(Object obj) {
@@ -154,9 +162,9 @@ public class InventoryService {
         }
     }
 
-    private String buildFailedPayload(PaymentCompletedEvent event) {
+    private String buildFailedPayload(PaymentCompletedEvent event, UUID eventId) {
         return toJson(new StockFailedEvent(
-                UuidV7Generator.generate().toString(),
+                eventId.toString(),
                 event.orderId(),
                 event.productId(),
                 event.dropId(),
