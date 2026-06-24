@@ -71,6 +71,7 @@ class PaymentOutboxServiceTest {
             assertThat(outboxEvent.getAggregateType()).isEqualTo(OutboxAggregateType.PAYMENT);
             assertThat(outboxEvent.getAggregateId()).isEqualTo(PAYMENT_ID);
             assertThat(outboxEvent.getEventType()).isEqualTo(KafkaTopics.PAYMENT_COMPLETED);
+            assertThat(payload.get("paymentId").asText()).isEqualTo(PAYMENT_ID.toString());
             assertThat(payload.get("orderId").asText()).isEqualTo(ORDER_ID.toString());
             assertThat(payload.get("userId").asText()).isEqualTo(USER_ID.toString());
             assertThat(payload.get("finalAmount").asLong()).isEqualTo(9000L);
