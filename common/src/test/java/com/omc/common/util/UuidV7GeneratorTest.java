@@ -41,9 +41,11 @@ class UuidV7GeneratorTest {
     // =========================================================================
 
     @Test
-    void generate_multipleValues_areSortedByCreationOrder() {
+    void generate_multipleValues_areSortedByCreationOrder() throws InterruptedException {
         UUID first  = UuidV7Generator.generate();
+        Thread.sleep(1);
         UUID second = UuidV7Generator.generate();
+        Thread.sleep(1);
         UUID third  = UuidV7Generator.generate();
 
         assertThat(first.toString()).isLessThan(second.toString());
