@@ -1,17 +1,16 @@
 package com.omc.drop.application.service;
 
-import com.omc.drop.application.event.outbox.PurchaseOutboxWorker;
 import com.omc.drop.domain.exception.DuplicatePurchaseException;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.DropNotOpenException;
 import com.omc.drop.domain.exception.SoldOutException;
-import com.omc.drop.infrastructure.kafka.event.PurchaseConfirmedEvent;
 import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
 import com.omc.drop.presentation.dto.response.PurchaseResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import com.omc.common.util.UuidV7Generator;
 import java.util.UUID;
 
 @Slf4j
@@ -20,7 +19,6 @@ import java.util.UUID;
 public class PurchaseService {
 
     private final PurchaseRedisRepository purchaseRedisRepository;
-    private final PurchaseOutboxWorker outboxWorker;
 
     public PurchaseResponse purchase(UUID dropId, UUID userId) {
         // ① Redis OPEN 플래그 확인 — fail-fast
@@ -35,11 +33,12 @@ public class PurchaseService {
             throw new DropNotFoundException();
         }
 
-        // ③ orderId 선발급 — Lua ZADD member로 사용하므로 Lua 호출 전에 생성
-        UUID orderId = UUID.randomUUID();
+        // ③ orderId·eventId 선발급 — Lua 호출 전에 생성해서 Stream 메시지에 포함
+        UUID orderId = UuidV7Generator.generate();
+        String eventId = UuidV7Generator.generate().toString();
 
-        // ④ Lua 원자 실행: 중복 체크 → 재고 체크 → 선점 → 순번 발급
-        Long result = purchaseRedisRepository.executePurchase(dropId, userId, orderId, holdTtlSec);
+        // ④ Lua 원자 실행: 중복 체크 → 재고 체크 → 선점 → Stream XADD → 순번 발급
+        Long result = purchaseRedisRepository.executePurchase(dropId, userId, orderId, holdTtlSec, productId, eventId);
 
         if (result == null || result == -2L) {
             throw new DuplicatePurchaseException();
@@ -48,10 +47,7 @@ public class PurchaseService {
             throw new SoldOutException();
         }
 
-        // ⑤ 아웃박스 큐 적재 — 워커가 비동기로 purchase.confirmed 발행 (최대 3회 재시도)
-        outboxWorker.enqueue(PurchaseConfirmedEvent.of(orderId, dropId, userId, productId, holdTtlSec));
         log.info("구매 선점 완료: dropId={}, userId={}, orderId={}, queueNumber={}", dropId, userId, orderId, result);
-
         return new PurchaseResponse(orderId, result);
     }
 }

@@ -9,7 +9,8 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
-import com.omc.common.util.UuidUtil;
+import com.omc.common.util.UuidV7Generator;
+import org.springframework.util.Assert;
 
 @Entity
 @Table(name = "p_raffle_results")
@@ -40,9 +41,10 @@ public class RaffleResult {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Builder
+    @Builder(access = AccessLevel.PRIVATE)
     private RaffleResult(UUID entryId, UUID raffleId, UUID userId, RaffleResultStatus result) {
-        this.id = UuidUtil.v7();
+        // [핵심 컨벤션] 대용량 추첨 결과(RaffleResult) Insert 시 DB 성능 저하 방지를 위한 UUIDv7 적용
+        this.id = UuidV7Generator.generate();
         this.entryId = entryId;
         this.raffleId = raffleId;
         this.userId = userId;
@@ -52,6 +54,11 @@ public class RaffleResult {
     }
 
     public static RaffleResult create(UUID entryId, UUID raffleId, UUID userId, RaffleResultStatus result) {
+        Assert.notNull(entryId, "entryId must not be null");
+        Assert.notNull(raffleId, "raffleId must not be null");
+        Assert.notNull(userId, "userId must not be null");
+        Assert.notNull(result, "result must not be null");
+
         return RaffleResult.builder()
                 .entryId(entryId)
                 .raffleId(raffleId)

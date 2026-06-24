@@ -1,14 +1,14 @@
 package com.omc.raffle.presentation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.raffle.application.dto.request.RaffleApplyRequest;
-import com.omc.raffle.application.dto.response.RaffleApplyResponse;
+import com.omc.raffle.presentation.dto.request.RaffleApplyRequest;
+import com.omc.raffle.presentation.dto.response.RaffleApplyResponse;
 import com.omc.raffle.application.service.RaffleAppService;
 import com.omc.raffle.application.service.RaffleResultService;
 import com.omc.raffle.domain.enums.RaffleResultStatus;
 import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.presentation.dto.request.RaffleEnterRequest;
-import com.omc.raffle.application.dto.response.RaffleResultResponse;
+import com.omc.raffle.presentation.dto.response.RaffleResultResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -131,7 +131,7 @@ class RaffleControllerTest {
             when(raffleResultService.getResult(raffleId, userId)).thenReturn(responseDto);
 
             // when & then
-            mockMvc.perform(get("/api/v1/raffles/{raffleId}/results", raffleId)
+            mockMvc.perform(get("/api/v1/raffles/{raffleId}/winners/me", raffleId)
                             .header("X-User-Id", userId.toString()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))

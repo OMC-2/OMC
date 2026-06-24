@@ -8,9 +8,11 @@ import java.util.UUID;
  * 주문 확정을 위한 가격 정보 및 유저 정보를 담고 있습니다.
  */
 public record RaffleWinnerSelectedEvent(
+        String eventId,
         UUID raffleId,
         UUID entryId,
         UUID userId,
+        UUID productId,
         String billingKeyId,
         UUID couponId,
         java.math.BigDecimal originalAmount,

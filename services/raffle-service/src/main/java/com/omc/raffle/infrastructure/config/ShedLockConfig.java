@@ -17,6 +17,6 @@ public class ShedLockConfig {
     @Bean
     public LockProvider lockProvider(RedisConnectionFactory connectionFactory) {
         // 환경: spring-data-redis
-        return new RedisLockProvider(connectionFactory, "raffle-service-scheduler");
+        return new RedisLockProvider(connectionFactory, "raffle-service-shedlock");
     }
 }

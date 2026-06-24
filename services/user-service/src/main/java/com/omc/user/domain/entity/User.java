@@ -1,6 +1,7 @@
 package com.omc.user.domain.entity;
 
 import com.omc.user.domain.enums.UserRole;
+import com.omc.common.util.UuidV7Generator;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -17,8 +18,7 @@ import java.util.UUID;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "user_id")
+    @Column(name = "user_id", columnDefinition = "uuid")
     private UUID userId;
 
     @Column(name = "keycloak_id", nullable = false, unique = true, length = 100)
@@ -42,6 +42,7 @@ public class User {
 
     @Builder
     private User(String keycloakId, String email, String nickname, UserRole role, String slackId) {
+        this.userId = UuidV7Generator.generate();
         this.keycloakId = keycloakId;
         this.email = email;
         this.nickname = nickname;

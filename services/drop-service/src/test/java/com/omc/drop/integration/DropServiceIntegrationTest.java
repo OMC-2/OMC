@@ -5,9 +5,9 @@ import com.omc.drop.application.scheduler.HoldExpireScheduler;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.repository.DropProcessedEventRepository;
 import com.omc.drop.domain.repository.DropRepository;
-import com.omc.drop.infrastructure.kafka.event.PaymentCompletedEvent;
-import com.omc.drop.infrastructure.kafka.event.PaymentFailedEvent;
-import com.omc.drop.infrastructure.kafka.event.StockFailedEvent;
+import com.omc.drop.application.event.consumer.PaymentCompletedEvent;
+import com.omc.drop.application.event.consumer.PaymentFailedEvent;
+import com.omc.drop.application.event.consumer.StockFailedEvent;
 import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -485,6 +485,45 @@ class DropServiceIntegrationTest {
             // X-Gateway-Secret 없이 호출
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId))
                     .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("warmup을 두 번 호출해도 재고가 초기화되지 않는다 (Lua 멱등성)")
+        void warmup_calledTwice_doesNotResetStock() throws Exception {
+            // 첫 번째 warmup
+            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+
+            // 구매 1건으로 재고 감소
+            mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
+                            .header("X-Gateway-Secret", GW_SECRET)
+                            .header("X-User-Id", USER_ID)
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isAccepted());
+
+            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(99);
+
+            // 두 번째 warmup — status 키가 이미 존재하므로 Lua가 0 반환하고 값을 건드리지 않는다
+            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+
+            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(99);  // 100으로 리셋되면 안 됨
+        }
+
+        @Test
+        @DisplayName("구매 선점 성공 시 Stream에 이벤트가 기록된다")
+        void purchase_openDrop_writesEventToStream() throws Exception {
+            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+
+            long beforeSize = purchaseRedisRepository.getStreamSize() != null
+                    ? purchaseRedisRepository.getStreamSize() : 0L;
+
+            mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
+                            .header("X-Gateway-Secret", GW_SECRET)
+                            .header("X-User-Id", USER_ID)
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isAccepted());
+
+            // XADD는 XACK 이후에도 스트림 본체에 남음 → 즉시 검증 가능
+            assertThat(purchaseRedisRepository.getStreamSize()).isGreaterThan(beforeSize);
         }
     }
 
