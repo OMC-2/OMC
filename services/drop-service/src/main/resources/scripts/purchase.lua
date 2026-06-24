@@ -1,10 +1,14 @@
--- KEYS[1] = purchased:{dropId}   구매자 Set
--- KEYS[2] = stock:{dropId}       재고 카운터
--- KEYS[3] = holds:{dropId}       선점 ZSet (score = 만료 epoch)
--- KEYS[4] = queue:{dropId}       순번 카운터
+-- KEYS[1] = purchased:{dropId}         구매자 Set
+-- KEYS[2] = stock:{dropId}             재고 카운터
+-- KEYS[3] = holds:{dropId}             선점 ZSet (score = 만료 epoch)
+-- KEYS[4] = queue:{dropId}             순번 카운터
+-- KEYS[5] = stream:purchase:confirmed  이벤트 Stream
 -- ARGV[1] = userId
 -- ARGV[2] = orderId
 -- ARGV[3] = holdTtlSec
+-- ARGV[4] = productId
+-- ARGV[5] = dropId
+-- ARGV[6] = eventId
 
 -- 중복 구매 체크를 품절 체크보다 먼저: UX 개선 (이미 신청한 사용자에게 정확한 메시지 전달)
 if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 1 then
@@ -25,6 +29,16 @@ redis.call('SADD', KEYS[1], ARGV[1])
 local now = redis.call('TIME')
 local expireEpoch = tonumber(now[1]) + tonumber(ARGV[3])
 redis.call('ZADD', KEYS[3], expireEpoch, ARGV[2])
+
+-- 선점과 원자적으로 Stream에 이벤트 적재 (XACK 전까지 영속 보장)
+redis.call('XADD', KEYS[5], 'MAXLEN', '~', '10000', '*',
+    'eventId',      ARGV[6],
+    'orderId',      ARGV[2],
+    'dropId',       ARGV[5],
+    'userId',       ARGV[1],
+    'productId',    ARGV[4],
+    'holdExpiresAt', tostring(expireEpoch)
+)
 
 -- 순번 발급 (1 이상의 양수)
 return redis.call('INCR', KEYS[4])
