@@ -1,9 +1,8 @@
 package com.omc.user.domain.entity;
 
+import com.omc.common.util.UuidV7Generator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -21,8 +20,7 @@ import java.util.UUID;
 public class Address {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "address_id")
+    @Column(name = "address_id", columnDefinition = "uuid")
     private UUID addressId;
 
     @Column(name = "user_id", nullable = false)
@@ -52,6 +50,7 @@ public class Address {
     @Builder
     private Address(UUID userId, String recipientName, String phone, String zipCode,
                     String address, String addressDetail, boolean isDefault, LocalDateTime createdAt) {
+        this.addressId = UuidV7Generator.generate();
         this.userId = userId;
         this.recipientName = recipientName;
         this.phone = phone;

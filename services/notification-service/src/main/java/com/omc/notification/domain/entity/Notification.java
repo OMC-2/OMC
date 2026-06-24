@@ -1,6 +1,7 @@
 package com.omc.notification.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.notification.domain.enums.NotificationStatus;
 import com.omc.notification.domain.enums.NotificationType;
 import jakarta.persistence.*;
@@ -19,8 +20,7 @@ import java.util.UUID;
 public class Notification extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "notification_id")
+    @Column(name = "notification_id", columnDefinition = "uuid")
     private UUID notificationId;
 
     @Column(name = "user_id", nullable = false)
@@ -61,6 +61,7 @@ public class Notification extends BaseEntity {
     @Builder
     private Notification(UUID userId, String slackId, NotificationType notificationType,
                          String title, String content, UUID referenceId, String referenceType) {
+        this.notificationId = UuidV7Generator.generate();
         this.userId = userId;
         this.slackId = slackId;
         this.notificationType = notificationType;

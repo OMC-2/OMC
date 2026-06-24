@@ -1,15 +1,26 @@
 package com.omc.drop.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.drop.application.scheduler.HoldExpireScheduler;
 import com.omc.drop.domain.entity.Drop;
+import com.omc.drop.domain.repository.DropProcessedEventRepository;
 import com.omc.drop.domain.repository.DropRepository;
+import com.omc.drop.application.event.consumer.PaymentCompletedEvent;
+import com.omc.drop.application.event.consumer.PaymentFailedEvent;
+import com.omc.drop.application.event.consumer.StockFailedEvent;
 import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -19,8 +30,10 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -74,6 +87,10 @@ class DropServiceIntegrationTest {
     @Autowired ObjectMapper objectMapper;
     @Autowired DropRepository dropRepository;
     @Autowired PurchaseRedisRepository purchaseRedisRepository;
+    @Autowired DropProcessedEventRepository processedEventRepository;
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
+    @Autowired EmbeddedKafkaBroker embeddedKafkaBroker;
+    @Autowired HoldExpireScheduler holdExpireScheduler;
 
     private static final String GW_SECRET  = "test-secret";
     private static final String ADMIN_ID   = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -468,6 +485,286 @@ class DropServiceIntegrationTest {
             // X-Gateway-Secret 없이 호출
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId))
                     .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("warmup을 두 번 호출해도 재고가 초기화되지 않는다 (Lua 멱등성)")
+        void warmup_calledTwice_doesNotResetStock() throws Exception {
+            // 첫 번째 warmup
+            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+
+            // 구매 1건으로 재고 감소
+            mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
+                            .header("X-Gateway-Secret", GW_SECRET)
+                            .header("X-User-Id", USER_ID)
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isAccepted());
+
+            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(99);
+
+            // 두 번째 warmup — status 키가 이미 존재하므로 Lua가 0 반환하고 값을 건드리지 않는다
+            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+
+            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(99);  // 100으로 리셋되면 안 됨
+        }
+
+        @Test
+        @DisplayName("구매 선점 성공 시 Stream에 이벤트가 기록된다")
+        void purchase_openDrop_writesEventToStream() throws Exception {
+            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+
+            long beforeSize = purchaseRedisRepository.getStreamSize() != null
+                    ? purchaseRedisRepository.getStreamSize() : 0L;
+
+            mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
+                            .header("X-Gateway-Secret", GW_SECRET)
+                            .header("X-User-Id", USER_ID)
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isAccepted());
+
+            // XADD는 XACK 이후에도 스트림 본체에 남음 → 즉시 검증 가능
+            assertThat(purchaseRedisRepository.getStreamSize()).isGreaterThan(beforeSize);
+        }
+    }
+
+    // =========================================================================
+    // Kafka Consumer — payment.completed / payment.failed / stock.failed
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Kafka Consumer 테스트")
+    class ConsumerTests {
+
+        // JsonSerializer는 String을 이중 인코딩 → StringSerializer로 직접 구성
+        private KafkaTemplate<String, String> stringKafkaTemplate;
+
+        private UUID dropId;
+        private UUID userId;
+        private UUID orderId;
+
+        @BeforeEach
+        void setUp() throws Exception {
+            var props = KafkaTestUtils.producerProps(embeddedKafkaBroker);
+            props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+            stringKafkaTemplate = new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(props));
+
+            dropId = UUID.randomUUID();
+            userId = UUID.randomUUID();
+
+            // Redis warmup 후 실제 구매 선점으로 hold 생성
+            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+
+            MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
+                            .header("X-Gateway-Secret", GW_SECRET)
+                            .header("X-User-Id", userId.toString())
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isAccepted())
+                    .andReturn();
+
+            orderId = UUID.fromString(
+                    objectMapper.readTree(result.getResponse().getContentAsString())
+                            .at("/data/orderId").asText()
+            );
+        }
+
+        @AfterEach
+        void tearDown() {
+            purchaseRedisRepository.deleteDropKeys(dropId);
+            processedEventRepository.deleteAll();
+        }
+
+        @Test
+        @DisplayName("payment.completed(INSTANT) 수신 시 hold가 제거되고 재고는 유지된다")
+        void onPaymentCompleted_instant_removesHold() throws Exception {
+            String eventId = UUID.randomUUID().toString();
+            PaymentCompletedEvent event = new PaymentCompletedEvent(
+                    eventId, "INSTANT", userId, null,
+                    10000L, 0L, 10000L, orderId, dropId
+            );
+
+            stringKafkaTemplate.send("payment.completed", objectMapper.writeValueAsString(event));
+
+            // hold 제거 대기
+            await().atMost(5, TimeUnit.SECONDS)
+                    .until(() -> !purchaseRedisRepository.hasHold(dropId, orderId));
+
+            // confirmHold는 hold만 제거 — 재고·구매자는 그대로
+            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isFalse();
+            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(99);
+            assertThat(purchaseRedisRepository.hasPurchased(dropId, userId)).isTrue();
+            assertThat(processedEventRepository.existsById(eventId)).isTrue();
+        }
+
+        @Test
+        @DisplayName("payment.completed(RAFFLE) 수신 시 처리를 스킵하고 hold가 유지된다")
+        void onPaymentCompleted_raffle_skipsProcessing() throws Exception {
+            String eventId = UUID.randomUUID().toString();
+            PaymentCompletedEvent event = new PaymentCompletedEvent(
+                    eventId, "RAFFLE", userId, null,
+                    10000L, 0L, 10000L, orderId, dropId
+            );
+
+            stringKafkaTemplate.send("payment.completed", objectMapper.writeValueAsString(event));
+
+            // 컨슈머가 메시지를 수신했을 충분한 시간 대기
+            Thread.sleep(2000);
+
+            // RAFFLE은 스킵 → hold 유지, processedEvent 미저장
+            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isTrue();
+            assertThat(processedEventRepository.existsById(eventId)).isFalse();
+        }
+
+        @Test
+        @DisplayName("payment.failed(INSTANT) 수신 시 재고가 복구되고 구매자가 취소된다")
+        void onPaymentFailed_instant_recoversStock() throws Exception {
+            String eventId = UUID.randomUUID().toString();
+            PaymentFailedEvent event = new PaymentFailedEvent(
+                    eventId, "INSTANT", userId, "PAYMENT_TIMEOUT", orderId, dropId
+            );
+
+            stringKafkaTemplate.send("payment.failed", objectMapper.writeValueAsString(event));
+
+            // 재고 복구 대기
+            await().atMost(5, TimeUnit.SECONDS)
+                    .until(() -> purchaseRedisRepository.getStock(dropId) == 100);
+
+            // recoverHold: 재고 복구 + 구매자 취소 + hold 제거
+            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(100);
+            assertThat(purchaseRedisRepository.hasPurchased(dropId, userId)).isFalse();
+            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isFalse();
+            assertThat(processedEventRepository.existsById(eventId)).isTrue();
+        }
+
+        @Test
+        @DisplayName("stock.failed 수신 시 재고가 복구되고 구매자가 취소된다")
+        void onStockFailed_recoversStock() throws Exception {
+            String eventId = UUID.randomUUID().toString();
+            StockFailedEvent event = new StockFailedEvent(
+                    eventId, orderId, UUID.fromString(PRODUCT_ID), dropId, userId
+            );
+
+            stringKafkaTemplate.send("stock.failed", objectMapper.writeValueAsString(event));
+
+            await().atMost(5, TimeUnit.SECONDS)
+                    .until(() -> purchaseRedisRepository.getStock(dropId) == 100);
+
+            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(100);
+            assertThat(purchaseRedisRepository.hasPurchased(dropId, userId)).isFalse();
+            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isFalse();
+            assertThat(processedEventRepository.existsById(eventId)).isTrue();
+        }
+
+        @Test
+        @DisplayName("동일 eventId 수신 시 두 번째 이벤트를 스킵한다")
+        void duplicateEvent_skipsSecondProcessing() throws Exception {
+            String eventId = UUID.randomUUID().toString();
+            PaymentFailedEvent event = new PaymentFailedEvent(
+                    eventId, "INSTANT", userId, "PAYMENT_TIMEOUT", orderId, dropId
+            );
+            String message = objectMapper.writeValueAsString(event);
+
+            // 첫 번째 전송 — 재고 복구됨
+            stringKafkaTemplate.send("payment.failed", message);
+            await().atMost(5, TimeUnit.SECONDS)
+                    .until(() -> processedEventRepository.existsById(eventId));
+
+            // 두 번째 전송 — 동일 eventId → DB 중복 체크로 스킵
+            stringKafkaTemplate.send("payment.failed", message);
+            Thread.sleep(2000);
+
+            // 두 번 복구되지 않음 — processedEvent는 1건만 존재
+            assertThat(processedEventRepository.findAll())
+                    .filteredOn(e -> e.getEventId().equals(eventId))
+                    .hasSize(1);
+        }
+    }
+
+    // =========================================================================
+    // HoldExpireScheduler — hold TTL 만료 처리
+    // =========================================================================
+
+    @Nested
+    @DisplayName("HoldExpireScheduler 테스트")
+    class HoldExpireSchedulerTests {
+
+        private UUID dropId;
+        private UUID userId;
+        private UUID orderId;
+
+        @BeforeEach
+        void setUp() throws Exception {
+            userId = UUID.randomUUID();
+
+            // OPEN 드롭 DB 저장 — 스케줄러가 findByStatus(OPEN)로 조회함
+            Drop savedDrop = dropRepository.save(openDrop());
+            dropId = savedDrop.getDropId();
+
+            // holdTtlSec=1 — 1초 후 만료되는 hold 생성
+            purchaseRedisRepository.warmup(dropId, 100, 1, UUID.fromString(PRODUCT_ID));
+
+            MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
+                            .header("X-Gateway-Secret", GW_SECRET)
+                            .header("X-User-Id", userId.toString())
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isAccepted())
+                    .andReturn();
+
+            orderId = UUID.fromString(
+                    objectMapper.readTree(result.getResponse().getContentAsString())
+                            .at("/data/orderId").asText()
+            );
+        }
+
+        @AfterEach
+        void tearDown() {
+            dropRepository.deleteAll();
+            purchaseRedisRepository.deleteDropKeys(dropId);
+        }
+
+        @Test
+        @DisplayName("만료된 hold는 재고를 복구하고 hold를 제거한다")
+        void expireHolds_expiredHold_recoversStockAndRemovesHold() throws Exception {
+            // holdTtlSec=1 경과 대기
+            Thread.sleep(2000);
+
+            holdExpireScheduler.expireHolds();
+
+            // expire.lua: ZREM holds + INCR stock (purchased Set은 제거하지 않음)
+            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(100);
+            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isFalse();
+            assertThat(purchaseRedisRepository.hasPurchased(dropId, userId)).isTrue();
+        }
+
+        @Test
+        @DisplayName("만료되지 않은 hold는 처리하지 않는다")
+        void expireHolds_validHold_keepsHoldIntact() throws Exception {
+            // holdTtlSec=300인 별도 드롭으로 검증 (setUp의 dropId와 분리)
+            UUID validDropId = UUID.randomUUID();
+            UUID validUserId = UUID.randomUUID();
+            Drop validDrop = dropRepository.save(openDrop());
+            validDropId = validDrop.getDropId();
+
+            purchaseRedisRepository.warmup(validDropId, 100, 300, UUID.fromString(PRODUCT_ID));
+
+            MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", validDropId)
+                            .header("X-Gateway-Secret", GW_SECRET)
+                            .header("X-User-Id", validUserId.toString())
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isAccepted())
+                    .andReturn();
+
+            UUID validOrderId = UUID.fromString(
+                    objectMapper.readTree(result.getResponse().getContentAsString())
+                            .at("/data/orderId").asText()
+            );
+
+            holdExpireScheduler.expireHolds();
+
+            // 300초 TTL → 만료 아님 → hold 유지
+            assertThat(purchaseRedisRepository.hasHold(validDropId, validOrderId)).isTrue();
+            assertThat(purchaseRedisRepository.getStock(validDropId)).isEqualTo(99);
+
+            purchaseRedisRepository.deleteDropKeys(validDropId);
         }
     }
 

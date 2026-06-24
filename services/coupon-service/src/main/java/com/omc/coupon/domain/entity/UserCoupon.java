@@ -2,6 +2,7 @@ package com.omc.coupon.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
 import com.omc.common.exception.BusinessException;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.coupon.domain.enums.UserCouponStatus;
 import com.omc.coupon.domain.exception.CouponErrorCode;
 import jakarta.persistence.*;
@@ -20,8 +21,7 @@ import java.util.UUID;
 public class UserCoupon extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "user_coupon_id")
+    @Column(name = "user_coupon_id", columnDefinition = "uuid")
     private UUID userCouponId;
 
     @Column(name = "user_id", nullable = false)
@@ -47,12 +47,21 @@ public class UserCoupon extends BaseEntity {
     @Column(name = "expired_at", nullable = false)
     private LocalDateTime expiredAt;
 
-    @Builder
-    public UserCoupon(UUID userId, Coupon coupon, LocalDateTime expiredAt) {
+    @Builder(access = AccessLevel.PRIVATE)
+    private UserCoupon(UUID userId, Coupon coupon, LocalDateTime expiredAt) {
+        this.userCouponId = UuidV7Generator.generate();
         this.userId = userId;
         this.coupon = coupon;
         this.status = UserCouponStatus.AVAILABLE;
         this.expiredAt = expiredAt;
+    }
+
+    public static UserCoupon create(UUID userId, Coupon coupon, LocalDateTime expiredAt) {
+        return UserCoupon.builder()
+                .userId(userId)
+                .coupon(coupon)
+                .expiredAt(expiredAt)
+                .build();
     }
 
     public void reserve(UUID orderId) {

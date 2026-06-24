@@ -1,8 +1,8 @@
 package com.omc.raffle.application.service;
 
 import com.omc.common.exception.BusinessException;
-import com.omc.raffle.application.dto.request.RaffleApplyRequest;
-import com.omc.raffle.application.dto.response.RaffleApplyResponse;
+import com.omc.raffle.presentation.dto.request.RaffleApplyRequest;
+import com.omc.raffle.presentation.dto.response.RaffleApplyResponse;
 import com.omc.raffle.domain.entity.Raffle;
 import com.omc.raffle.domain.entity.RaffleEntry;
 import com.omc.raffle.domain.enums.RaffleStatus;
@@ -15,6 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import com.omc.common.response.PageResponse;
+import com.omc.raffle.presentation.dto.response.RaffleResponse;
+import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
 
 import com.omc.raffle.infrastructure.client.PaymentClient;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
@@ -89,6 +94,32 @@ public class RaffleAppService {
                 savedEntry.getEnteredAt()
         );
     }
-}
 
+    /**
+     * 래플 목록 조회
+     */
+    public PageResponse<RaffleResponse> getRaffles(Pageable pageable) {
+        Page<RaffleResponse> page = raffleRepository.findAll(pageable)
+                .map(RaffleResponse::from);
+        return new PageResponse<>(page);
+    }
+
+    /**
+     * 래플 상세 단건 조회
+     */
+    public RaffleResponse getRaffle(UUID raffleId) {
+        Raffle raffle = raffleRepository.findById(raffleId)
+                .orElseThrow(() -> new BusinessException(RaffleErrorCode.RAFFLE_001));
+        return RaffleResponse.from(raffle);
+    }
+
+    /**
+     * 내 응모 내역 조회
+     */
+    public PageResponse<RaffleEntryResponse> getMyEntries(UUID userId, Pageable pageable) {
+        Page<RaffleEntryResponse> page = raffleEntryRepository.findByUserId(userId, pageable)
+                .map(RaffleEntryResponse::from);
+        return new PageResponse<>(page);
+    }
+}
 

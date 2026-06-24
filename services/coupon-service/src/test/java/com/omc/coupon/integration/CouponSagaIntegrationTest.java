@@ -87,32 +87,19 @@ class CouponSagaIntegrationTest {
     }
 
     private Coupon createAndSaveCoupon() {
-        return couponRepository.save(Coupon.builder()
-                .name("SAGA 테스트 쿠폰")
-                .discountType(DiscountType.AMOUNT)
-                .discountValue(new BigDecimal("2000"))
-                .totalQuantity(10)
-                .startedAt(LocalDateTime.now().minusDays(1))
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build());
+        return couponRepository.save(Coupon.create(
+                "SAGA 테스트 쿠폰", DiscountType.AMOUNT, new BigDecimal("2000"),
+                null, 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(7)));
     }
 
     private UserCoupon createReservedUserCoupon(Coupon coupon, UUID orderId) {
-        UserCoupon userCoupon = UserCoupon.builder()
-                .userId(UUID.randomUUID())
-                .coupon(coupon)
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build();
+        UserCoupon userCoupon = UserCoupon.create(UUID.randomUUID(), coupon, LocalDateTime.now().plusDays(7));
         userCoupon.reserve(orderId);
         return userCouponRepository.save(userCoupon);
     }
 
     private UserCoupon createUsedUserCoupon(Coupon coupon, UUID orderId) {
-        UserCoupon userCoupon = UserCoupon.builder()
-                .userId(UUID.randomUUID())
-                .coupon(coupon)
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build();
+        UserCoupon userCoupon = UserCoupon.create(UUID.randomUUID(), coupon, LocalDateTime.now().plusDays(7));
         userCoupon.reserve(orderId);
         userCoupon.confirm();
         return userCouponRepository.save(userCoupon);

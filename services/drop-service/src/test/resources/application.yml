@@ -28,9 +28,8 @@ spring:
       group-id: drop-service-test
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
+      # DropEventConsumer는 String 메시지를 받아 ObjectMapper로 직접 역직렬화 → StringDeserializer 사용
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
 eureka:
   client:

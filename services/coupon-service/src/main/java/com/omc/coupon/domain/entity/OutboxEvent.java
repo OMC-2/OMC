@@ -2,7 +2,12 @@ package com.omc.coupon.domain.entity;
 
 import com.omc.coupon.domain.enums.OutboxEventType;
 import com.omc.coupon.domain.enums.OutboxStatus;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,7 +23,6 @@ import java.util.UUID;
 public class OutboxEvent {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "event_id")
     private UUID eventId;
 
@@ -49,8 +53,9 @@ public class OutboxEvent {
     private LocalDateTime publishedAt;
 
     @Builder(access = AccessLevel.PRIVATE)
-    private OutboxEvent(String aggregateType, UUID aggregateId,
+    private OutboxEvent(UUID eventId, String aggregateType, UUID aggregateId,
                         OutboxEventType eventType, String payload) {
+        this.eventId = eventId;
         this.aggregateType = aggregateType;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
@@ -60,9 +65,10 @@ public class OutboxEvent {
         this.createdAt = LocalDateTime.now();
     }
 
-    public static OutboxEvent create(String aggregateType, UUID aggregateId,
+    public static OutboxEvent create(UUID eventId, String aggregateType, UUID aggregateId,
                                      OutboxEventType eventType, String payload) {
         return OutboxEvent.builder()
+                .eventId(eventId)
                 .aggregateType(aggregateType)
                 .aggregateId(aggregateId)
                 .eventType(eventType)
