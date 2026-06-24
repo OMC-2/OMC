@@ -7,8 +7,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record RaffleResponse(
-        UUID id,
+        UUID raffleId,
         UUID dropId,
+        UUID productId,
         String name,
         int winnerCount,
         RaffleStatus status,
@@ -20,6 +21,7 @@ public record RaffleResponse(
         return new RaffleResponse(
                 raffle.getId(),
                 raffle.getDropId(),
+                raffle.getProductId(),
                 raffle.getName(),
                 raffle.getWinnerCount(),
                 raffle.getStatus(),
