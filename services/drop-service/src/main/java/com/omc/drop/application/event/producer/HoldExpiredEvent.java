@@ -1,4 +1,4 @@
-package com.omc.drop.infrastructure.kafka.event;
+package com.omc.drop.application.event.producer;
 
 import com.omc.common.util.UuidV7Generator;
 import java.util.UUID;
