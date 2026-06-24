@@ -57,6 +57,7 @@ CLAUDE.md
 .env
 .env.local
 .env.*.local
+.env.prod
 application-secret.yml
 application-local.yml
 **/application-prod.yml
