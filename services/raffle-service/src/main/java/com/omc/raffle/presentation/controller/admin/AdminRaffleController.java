@@ -16,8 +16,8 @@ import org.springframework.http.HttpStatus;
 import jakarta.validation.Valid;
 
 import com.omc.common.response.PageResponse;
-import com.omc.raffle.application.dto.response.RaffleEntryResponse;
-import com.omc.raffle.application.dto.response.RaffleResponse;
+import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
+import com.omc.raffle.presentation.dto.response.RaffleResponse;
 import com.omc.raffle.application.service.AdminRaffleAppService;
 import com.omc.raffle.presentation.dto.request.admin.AdminRaffleCreateRequest;
 import com.omc.raffle.presentation.dto.request.admin.AdminRaffleStatusUpdateRequest;

@@ -1,12 +1,12 @@
 package com.omc.raffle.presentation.controller;
 
 import com.omc.common.response.ApiResponse;
-import com.omc.raffle.application.dto.request.RaffleApplyRequest;
-import com.omc.raffle.application.dto.response.RaffleApplyResponse;
+import com.omc.raffle.presentation.dto.request.RaffleApplyRequest;
+import com.omc.raffle.presentation.dto.response.RaffleApplyResponse;
 import com.omc.raffle.application.service.RaffleAppService;
 import com.omc.raffle.application.service.RaffleResultService;
 import com.omc.raffle.presentation.dto.request.RaffleEnterRequest;
-import com.omc.raffle.application.dto.response.RaffleResultResponse;
+import com.omc.raffle.presentation.dto.response.RaffleResultResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,8 +17,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 
 import com.omc.common.response.PageResponse;
-import com.omc.raffle.application.dto.response.RaffleResponse;
-import com.omc.raffle.application.dto.response.RaffleEntryResponse;
+import com.omc.raffle.presentation.dto.response.RaffleResponse;
+import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
 
 import java.util.UUID;
 

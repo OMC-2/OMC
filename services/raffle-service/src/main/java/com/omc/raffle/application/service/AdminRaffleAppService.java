@@ -2,8 +2,8 @@ package com.omc.raffle.application.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.common.response.PageResponse;
-import com.omc.raffle.application.dto.response.RaffleEntryResponse;
-import com.omc.raffle.application.dto.response.RaffleResponse;
+import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
+import com.omc.raffle.presentation.dto.response.RaffleResponse;
 import com.omc.raffle.domain.entity.Raffle;
 import com.omc.raffle.domain.entity.RaffleEntry;
 import com.omc.raffle.domain.exception.RaffleErrorCode;

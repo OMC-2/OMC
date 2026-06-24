@@ -1,7 +1,7 @@
 package com.omc.raffle.application.service;
 
-import com.omc.raffle.application.dto.request.RaffleApplyRequest;
-import com.omc.raffle.application.dto.response.RaffleApplyResponse;
+import com.omc.raffle.presentation.dto.request.RaffleApplyRequest;
+import com.omc.raffle.presentation.dto.response.RaffleApplyResponse;
 import com.omc.raffle.domain.entity.Raffle;
 import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
