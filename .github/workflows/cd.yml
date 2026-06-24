@@ -5,6 +5,10 @@ on:
     branches:
       - develop
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   OWNER: ${{ github.repository_owner }}
 
