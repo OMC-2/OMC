@@ -94,14 +94,9 @@ class CouponApiIntegrationTest {
     }
 
     private Coupon createAndSaveCoupon(int totalQuantity) {
-        return couponRepository.save(Coupon.builder()
-                .name("통합테스트 쿠폰")
-                .discountType(DiscountType.AMOUNT)
-                .discountValue(new BigDecimal("1000"))
-                .totalQuantity(totalQuantity)
-                .startedAt(LocalDateTime.now().minusDays(1))
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build());
+        return couponRepository.save(Coupon.create(
+                "통합테스트 쿠폰", DiscountType.AMOUNT, new BigDecimal("1000"),
+                null, totalQuantity, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(7)));
     }
 
     // =========================================================================
@@ -222,11 +217,7 @@ class CouponApiIntegrationTest {
     @Test
     void getMyCoupons_success() throws Exception {
         Coupon coupon = createAndSaveCoupon(100);
-        userCouponRepository.save(UserCoupon.builder()
-                .userId(USER_ID)
-                .coupon(coupon)
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build());
+        userCouponRepository.save(UserCoupon.create(USER_ID, coupon, LocalDateTime.now().plusDays(7)));
 
         mockMvc.perform(get("/api/v1/coupons/me")
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
@@ -247,14 +238,9 @@ class CouponApiIntegrationTest {
     // =========================================================================
     @Test
     void issueCoupon_expired_returns400() throws Exception {
-        Coupon coupon = couponRepository.save(Coupon.builder()
-                .name("만료 쿠폰")
-                .discountType(DiscountType.AMOUNT)
-                .discountValue(new BigDecimal("1000"))
-                .totalQuantity(100)
-                .startedAt(LocalDateTime.now().minusDays(10))
-                .expiredAt(LocalDateTime.now().minusDays(1))
-                .build());
+        Coupon coupon = couponRepository.save(Coupon.create(
+                "만료 쿠폰", DiscountType.AMOUNT, new BigDecimal("1000"),
+                null, 100, LocalDateTime.now().minusDays(10), LocalDateTime.now().minusDays(1)));
         redisTemplate.opsForValue().set("coupon:stock:" + coupon.getCouponId(), "100");
 
         mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
@@ -272,14 +258,9 @@ class CouponApiIntegrationTest {
     // =========================================================================
     @Test
     void issueCoupon_notStarted_returns400() throws Exception {
-        Coupon coupon = couponRepository.save(Coupon.builder()
-                .name("시작 전 쿠폰")
-                .discountType(DiscountType.AMOUNT)
-                .discountValue(new BigDecimal("1000"))
-                .totalQuantity(100)
-                .startedAt(LocalDateTime.now().plusDays(1))
-                .expiredAt(LocalDateTime.now().plusDays(30))
-                .build());
+        Coupon coupon = couponRepository.save(Coupon.create(
+                "시작 전 쿠폰", DiscountType.AMOUNT, new BigDecimal("1000"),
+                null, 100, LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(30)));
         redisTemplate.opsForValue().set("coupon:stock:" + coupon.getCouponId(), "100");
 
         mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
@@ -365,11 +346,7 @@ class CouponApiIntegrationTest {
     @Test
     void getMyCoupon_notOwner_returns404() throws Exception {
         Coupon coupon = createAndSaveCoupon(100);
-        UserCoupon userCoupon = userCouponRepository.save(UserCoupon.builder()
-                .userId(OTHER_USER_ID)
-                .coupon(coupon)
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build());
+        UserCoupon userCoupon = userCouponRepository.save(UserCoupon.create(OTHER_USER_ID, coupon, LocalDateTime.now().plusDays(7)));
 
         mockMvc.perform(get("/api/v1/coupons/me/{userCouponId}", userCoupon.getUserCouponId())
                         .header("X-Gateway-Secret", GATEWAY_SECRET)

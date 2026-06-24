@@ -1,4 +1,4 @@
-package com.omc.raffle.application.dto.response;
+package com.omc.raffle.presentation.dto.response;
 
 import com.omc.raffle.domain.entity.RaffleEntry;
 import java.time.LocalDateTime;
