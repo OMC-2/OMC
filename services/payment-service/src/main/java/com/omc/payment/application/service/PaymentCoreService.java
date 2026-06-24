@@ -16,6 +16,7 @@ import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.repository.PaymentRepository;
+import com.omc.payment.infrastructure.client.CouponReserveRequest;
 import com.omc.payment.infrastructure.client.CouponServiceClient;
 import com.omc.payment.infrastructure.client.CouponUserCouponResponse;
 import feign.FeignException;
@@ -58,7 +59,7 @@ public class PaymentCoreService {
             return existingPayment;
         }
 
-        validateCoupon(couponId, originalAmount, discountAmount);
+        reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
 
         Payment payment = paymentRepository.save(
                 Payment.create(
@@ -111,7 +112,7 @@ public class PaymentCoreService {
             return existingPayment;
         }
 
-        validateCoupon(couponId, originalAmount, discountAmount);
+        reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
 
         String resolvedCustomerKey = customerKey == null || customerKey.isBlank()
                 ? UUID.randomUUID().toString()
@@ -294,8 +295,14 @@ public class PaymentCoreService {
         }
     }
 
-    // 쿠폰이 있으면 결제 직전에 상태와 할인 금액을 다시 확인
-    private void validateCoupon(UUID couponId, Long originalAmount, Long discountAmount) {
+    // 쿠폰이 있으면 결제 직전에 선점하고 응답으로 상태와 할인 금액을 확인
+    private void reserveAndValidateCoupon(
+            UUID couponId,
+            UUID orderId,
+            UUID userId,
+            Long originalAmount,
+            Long discountAmount
+    ) {
         long resolvedDiscountAmount = discountAmount == null ? 0L : discountAmount;
 
         if (couponId == null) {
@@ -305,7 +312,7 @@ public class PaymentCoreService {
             return;
         }
 
-        CouponUserCouponResponse coupon = getUserCoupon(couponId);
+        CouponUserCouponResponse coupon = reserveCoupon(couponId, orderId, userId);
         if (!"RESERVED".equals(coupon.status())) {
             throw new BusinessException(PaymentErrorCode.PAYMENT_INVALID_COUPON, "쿠폰 상태가 RESERVED가 아닙니다.");
         }
@@ -316,10 +323,11 @@ public class PaymentCoreService {
         }
     }
 
-    // coupon-service 내부 조회 응답을 받아 결제 검증에 사용
-    private CouponUserCouponResponse getUserCoupon(UUID couponId) {
+    // coupon-service에서 쿠폰을 선점하고 응답을 결제 검증에 사용
+    private CouponUserCouponResponse reserveCoupon(UUID couponId, UUID orderId, UUID userId) {
         try {
-            ApiResponse<CouponUserCouponResponse> response = couponServiceClient.getUserCoupon(couponId);
+            CouponReserveRequest request = new CouponReserveRequest(couponId, orderId, userId);
+            ApiResponse<CouponUserCouponResponse> response = couponServiceClient.reserveCoupon(request);
             if (response == null || response.getData() == null) {
                 throw new BusinessException(CommonErrorCode.REMOTE_RESPONSE_PARSE_ERROR, "쿠폰 서비스 응답이 비어 있습니다.");
             }

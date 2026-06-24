@@ -16,6 +16,7 @@ import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.repository.PaymentRepository;
+import com.omc.payment.infrastructure.client.CouponReserveRequest;
 import com.omc.payment.infrastructure.client.CouponServiceClient;
 import com.omc.payment.infrastructure.client.CouponUserCouponResponse;
 import org.junit.jupiter.api.DisplayName;
@@ -102,7 +103,7 @@ class PaymentCoreServiceTest {
             assertThat(payment.getDropId()).isEqualTo(DROP_ID);
             assertThat(payment.getOrderId()).isEqualTo(ORDER_ID);
             verify(paymentOutboxService).savePaymentCompleted(payment);
-            verify(couponServiceClient, never()).getUserCoupon(any());
+            verify(couponServiceClient, never()).reserveCoupon(any());
         }
 
         @Test
@@ -221,7 +222,7 @@ class PaymentCoreServiceTest {
         void confirmBillingPayment_success() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
             given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
-            given(couponServiceClient.getUserCoupon(COUPON_ID))
+            given(couponServiceClient.reserveCoupon(any(CouponReserveRequest.class)))
                     .willReturn(ApiResponse.success(rateCoupon("RESERVED", "15", "3000")));
             given(paymentGatewayPort.confirmBillingPayment(any(PaymentGatewayCommand.ConfirmBilling.class)))
                     .willReturn(new PaymentGatewayResult.Confirm("빌링 결제 아이디"));
@@ -250,6 +251,13 @@ class PaymentCoreServiceTest {
                     ArgumentCaptor.forClass(PaymentGatewayCommand.ConfirmBilling.class);
             verify(paymentGatewayPort).confirmBillingPayment(commandCaptor.capture());
             assertThat(commandCaptor.getValue().customerKey()).isNotBlank();
+
+            ArgumentCaptor<CouponReserveRequest> couponRequestCaptor =
+                    ArgumentCaptor.forClass(CouponReserveRequest.class);
+            verify(couponServiceClient).reserveCoupon(couponRequestCaptor.capture());
+            assertThat(couponRequestCaptor.getValue().userCouponId()).isEqualTo(COUPON_ID);
+            assertThat(couponRequestCaptor.getValue().orderId()).isEqualTo(ORDER_ID);
+            assertThat(couponRequestCaptor.getValue().userId()).isEqualTo(USER_ID);
             verify(paymentOutboxService).savePaymentCompleted(payment);
         }
     }
