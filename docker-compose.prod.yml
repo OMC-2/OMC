@@ -126,6 +126,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-eureka-server:latest
     container_name: omc-eureka-server
     environment:
+      TZ: Asia/Seoul
       EUREKA_URI: http://eureka-server:8761/eureka/
     networks:
       - omc-network
@@ -145,6 +146,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-config-server:latest
     container_name: omc-config-server
     environment:
+      TZ: Asia/Seoul
       EUREKA_URI: http://eureka-server:8761/eureka/
     depends_on:
       eureka-server:
@@ -169,6 +171,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_URI: http://config-server:8888
       EUREKA_URI: http://eureka-server:8761/eureka/
@@ -198,6 +201,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-user-service:latest
     container_name: omc-user-service
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_URI: http://config-server:8888
       EUREKA_URI: http://eureka-server:8761/eureka/
@@ -236,6 +240,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-drop-service:latest
     container_name: omc-drop-service
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_URI: http://config-server:8888
       DB_URL: jdbc:postgresql://postgres:5432/omc?currentSchema=drop_db
@@ -272,6 +277,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-order-service:latest
     container_name: omc-order-service
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_URI: http://config-server:8888
       DB_URL: jdbc:postgresql://postgres:5432/omc?currentSchema=order_db
@@ -307,6 +313,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-product-service:latest
     container_name: omc-product-service
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_URI: http://config-server:8888
       DB_URL: jdbc:postgresql://postgres:5432/omc?currentSchema=product_db
@@ -343,6 +350,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-payment-service:latest
     container_name: omc-payment-service
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_URI: http://config-server:8888
       DB_URL: jdbc:postgresql://postgres:5432/omc?currentSchema=payment_db
@@ -380,6 +388,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-raffle-service:latest
     container_name: omc-raffle-service
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_URI: http://config-server:8888
       DB_URL: jdbc:postgresql://postgres:5432/omc?currentSchema=raffle_db
@@ -415,6 +424,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-coupon-service:latest
     container_name: omc-coupon-service
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_URI: http://config-server:8888
       DB_URL: jdbc:postgresql://postgres:5432/omc?currentSchema=coupon_db
@@ -451,6 +461,7 @@ services:
     image: ghcr.io/${GITHUB_OWNER}/omc-notification-service:latest
     container_name: omc-notification-service
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_URI: http://config-server:8888
       DB_URL: jdbc:postgresql://postgres:5432/omc?currentSchema=notification_db

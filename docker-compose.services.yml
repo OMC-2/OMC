@@ -7,6 +7,7 @@ services:
     ports:
       - "8761:8761"
     environment:
+      TZ: Asia/Seoul
       EUREKA_URI: http://eureka-server:8761/eureka/
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"]
@@ -24,6 +25,7 @@ services:
     ports:
       - "8888:8888"
     environment:
+      TZ: Asia/Seoul
       EUREKA_URI: http://eureka-server:8761/eureka/
     depends_on:
       eureka-server:
@@ -44,6 +46,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
       EUREKA_URI: http://eureka-server:8761/eureka/
       GATEWAY_SECRET: local-secret
@@ -69,6 +72,7 @@ services:
     ports:
       - "8081:8081"
     environment:
+      TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
       EUREKA_URI: http://eureka-server:8761/eureka/
       DB_URL: postgres:5432
@@ -104,7 +108,9 @@ services:
     ports:
       - "8082:8082"
     environment:
+      TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
       DB_URL: postgres:5432
       DB_USERNAME: omc
       DB_PASSWORD: password
@@ -176,6 +182,7 @@ services:
     ports:
       - "8084:8084"
     environment:
+      TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
       EUREKA_URI: http://eureka-server:8761/eureka/
       DB_URL: postgres:5432
@@ -210,6 +217,7 @@ services:
     ports:
       - "8085:8085"
     environment:
+      TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
       EUREKA_URI: http://eureka-server:8761/eureka/
       DB_HOST: postgres
@@ -278,6 +286,7 @@ services:
     ports:
       - "8087:8087"
     environment:
+      TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
       EUREKA_URI: http://eureka-server:8761/eureka/
       DB_URL: postgres:5432
@@ -312,6 +321,7 @@ services:
     ports:
       - "8088:8088"
     environment:
+      TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
       EUREKA_URI: http://eureka-server:8761/eureka/
       DB_URL: postgres:5432

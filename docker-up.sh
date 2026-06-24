@@ -155,6 +155,7 @@ build_services() {
   ./gradlew :services:gateway:bootJar \
             :services:user-service:bootJar \
             :services:drop-service:bootJar \
+            :services:product-service:bootJar \
             :services:payment-service:bootJar \
             :services:coupon-service:bootJar \
             :services:notification-service:bootJar \
@@ -164,7 +165,7 @@ build_services() {
   echo ""
   echo "▶ [2단계] Docker 이미지 빌드"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" build \
-    eureka-server config-server gateway user-service drop-service payment-service coupon-service notification-service
+    eureka-server config-server gateway user-service drop-service product-service payment-service coupon-service notification-service
 }
 
 # ----------------------------------------------------------------
@@ -187,15 +188,16 @@ start_infra() {
 # ----------------------------------------------------------------
 start_services() {
   echo ""
-  echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service / payment-service / notification-service)"
+  echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service / product-service / payment-service / coupon-service / notification-service)"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
-    eureka-server config-server gateway user-service drop-service payment-service coupon-service notification-service
+    eureka-server config-server gateway user-service drop-service product-service payment-service coupon-service notification-service
 
   echo ""
-  echo "▶ [6단계] gateway + user-service + drop-service + payment-service + coupon-service + notification-service healthy 대기 (최대 180초)"
+  echo "▶ [6단계] 서비스 healthy 대기 (최대 180초)"
   wait_healthy omc-gateway 180
   wait_healthy omc-user-service 180
   wait_healthy omc-drop-service 180
+  wait_healthy omc-product-service 180
   wait_healthy omc-payment-service 180
   wait_healthy omc-coupon-service 180
   wait_healthy omc-notification-service 180
@@ -204,11 +206,15 @@ start_services() {
   echo "▶ [7단계] Gateway 라우팅 확인 (Eureka 전파 대기, 최대 90초)"
   # user-service: permitAll 경로로 실제 라우팅 확인
   wait_gateway_routing "http://localhost:8080/api/v1/users/signup" "user-service" 90
-  # coupon-service: 쿠폰 경로는 모두 인증 필요 → Eureka API로 등록 여부 직접 확인
+  # drop-service: Eureka 등록 확인
+  wait_eureka_registered "DROP-SERVICE" 90
+  # coupon-service: Eureka 등록 확인
   wait_eureka_registered "COUPON-SERVICE" 90
   # notification-service: Eureka 등록 확인
   wait_eureka_registered "NOTIFICATION-SERVICE" 90
-  # payment-service: 사용자 결제 API Gateway 라우팅 확인
+  # product-service: Eureka 등록 확인
+  wait_eureka_registered "PRODUCT-SERVICE" 90
+  # payment-service: Eureka 등록 확인
   wait_eureka_registered "PAYMENT-SERVICE" 90
 }
 

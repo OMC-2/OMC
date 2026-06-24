@@ -73,7 +73,7 @@
 #
 GATEWAY_SECRET=local-secret
 ADMIN_SECRET=local-admin-secret
-JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+JAVA_HOME=${JAVA_HOME:-$(/usr/libexec/java_home -v 21 2>/dev/null || /usr/libexec/java_home 2>/dev/null)}
 
 TARGET=$1
 
