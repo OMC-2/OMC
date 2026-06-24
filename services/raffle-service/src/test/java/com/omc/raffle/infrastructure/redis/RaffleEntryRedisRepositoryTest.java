@@ -82,6 +82,6 @@ class RaffleEntryRedisRepositoryTest {
         
         // 다시 응모 가능해짐
         boolean retryAttempt = redisRepository.addEntry(raffleId, userId);
-        assertTrue(retryAttempt);
+        assertTrue(retryAttempt, "removeEntry 후 다시 응모 가능해야 합니다.");
     }
 }

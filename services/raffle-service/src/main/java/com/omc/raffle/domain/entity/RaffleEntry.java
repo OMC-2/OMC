@@ -55,6 +55,8 @@ public class RaffleEntry extends BaseTimeEntity {
 
     @Builder(access = AccessLevel.PRIVATE)
     private RaffleEntry(UUID raffleId, UUID userId, String billingKeyId, UUID couponId, BigDecimal originalAmount, BigDecimal discountAmount, BigDecimal finalAmount) {
+        // [핵심 컨벤션] 시간 기반 순차 정렬이 가능한 UUIDv7 사용 
+        // 데이터가 많은 응모 내역(RaffleEntry) 테이블에서 UUIDv4를 쓰면 인덱스 파편화가 발생합니다.
         this.id = UuidV7Generator.generate();
         this.raffleId = raffleId;
         this.userId = userId;

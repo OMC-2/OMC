@@ -144,9 +144,12 @@ class RaffleAppServiceTest {
             BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
             assertEquals(RaffleErrorCode.RAFFLE_004.getCode(), exception.getErrorCode().getCode());
             
-            // Redis remove가 호출되었는지 검증
-            verify(redisRepository, times(1)).removeEntry(raffleId, request.userId());
+                verify(redisRepository, times(1)).removeEntry(raffleId, request.userId());
             verify(raffleEntryRepository, never()).save(any());
+        }
+    }
+}
+tryRepository, never()).save(any());
         }
     }
 }

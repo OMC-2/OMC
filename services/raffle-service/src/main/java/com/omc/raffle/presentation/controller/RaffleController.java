@@ -12,6 +12,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+
+import com.omc.common.response.PageResponse;
+import com.omc.raffle.application.dto.response.RaffleResponse;
+import com.omc.raffle.application.dto.response.RaffleEntryResponse;
 
 import java.util.UUID;
 
@@ -52,10 +59,44 @@ public class RaffleController {
     }
 
     /**
-     * 내 당첨 결과 조회 API
-     * GET /api/v1/raffles/{raffleId}/results
+     * 래플 목록 조회 API
+     * GET /api/v1/raffles
      */
-    @GetMapping("/{raffleId}/results")
+    @GetMapping
+    public ResponseEntity<ApiResponse<PageResponse<RaffleResponse>>> getRaffles(
+            @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        PageResponse<RaffleResponse> response = raffleAppService.getRaffles(pageable);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 래플 상세 단건 조회 API
+     * GET /api/v1/raffles/{raffleId}
+     */
+    @GetMapping("/{raffleId}")
+    public ResponseEntity<ApiResponse<RaffleResponse>> getRaffle(
+            @PathVariable UUID raffleId) {
+        RaffleResponse response = raffleAppService.getRaffle(raffleId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 내 응모 내역 조회 API
+     * GET /api/v1/raffles/entries/me
+     */
+    @GetMapping("/entries/me")
+    public ResponseEntity<ApiResponse<PageResponse<RaffleEntryResponse>>> getMyEntries(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PageableDefault(sort = "enteredAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        PageResponse<RaffleEntryResponse> response = raffleAppService.getMyEntries(userId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 내 당첨 결과 확인 API
+     * GET /api/v1/raffles/{raffleId}/winners/me
+     */
+    @GetMapping("/{raffleId}/winners/me")
     public ResponseEntity<ApiResponse<RaffleResultResponse>> getRaffleResult(
             @RequestHeader("X-User-Id") UUID userId,
             @PathVariable UUID raffleId) {

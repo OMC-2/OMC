@@ -145,9 +145,12 @@ class RaffleConcurrencyTest {
 
         // then
         assertEquals(threadCount, successCount.get(), "모든 다른 유저는 응모에 성공해야 합니다.");
-        assertEquals(0, failCount.get(), "실패한 요청이 없어야 합니다.");
+        assertEquals(0, failCount.get(), "실패한 요청이 없어�.");
         long dbCount = raffleEntryRepository.count();
-        assertEquals(threadCount, dbCount, "DB에 " + threadCount + "건이 저장되어야 합니다.");
+        assertEquals(threadCount, dbCount, "DB에도 100건이 저장되어야 합니다.");
+    }
+}
+�야 합니다.");
     }
 }
 

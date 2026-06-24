@@ -45,6 +45,7 @@ public class OutboxEvent extends BaseTimeEntity {
 
     @Builder(access = AccessLevel.PRIVATE)
     private OutboxEvent(String aggregateId, String aggregateType, String eventType, String payload) {
+        // [핵심 컨벤션] 대량으로 발행되는 이벤트 메세지이므로 시간순 정렬과 인덱스 최적화를 위해 UUIDv7 사용
         this.id = UuidV7Generator.generate();
         this.aggregateId = aggregateId;
         this.aggregateType = aggregateType;

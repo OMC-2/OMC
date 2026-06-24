@@ -197,4 +197,6 @@ class RaffleDrawServiceTest {
         return results.stream().filter(r -> r.getResult() == status).count();
     }
 }
+ }
+}
 

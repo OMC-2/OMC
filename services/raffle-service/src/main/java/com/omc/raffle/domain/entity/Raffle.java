@@ -46,6 +46,9 @@ public class Raffle extends BaseTimeEntity {
 
     @Builder(access = AccessLevel.PRIVATE)
     private Raffle(UUID dropId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
+        // [핵심 컨벤션] UUIDv7 사용
+        // 식별자(PK)로 UUID를 사용할 경우, 시퀀셜한 정렬과 DB 인덱스 단편화 방지를 위해 
+        // 버전 4(랜덤) 대신 시간 기반인 버전 7(UuidV7Generator)을 강제합니다.
         this.id = UuidV7Generator.generate();
         this.dropId = dropId;
         this.name = name;
@@ -72,12 +75,20 @@ public class Raffle extends BaseTimeEntity {
                 .build();
     }
 
-    public void updateStatus(RaffleStatus newStatus) {
-        this.status = newStatus;
-    }
-
-    public void updateDetails(String name, int winnerCount) {
+    public void update(String name, int winnerCount) {
+        Assert.isTrue(this.status == RaffleStatus.SCHEDULED, "Only SCHEDULED raffles can be updated");
+        Assert.hasText(name, "name must not be empty");
+        Assert.isTrue(winnerCount > 0, "winnerCount must be greater than 0");
         this.name = name;
         this.winnerCount = winnerCount;
     }
+
+    public void updateStatus(RaffleStatus status) {
+        Assert.notNull(status, "status must not be null");
+        this.status = status;
+    }
+
+
+
+
 }

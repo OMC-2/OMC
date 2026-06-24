@@ -98,7 +98,10 @@ class OutboxPollerSchedulerTest {
         await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> {
             OutboxEvent updated = outboxEventRepository.findById(event.getId()).orElseThrow();
             assertEquals(OutboxStatus.DEAD, updated.getStatus());
-            assertEquals(3, updated.getRetryCount());
+        });
+    }
+}
+quals(3, updated.getRetryCount());
         });
     }
 }

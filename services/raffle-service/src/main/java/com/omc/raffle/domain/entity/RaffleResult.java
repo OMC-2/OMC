@@ -43,6 +43,7 @@ public class RaffleResult {
 
     @Builder(access = AccessLevel.PRIVATE)
     private RaffleResult(UUID entryId, UUID raffleId, UUID userId, RaffleResultStatus result) {
+        // [핵심 컨벤션] 대용량 추첨 결과(RaffleResult) Insert 시 DB 성능 저하 방지를 위한 UUIDv7 적용
         this.id = UuidV7Generator.generate();
         this.entryId = entryId;
         this.raffleId = raffleId;
