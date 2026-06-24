@@ -87,14 +87,9 @@ class CouponConcurrencyTest {
         int TOTAL_QUANTITY = 100;
         int THREAD_COUNT = 200;
 
-        Coupon coupon = couponRepository.save(Coupon.builder()
-                .name("선착순 동시성 테스트 쿠폰")
-                .discountType(DiscountType.AMOUNT)
-                .discountValue(new BigDecimal("1000"))
-                .totalQuantity(TOTAL_QUANTITY)
-                .startedAt(LocalDateTime.now().minusDays(1))
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build());
+        Coupon coupon = couponRepository.save(Coupon.create(
+                "선착순 동시성 테스트 쿠폰", DiscountType.AMOUNT, new BigDecimal("1000"),
+                null, TOTAL_QUANTITY, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(7)));
         couponRedisRepository.initStock(coupon.getCouponId().toString(), TOTAL_QUANTITY);
 
         AtomicInteger successCount = new AtomicInteger(0);

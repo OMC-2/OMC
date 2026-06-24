@@ -165,24 +165,15 @@ class CouponOutboxEventIdTest {
     // =========================================================================
 
     private Coupon createCoupon() {
-        Coupon coupon = couponRepository.save(Coupon.builder()
-                .name("UUID v7 테스트 쿠폰")
-                .discountType(DiscountType.AMOUNT)
-                .discountValue(new BigDecimal("1000"))
-                .totalQuantity(100)
-                .startedAt(LocalDateTime.now().minusDays(1))
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build());
+        Coupon coupon = couponRepository.save(Coupon.create(
+                "UUID v7 테스트 쿠폰", DiscountType.AMOUNT, new BigDecimal("1000"),
+                null, 100, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(7)));
         couponRedisRepository.initStock(coupon.getCouponId().toString(), 100);
         return coupon;
     }
 
     private UserCoupon createReservedUserCoupon(Coupon coupon, UUID orderId) {
-        UserCoupon userCoupon = UserCoupon.builder()
-                .userId(UUID.randomUUID())
-                .coupon(coupon)
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build();
+        UserCoupon userCoupon = UserCoupon.create(UUID.randomUUID(), coupon, LocalDateTime.now().plusDays(7));
         userCoupon.reserve(orderId);
         return userCouponRepository.save(userCoupon);
     }
