@@ -1,4 +1,4 @@
-package com.omc.drop.infrastructure.kafka.exception;
+package com.omc.drop.application.event.consumer;
 
 public class EventProcessingException extends RuntimeException {
 

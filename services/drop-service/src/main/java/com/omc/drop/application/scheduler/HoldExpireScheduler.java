@@ -4,7 +4,7 @@ import com.omc.drop.application.event.producer.DropEventProducer;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
-import com.omc.drop.infrastructure.kafka.event.HoldExpiredEvent;
+import com.omc.drop.application.event.producer.HoldExpiredEvent;
 import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

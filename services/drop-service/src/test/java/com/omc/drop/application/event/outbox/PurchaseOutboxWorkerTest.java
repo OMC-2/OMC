@@ -1,6 +1,6 @@
 package com.omc.drop.application.event.outbox;
 
-import com.omc.drop.infrastructure.kafka.event.PurchaseConfirmedEvent;
+import com.omc.drop.application.event.producer.PurchaseConfirmedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

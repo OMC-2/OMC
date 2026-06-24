@@ -3,8 +3,9 @@ package com.omc.drop.domain.entity;
 import com.omc.common.entity.BaseEntity;
 import com.omc.common.util.UuidV7Generator;
 import com.omc.drop.domain.enums.DropStatus;
-import com.omc.drop.domain.exception.DropNotOpenException;
 import com.omc.drop.domain.exception.InvalidDropDateRangeException;
+import com.omc.drop.domain.exception.InvalidDropHoldTtlException;
+import com.omc.drop.domain.exception.InvalidDropQuantityException;
 import com.omc.drop.domain.exception.InvalidDropStatusException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -66,6 +67,12 @@ public class Drop extends BaseEntity {
 
     public static Drop create(UUID productId, LocalDateTime startAt, LocalDateTime endAt, int totalQty, int holdTtlSec) {
         validateDateRange(startAt, endAt);
+        if (totalQty <= 0) {
+            throw new InvalidDropQuantityException();
+        }
+        if (holdTtlSec <= 0) {
+            throw new InvalidDropHoldTtlException();
+        }
         return Drop.builder()
                 .productId(productId)
                 .startAt(startAt)
@@ -115,11 +122,5 @@ public class Drop extends BaseEntity {
 
     public boolean isOpen() {
         return this.status == DropStatus.OPEN;
-    }
-
-    public void validateOpen() {
-        if (!isOpen()) {
-            throw new DropNotOpenException();
-        }
     }
 }
