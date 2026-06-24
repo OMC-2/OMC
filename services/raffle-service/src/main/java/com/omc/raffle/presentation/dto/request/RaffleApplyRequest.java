@@ -1,4 +1,4 @@
-package com.omc.raffle.application.dto.request;
+package com.omc.raffle.presentation.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
