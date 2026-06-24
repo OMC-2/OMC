@@ -81,4 +81,3 @@ public class Raffle extends BaseTimeEntity {
         this.winnerCount = winnerCount;
     }
 }
-

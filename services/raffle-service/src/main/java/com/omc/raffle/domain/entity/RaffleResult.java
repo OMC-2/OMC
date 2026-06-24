@@ -71,4 +71,3 @@ public class RaffleResult {
         this.decidedAt = LocalDateTime.now();
     }
 }
-

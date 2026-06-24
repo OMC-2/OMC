@@ -17,6 +17,8 @@ import org.springframework.util.Assert;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OutboxEvent extends BaseTimeEntity {
 
+    private static final int MAX_RETRY = 3;
+
     @Id
     @Column(name = "event_id", columnDefinition = "uuid")
     private UUID id;
@@ -72,11 +74,10 @@ public class OutboxEvent extends BaseTimeEntity {
 
     public void markAsFailed() {
         this.retryCount++;
-        if (this.retryCount >= 3) {
+        if (this.retryCount >= MAX_RETRY) {
             this.status = OutboxStatus.DEAD;
         } else {
             this.status = OutboxStatus.FAILED;
         }
     }
 }
-
