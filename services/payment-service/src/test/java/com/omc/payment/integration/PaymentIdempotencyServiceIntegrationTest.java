@@ -20,6 +20,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -40,7 +41,8 @@ class PaymentIdempotencyServiceIntegrationTest {
     @Container
     @SuppressWarnings("resource")
     static GenericContainer<?> redis = new GenericContainer<>("redis:7.2-alpine")
-            .withExposedPorts(6379);
+            .withExposedPorts(6379)
+            .withTmpFs(Map.of("/data", "rw"));
 
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {

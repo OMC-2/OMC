@@ -46,6 +46,12 @@ subprojects {
     test {
         useJUnitPlatform()
         finalizedBy 'jacocoTestReport'
+        doLast {
+            // postgres anonymous volumes 정리 (testcontainers 컨테이너는 Ryuk이 이미 제거)
+            // 주의: docker-compose down 상태라면 omc_postgres_data 등 named volume도 삭제됨
+            ['docker', 'volume', 'prune', '-f'].execute().waitFor()
+            ['docker', 'image', 'prune', '-f'].execute().waitFor()
+        }
     }
 
     jacocoTestReport {

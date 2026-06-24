@@ -49,12 +49,14 @@ class CouponOutboxEventIdTest {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine")
             .withDatabaseName("testdb")
             .withUsername("test")
-            .withPassword("test");
+            .withPassword("test")
+            ;
 
     @Container
     @SuppressWarnings("resource")
     static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-            .withExposedPorts(6379);
+            .withExposedPorts(6379)
+            .withTmpFs(Map.of("/data", "rw"));
 
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
