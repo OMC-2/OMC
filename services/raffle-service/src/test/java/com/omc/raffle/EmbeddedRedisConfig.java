@@ -29,14 +29,4 @@ public class EmbeddedRedisConfig {
             System.out.println("Embedded Redis failed to start (maybe already running): " + e.getMessage());
         }
     }
-
-    @PostConstruct
-    public void postConstruct() {
-        // no-op: server started in static block
-    }
-
-    @PreDestroy
-    public void preDestroy() {
-        // no-op: shutdown hook handles cleanup
-    }
 }

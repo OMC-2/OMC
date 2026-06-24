@@ -66,9 +66,6 @@ class KafkaEventProducerAdapterTest {
         // when
         CompletableFuture<Boolean> result = adapter.send(topic, aggregateId.toString(), payload);
 
-        // when
-        CompletableFuture<Boolean> result = adapter.send(topic, aggregateId.toString(), payload);
-
         // then
         assertFalse(result.join());
     }

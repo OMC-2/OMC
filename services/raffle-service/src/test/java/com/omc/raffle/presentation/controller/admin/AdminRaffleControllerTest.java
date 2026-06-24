@@ -89,5 +89,3 @@ class AdminRaffleControllerTest {
         verify(raffleDrawService, never()).drawRaffle(any());
     }
 }
-
-}

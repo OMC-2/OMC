@@ -63,9 +63,7 @@ public abstract class IntegrationTestSupport {
     }
 
     // PaymentClient는 외부 payment-service에 실제 요청을 보내므로 기본 Mock 처리
-    // 하위 테스트에서 doNothing() 또는 doThrow()로 동작 �
+    // 하위 테스트에서 doNothing() 또는 doThrow()로 동작 제어
     @MockBean
     protected PaymentClient paymentClient;
-}
-ent;
 }

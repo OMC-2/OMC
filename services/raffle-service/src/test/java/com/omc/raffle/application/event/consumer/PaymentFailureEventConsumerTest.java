@@ -128,10 +128,7 @@ class PaymentFailureEventConsumerTest {
         kafkaTemplate.send("payment.failed", eventId.toString(), objectMapper.writeValueAsString(validEvent));
 
         await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(raffleDrawService, times(1)).handlePaymentFailure(eventId, any());
+            verify(raffleDrawService, times(1)).handlePaymentFailure(eq(eventId), any());
         });
     }
-}
-}
- }
 }
