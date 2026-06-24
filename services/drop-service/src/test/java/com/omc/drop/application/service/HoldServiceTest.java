@@ -1,7 +1,7 @@
 package com.omc.drop.application.service;
 
 import com.omc.drop.application.event.producer.DropEventProducer;
-import com.omc.drop.infrastructure.kafka.event.RefundRequestedEvent;
+import com.omc.drop.application.event.producer.RefundRequestedEvent;
 import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

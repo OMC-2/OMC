@@ -8,7 +8,7 @@ import com.omc.raffle.application.service.RaffleResultService;
 import com.omc.raffle.domain.enums.RaffleResultStatus;
 import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.presentation.dto.request.RaffleEnterRequest;
-import com.omc.raffle.presentation.dto.response.RaffleResultResponse;
+import com.omc.raffle.application.dto.response.RaffleResultResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -33,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(RaffleController.class)
 @AutoConfigureMockMvc(addFilters = false) // Security Filter 우회
+@MockBean(JpaMetamodelMappingContext.class) // @EnableJpaAuditing ↔ @WebMvcTest 충돌 방지
 @DisplayName("RaffleController 슬라이스 테스트")
 class RaffleControllerTest {
 
@@ -58,7 +60,7 @@ class RaffleControllerTest {
             // given
             UUID raffleId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            UUID billingKeyId = UUID.randomUUID();
+            String billingKeyId = "bk_" + UUID.randomUUID().toString();
             RaffleEnterRequest request = new RaffleEnterRequest(
                     billingKeyId,
                     null,
@@ -138,3 +140,6 @@ class RaffleControllerTest {
         }
     }
 }
+
+
+

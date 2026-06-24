@@ -1,6 +1,6 @@
 package com.omc.drop.application.event.outbox;
 
-import com.omc.drop.infrastructure.kafka.event.PurchaseConfirmedEvent;
+import com.omc.drop.application.event.producer.PurchaseConfirmedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;

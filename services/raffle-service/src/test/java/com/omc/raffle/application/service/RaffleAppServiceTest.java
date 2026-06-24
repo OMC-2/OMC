@@ -57,7 +57,7 @@ class RaffleAppServiceTest {
             // given
             UUID raffleId = UUID.randomUUID();
             RaffleApplyRequest request = new RaffleApplyRequest(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
@@ -66,7 +66,7 @@ class RaffleAppServiceTest {
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(true);
-            doNothing().when(paymentClient).preAuthCard(any(UUID.class), any(BigDecimal.class));
+            doNothing().when(paymentClient).preAuthCard(any(PaymentClient.PreAuthRequest.class));
 
             RaffleEntry savedEntry = RaffleEntry.create(raffleId, request.userId(), request.billingKeyId(), null, BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000));
             when(raffleEntryRepository.save(any(RaffleEntry.class))).thenReturn(savedEntry);
@@ -77,7 +77,7 @@ class RaffleAppServiceTest {
             // then
             assertNotNull(response);
             assertEquals(request.userId(), response.userId());
-            verify(paymentClient, times(1)).preAuthCard(any(UUID.class), any(BigDecimal.class));
+            verify(paymentClient, times(1)).preAuthCard(any(PaymentClient.PreAuthRequest.class));
             verify(raffleEntryRepository, times(1)).save(any(RaffleEntry.class));
         }
 
@@ -87,7 +87,7 @@ class RaffleAppServiceTest {
             // given
             UUID raffleId = UUID.randomUUID();
             RaffleApplyRequest request = new RaffleApplyRequest(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
@@ -107,7 +107,7 @@ class RaffleAppServiceTest {
             // given
             UUID raffleId = UUID.randomUUID();
             RaffleApplyRequest request = new RaffleApplyRequest(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
@@ -120,7 +120,7 @@ class RaffleAppServiceTest {
             // when & then
             BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
             assertEquals(RaffleErrorCode.RAFFLE_002.getCode(), exception.getErrorCode().getCode());
-            verify(paymentClient, never()).preAuthCard(any(), any());
+            verify(paymentClient, never()).preAuthCard(any());
         }
 
         @Test
@@ -129,7 +129,7 @@ class RaffleAppServiceTest {
             // given
             UUID raffleId = UUID.randomUUID();
             RaffleApplyRequest request = new RaffleApplyRequest(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
@@ -138,7 +138,7 @@ class RaffleAppServiceTest {
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(true);
-            doThrow(new RuntimeException("Payment Error")).when(paymentClient).preAuthCard(any(), any());
+            doThrow(new RuntimeException("Payment Error")).when(paymentClient).preAuthCard(any());
 
             // when & then
             BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
@@ -150,3 +150,6 @@ class RaffleAppServiceTest {
         }
     }
 }
+
+
+

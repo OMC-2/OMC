@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -53,9 +54,10 @@ class PaymentInternalControllerTest {
     class ConfirmPaymentApi {
 
         @Test
-        @DisplayName("유효한 요청이면 201을 반환한다")
+        @DisplayName("유효한 헤더와 요청이면 201을 반환한다")
         void confirmPayment_success() throws Exception {
-            given(paymentService.confirmPayment(any())).willReturn(paymentResponse(PaymentStatus.PAID));
+            given(paymentService.confirmPayment(any(), eq(USER_ID)))
+                    .willReturn(paymentResponse(PaymentStatus.PAID));
 
             String body = objectMapper.writeValueAsString(new ConfirmPaymentRequest(
                     ORDER_ID,
@@ -69,6 +71,7 @@ class PaymentInternalControllerTest {
             ));
 
             mockMvc.perform(post("/internal/v1/payments/confirm")
+                            .header("X-User-Id", USER_ID.toString())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isCreated())
@@ -77,18 +80,18 @@ class PaymentInternalControllerTest {
         }
 
         @Test
-        @DisplayName("필수 값이 없으면 400을 반환한다")
-        void confirmPayment_invalidRequest() throws Exception {
-            String body = """
-                    {
-                      "dropId": "%s",
-                      "productId": "%s",
-                      "providerPaymentId": "결제 승인 아이디",
-                      "originalAmount": 10000,
-                      "discountAmount": 1000,
-                      "finalAmount": 9000
-                    }
-                    """.formatted(DROP_ID, PRODUCT_ID);
+        @DisplayName("사용자 헤더가 없으면 400을 반환한다")
+        void confirmPayment_missingUserHeader() throws Exception {
+            String body = objectMapper.writeValueAsString(new ConfirmPaymentRequest(
+                    ORDER_ID,
+                    DROP_ID,
+                    PRODUCT_ID,
+                    "결제 승인 아이디",
+                    null,
+                    10000L,
+                    1000L,
+                    9000L
+            ));
 
             mockMvc.perform(post("/internal/v1/payments/confirm")
                             .contentType(MediaType.APPLICATION_JSON)

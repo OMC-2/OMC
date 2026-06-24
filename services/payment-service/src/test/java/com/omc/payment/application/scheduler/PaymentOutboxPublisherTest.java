@@ -1,6 +1,6 @@
 package com.omc.payment.application.scheduler;
 
-import com.omc.payment.application.service.PaymentOutboxPublishProcessor;
+import com.omc.payment.application.service.PaymentOutboxPublishService;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.OutboxAggregateType;
 import com.omc.payment.domain.enums.OutboxEventStatus;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 class PaymentOutboxPublisherTest {
 
     @Mock private PaymentOutboxEventRepository paymentOutboxEventRepository;
-    @Mock private PaymentOutboxPublishProcessor paymentOutboxPublishProcessor;
+    @Mock private PaymentOutboxPublishService paymentOutboxPublishService;
 
     @InjectMocks
     private PaymentOutboxPublisher paymentOutboxPublisher;
@@ -46,8 +46,8 @@ class PaymentOutboxPublisherTest {
 
         paymentOutboxPublisher.publishPendingEvents();
 
-        verify(paymentOutboxPublishProcessor).publish(initEvent.getEventId());
-        verify(paymentOutboxPublishProcessor).publish(failedEvent.getEventId());
+        verify(paymentOutboxPublishService).publish(initEvent.getEventId());
+        verify(paymentOutboxPublishService).publish(failedEvent.getEventId());
     }
 
     @Test
@@ -61,7 +61,7 @@ class PaymentOutboxPublisherTest {
 
         paymentOutboxPublisher.publishPendingEvents();
 
-        verify(paymentOutboxPublishProcessor, never()).publish(org.mockito.ArgumentMatchers.any());
+        verify(paymentOutboxPublishService, never()).publish(org.mockito.ArgumentMatchers.any());
     }
 
     private PaymentOutboxEvent createOutboxEvent() {

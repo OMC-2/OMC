@@ -3,14 +3,16 @@ package com.omc.raffle.infrastructure.client;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
+
+import java.math.BigDecimal;
 
 import java.util.UUID;
 
 /**
  * 결제 서비스(payment-service)와 통신하여 카드 가승인 및 검증을 수행하는 Feign Client입니다.
  */
-@FeignClient(name = "payment-service", url = "http://payment-service:8080")
+@FeignClient(name = "payment-service", url = "${payment.service.url:http://payment-service:8080}")
 public interface PaymentClient {
 
     /**
@@ -19,6 +21,8 @@ public interface PaymentClient {
      * @param amount 가승인 금액 (예: 100)
      * @return 가승인 성공 여부 또는 트랜잭션 결과 객체
      */
-    @PostMapping("/api/v1/payments/pre-auth/{billingKeyId}")
-    void preAuthCard(@PathVariable("billingKeyId") UUID billingKeyId, @RequestParam("amount") java.math.BigDecimal amount);
+    @PostMapping("/internal/v1/payments/billing-keys")
+    void preAuthCard(@RequestBody PreAuthRequest request);
+
+    record PreAuthRequest(String billingKeyId, BigDecimal amount) {}
 }

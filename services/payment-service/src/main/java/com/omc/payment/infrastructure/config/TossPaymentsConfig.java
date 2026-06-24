@@ -1,6 +1,7 @@
 package com.omc.payment.infrastructure.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
@@ -8,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 @Configuration
+@ConditionalOnProperty(name = "payment.pg.mode", havingValue = "toss", matchIfMissing = true)
 public class TossPaymentsConfig {
     /*
     * Toss 전용 RestClient 통신 방식 적용

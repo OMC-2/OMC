@@ -11,10 +11,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/internal/v1")
-@Tag(name = "Payment", description = "서비스 간 호출 API")
+@Tag(name = "Internal Payment", description = "서비스 간 내부 호출 API")
 public class PaymentInternalController {
 
     private final PaymentService paymentService;
@@ -27,9 +29,10 @@ public class PaymentInternalController {
     @PostMapping("/payments/confirm")
     @ResponseStatus(HttpStatus.CREATED)
     public PaymentResponse confirmPayment(
+            @RequestHeader("X-User-Id") UUID userId,
             @Valid @RequestBody ConfirmPaymentRequest request
     ) {
-        return paymentService.confirmPayment(request);
+        return paymentService.confirmPayment(request, userId);
     }
 
     // 클라이언트가 결제창/SDK 리다이렉트로 받은 customerKey, authKey

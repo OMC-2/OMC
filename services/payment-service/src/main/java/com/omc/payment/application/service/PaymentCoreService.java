@@ -36,8 +36,9 @@ public class PaymentCoreService {
     private final PaymentGatewayPort paymentGatewayPort;
     private final PaymentOutboxService paymentOutboxService;
     private final CouponServiceClient couponServiceClient;
+    private final PaymentIdempotencyService paymentIdempotencyService;
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public Payment confirmPayment(
             UUID orderId,
             UUID dropId,
@@ -79,13 +80,13 @@ public class PaymentCoreService {
 
         // Mocking을 위한 랜덤 결제 식별자 Fallback
         String resolvedProviderPaymentId = providerPaymentId == null || providerPaymentId.isBlank()
-                ? UUID.randomUUID().toString()
+                ? orderId.toString()
                 : providerPaymentId;
 
         return confirmWithGateway(payment, orderId, finalAmount, resolvedProviderPaymentId);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public Payment confirmBillingPayment(
             UUID orderId,
             UUID entryId,
@@ -112,6 +113,10 @@ public class PaymentCoreService {
 
         validateCoupon(couponId, originalAmount, discountAmount);
 
+        String resolvedCustomerKey = customerKey == null || customerKey.isBlank()
+                ? UUID.randomUUID().toString()
+                : customerKey;
+
         Payment payment = paymentRepository.save(
                 Payment.create(
                         orderId,
@@ -131,7 +136,7 @@ public class PaymentCoreService {
 
         payment.startConfirming();
 
-        return confirmBillingWithGateway(payment, billingKeyId, customerKey, orderId, finalAmount);
+        return confirmBillingWithGateway(payment, billingKeyId, resolvedCustomerKey, orderId, finalAmount);
     }
 
     /*
@@ -207,7 +212,8 @@ public class PaymentCoreService {
                     new PaymentGatewayCommand.Confirm(
                             providerPaymentId,
                             orderId.toString(),
-                            finalAmount
+                            finalAmount,
+                            paymentIdempotencyService.confirmKey(orderId)
                     )
             );
             payment.approve(result.providerPaymentId());
@@ -243,8 +249,9 @@ public class PaymentCoreService {
                             billingKeyId,
                             resolvedCustomerKey,
                             orderId.toString(),
-                            "래플 자동결제",
-                            finalAmount
+                            "래플 자동 결제",
+                            finalAmount,
+                            paymentIdempotencyService.confirmKey(orderId)
                     )
             );
             payment.approve(result.providerPaymentId());
@@ -267,7 +274,8 @@ public class PaymentCoreService {
                     new PaymentGatewayCommand.Cancel(
                             payment.getProviderPaymentId(),
                             cancelReason,
-                            payment.getFinalAmount()
+                            payment.getFinalAmount(),
+                            paymentIdempotencyService.confirmKey(payment.getOrderId())
                     )
             );
             return result.providerCancellationId();

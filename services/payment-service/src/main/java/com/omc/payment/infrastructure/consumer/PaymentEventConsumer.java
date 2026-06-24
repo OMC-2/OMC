@@ -1,14 +1,15 @@
 package com.omc.payment.infrastructure.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.payment.application.event.consumer.OrderCreatedEvent;
-import com.omc.payment.application.event.consumer.RefundRequestedEvent;
-import com.omc.payment.application.event.consumer.StockFailedEvent;
+import com.omc.payment.application.event.dto.inbound.OrderCreatedEvent;
+import com.omc.payment.application.event.dto.inbound.RefundRequestedEvent;
+import com.omc.payment.application.event.dto.inbound.StockFailedEvent;
 import com.omc.payment.application.service.PaymentEventService;
 import com.omc.payment.infrastructure.config.KafkaTopics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -20,21 +21,24 @@ public class PaymentEventConsumer {
     private final PaymentEventService paymentEventService;
 
     @KafkaListener(topics = KafkaTopics.ORDER_CREATED)
-    public void consumeOrderCreated(String message) {
+    public void consumeOrderCreated(String message, Acknowledgment acknowledgment) {
         OrderCreatedEvent event = readValue(message, OrderCreatedEvent.class, KafkaTopics.ORDER_CREATED);
         paymentEventService.handleOrderCreated(event);
+        acknowledgment.acknowledge();
     }
 
     @KafkaListener(topics = KafkaTopics.REFUND_REQUESTED)
-    public void consumeRefundRequested(String message) {
+    public void consumeRefundRequested(String message, Acknowledgment acknowledgment) {
         RefundRequestedEvent event = readValue(message, RefundRequestedEvent.class, KafkaTopics.REFUND_REQUESTED);
         paymentEventService.handleRefundRequested(event);
+        acknowledgment.acknowledge();
     }
 
     @KafkaListener(topics = KafkaTopics.STOCK_FAILED)
-    public void consumeStockFailed(String message) {
+    public void consumeStockFailed(String message, Acknowledgment acknowledgment) {
         StockFailedEvent event = readValue(message, StockFailedEvent.class, KafkaTopics.STOCK_FAILED);
         paymentEventService.handleStockFailed(event);
+        acknowledgment.acknowledge();
     }
 
     // 이벤트 문자열 역직렬화

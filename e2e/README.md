@@ -29,6 +29,7 @@ bash docker-up.sh
 bash e2e/run.sh               # 전체 실행
 bash e2e/run.sh user          # user 서비스만
 bash e2e/run.sh coupon        # coupon 서비스만
+bash e2e/run.sh payment       # payment 서비스만
 bash e2e/run.sh user/signup   # 특정 시나리오만
 ```
 
@@ -41,6 +42,7 @@ bash e2e/run.sh user/signup   # 특정 시나리오만
 bash e2e/run.sh user              # user/ 폴더 전체
 bash e2e/run.sh coupon            # coupon/ 폴더 전체
 bash e2e/run.sh saga              # saga/ 폴더 전체 (서비스 연계 시나리오)
+bash e2e/run.sh payment           # payment/ 폴더 전체
 
 # user 개별 시나리오
 bash e2e/run.sh user/signup              # 회원가입
@@ -56,6 +58,10 @@ bash e2e/run.sh coupon/coupon_create     # 쿠폰 생성
 bash e2e/run.sh coupon/coupon_issue      # 쿠폰 발급
 bash e2e/run.sh coupon/coupon_my         # 내 쿠폰 조회
 bash e2e/run.sh coupon/coupon_security   # 쿠폰 인증·인가 보안 검증
+
+# payment 개별 시나리오
+bash e2e/run.sh payment/payment_flow     # 결제 승인·조회·취소
+bash e2e/run.sh payment/payment_security # 결제 인증·인가 보안 검증
 ```
 
 ---
@@ -70,6 +76,7 @@ bash e2e/run.sh coupon/coupon_security   # 쿠폰 인증·인가 보안 검증
 | `GATEWAY_SECRET` | `local-secret` | X-Gateway-Secret 헤더 값 |
 | `ADMIN_SECRET` | `local-admin-secret` | X-Admin-Secret 헤더 값 |
 | `BASE_URL` | `http://localhost:8080` | Gateway 주소 |
+| `PAYMENT_SERVICE_URL` | `http://localhost:8085` | 결제 내부 API 테스트 준비 주소 |
 
 ---
 
@@ -97,6 +104,9 @@ e2e/
         │   ├── coupon_issue.feature
         │   ├── coupon_my.feature
         │   └── coupon_security.feature
+        ├── payment/                    ← payment-service 시나리오
+        │   ├── payment_flow.feature
+        │   └── payment_security.feature
         └── saga/                       ← 서비스 연계 시나리오 (추후 추가)
 ```
 

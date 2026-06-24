@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: raffle-service
+  cloud:
+    config:
+      enabled: false
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        globally_quoted_identifiers: false
+  kafka:
+    bootstrap-servers: localhost:19092
+    consumer:
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      auto-startup: false   # @SpringBootTest 시 Kafka 브로커 없어도 컨텍스트 정상 기동
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+eureka:
+  client:
+    enabled: false          # 테스트 시 Eureka 연결 시도 방지
+
+payment:
+  service:
+    url: http://localhost:8080
+
+gateway:
+  secret: omc-internal-secret

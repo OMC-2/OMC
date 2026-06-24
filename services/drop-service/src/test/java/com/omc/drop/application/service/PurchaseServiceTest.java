@@ -5,7 +5,7 @@ import com.omc.drop.domain.exception.DuplicatePurchaseException;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.DropNotOpenException;
 import com.omc.drop.domain.exception.SoldOutException;
-import com.omc.drop.infrastructure.kafka.event.PurchaseConfirmedEvent;
+import com.omc.drop.application.event.producer.PurchaseConfirmedEvent;
 import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
 import com.omc.drop.presentation.dto.response.PurchaseResponse;
 import org.junit.jupiter.api.DisplayName;

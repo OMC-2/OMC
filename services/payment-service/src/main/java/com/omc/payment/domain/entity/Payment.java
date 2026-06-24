@@ -2,6 +2,7 @@ package com.omc.payment.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
 import com.omc.common.exception.BusinessException;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.payment.domain.enums.CancellationCode;
 import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
@@ -15,7 +16,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -35,7 +35,6 @@ import java.util.UUID;
 public class Payment extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "payment_id")
     private UUID paymentId;
 
@@ -97,8 +96,7 @@ public class Payment extends BaseEntity {
     @Column(name = "failure_code")
     private String failureCode;
 
-    @Lob
-    @Column(name = "failure_message")
+    @Column(name = "failure_message", columnDefinition = "TEXT")
     private String failureMessage;
 
     @Column(name = "cancellation_code")
@@ -157,6 +155,7 @@ public class Payment extends BaseEntity {
         }
 
         return Payment.builder()
+                .paymentId(UuidV7Generator.generate())
                 .orderId(Objects.requireNonNull(orderId, "주문 ID는 null일 수 없습니다."))
                 .dropId(dropId)
                 .raffleId(raffleId)
