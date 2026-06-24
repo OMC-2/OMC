@@ -1,17 +1,16 @@
 package com.omc.coupon.application.event.consumer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.coupon.application.event.dto.inbound.RefundDoneEvent;
 import com.omc.coupon.application.service.CouponSagaService;
 import com.omc.coupon.infrastructure.kafka.KafkaTopics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
-
-import java.util.Map;
-import java.util.UUID;
 
 @Slf4j
 @Component
@@ -19,28 +18,35 @@ import java.util.UUID;
 public class RefundDoneConsumer {
 
     private final CouponSagaService couponSagaService;
+    private final ObjectMapper objectMapper;
 
-    /**
-     * refund.done: 환불 완료 이벤트.
-     * refundReason == STOCK_DEDUCT_FAILED 일 때만 쿠폰 복구 (Case B).
-     * USER_CANCEL / RAFFLE_LOSE 는 쿠폰 소멸 (no-op).
-     */
+    // refund.done: STOCK_DEDUCT_FAILED 일 때만 USED → AVAILABLE 복구. 그 외 reason은 no-op.
     @KafkaListener(topics = KafkaTopics.REFUND_DONE, groupId = "coupon-service")
     public void handle(
-            @Payload Map<String, Object> event,
+            String message,
+            Acknowledgment acknowledgment,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.OFFSET) long offset
     ) {
-        String eventId = String.valueOf(event.get("eventId"));
-        log.info("[RefundDoneConsumer] 수신. topic={}, offset={}, eventId={}", topic, offset, eventId);
+        RefundDoneEvent event = readValue(message, RefundDoneEvent.class, topic);
+        log.info("[RefundDoneConsumer] 수신. topic={}, offset={}, eventId={}", topic, offset, event.eventId());
 
-        String refundReason = String.valueOf(event.get("refundReason"));
-        if (!"STOCK_DEDUCT_FAILED".equals(refundReason)) {
-            log.info("[RefundDoneConsumer] 쿠폰 소멸 처리 (복구 안 함). reason={}", refundReason);
+        if (!"STOCK_DEDUCT_FAILED".equals(event.refundReason())) {
+            log.info("[RefundDoneConsumer] 쿠폰 소멸 처리 (복구 안 함). reason={}", event.refundReason());
+            acknowledgment.acknowledge();
             return;
         }
 
-        String orderId = String.valueOf(event.get("orderId"));
-        couponSagaService.restoreCouponFromUsed(eventId, topic, UUID.fromString(orderId));
+        couponSagaService.restoreCouponFromUsed(event.eventId(), topic, event.orderId());
+        acknowledgment.acknowledge();
+    }
+
+    private <T> T readValue(String message, Class<T> targetType, String topic) {
+        try {
+            return objectMapper.readValue(message, targetType);
+        } catch (Exception e) {
+            log.error("{} 이벤트 역직렬화 실패. payload={}", topic, message, e);
+            throw new IllegalStateException(topic + " 이벤트 역직렬화 실패", e);
+        }
     }
 }

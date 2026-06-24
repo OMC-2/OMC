@@ -111,7 +111,7 @@ CLOSE 직후 바로 삭제하지 않는다. hold TTL(10분) + 늦은 결제 이�
 
 | Method | Path | 권한 | 설명 | 응답 |
 | --- | --- | --- | --- | --- |
-| POST | `/admin/drops` | ADMIN | 드롭 생성 (선착순 INSTANT 전용) | 201 |
+| POST | `/admin/drops` | ADMIN | 드롭 생성 (선착순 DROP 전용) | 201 |
 | PUT | `/admin/drops/{dropId}` | ADMIN | 수정 — `SCHEDULED` 상태에서만 | 200 |
 | DELETE | `/admin/drops/{dropId}` | ADMIN | 삭제 — `SCHEDULED` 상태에서만 (소프트딜리트) | 204 |
 | GET | `/drops?status=&page=` | GUEST | 목록 (Look-aside 캐싱) | 200 |
@@ -224,8 +224,8 @@ processed_events (
 
 | 토픽 | 처리 | 멱등 |
 | --- | --- | --- |
-| `payment.completed` | ① `salesType != INSTANT` 스킵 ② ZREM holds → 반환값 1=정상·0=LATE_PAYMENT ③ ZREM=0이면 `refund.requested` 발행 | ZREM 자체가 멱등 |
-| `payment.failed` | ① `salesType != INSTANT` 스킵 ② **즉시** ZREM + INCR + SREM 복구 (Lua) — TTL 대기 없이 재고 즉시 반환 | `processed_events` 필수 — INCR은 멱등이 아님 |
+| `payment.completed` | ① `salesType != DROP` 스킵 ② ZREM holds → 반환값 1=정상·0=LATE_PAYMENT ③ ZREM=0이면 `refund.requested` 발행 | ZREM 자체가 멱등 |
+| `payment.failed` | ① `salesType != DROP` 스킵 ② **즉시** ZREM + INCR + SREM 복구 (Lua) — TTL 대기 없이 재고 즉시 반환 | `processed_events` 필수 — INCR은 멱등이 아님 |
 | `stock.failed` | 동일 복구 Lua (ZREM + INCR + SREM) — payment, order와 병렬 구독 | `processed_events` 필수 |
 
 > `dropId` 전달 경로: `purchase.confirmed`(drop) → `order.created`(order) → `payment.completed` / `payment.failed`(payment) → drop 복구. RAFFLE은 `dropId`가 null이나 `salesType` 분기로 스킵.
@@ -243,7 +243,7 @@ processed_events (
 | 5 | 상태 전이를 **조건부 UPDATE**로 멱등화 | 스케줄러 다중 인스턴스 환경에서도 전이·워밍·발행이 정확히 1회 |
 | 6 | `payment.failed` 수신 시 **TTL 대기 없이 즉시 복구** | TTL(600초) 대기 시 그 시간 동안 재고 불필요하게 차단. 즉시 ZREM+INCR+SREM으로 재고 반환 → 다음 사용자 선점 가능 시간 최소화 |
 | 7 | order-service에 **no-op 처리 협의** | 인메모리 아웃박스 사용으로 극히 드문 경우 purchase.confirmed 유실 가능. order-service가 ① purchase.confirmed 멱등 처리 ② hold.expired 수신 시 주문 없으면 no-op 처리하도록 협의 완료 |
-| 8 | **INSTANT / RAFFLE 테이블 분리** | drop_type 컬럼으로 통합 시 RAFFLE 전용 컬럼(winner_count 등)이 INSTANT 행에 NULL로 쌓이고, 래플 담당자(raffle-service)와 스키마 소유권이 충돌. 드롭서비스는 INSTANT 전용 `drops` 테이블만 소유하고, 래플은 raffle-service의 `raffles` 테이블로 완전 분리 |
+| 8 | **DROP / RAFFLE 테이블 분리** | drop_type 컬럼으로 통합 시 RAFFLE 전용 컬럼(winner_count 등)이 DROP 행에 NULL로 쌓이고, 래플 담당자(raffle-service)와 스키마 소유권이 충돌. 드롭서비스는 DROP 전용 `drops` 테이블만 소유하고, 래플은 raffle-service의 `raffles` 테이블로 완전 분리 |
 
 ---
 

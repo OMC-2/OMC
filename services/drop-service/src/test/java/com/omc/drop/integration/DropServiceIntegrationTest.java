@@ -577,11 +577,11 @@ class DropServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("payment.completed(INSTANT) 수신 시 hold가 제거되고 재고는 유지된다")
+        @DisplayName("payment.completed(DROP) 수신 시 hold가 제거되고 재고는 유지된다")
         void onPaymentCompleted_instant_removesHold() throws Exception {
             String eventId = UUID.randomUUID().toString();
             PaymentCompletedEvent event = new PaymentCompletedEvent(
-                    eventId, "INSTANT", userId, null,
+                    eventId, "DROP", userId, null,
                     10000L, 0L, 10000L, orderId, dropId
             );
 
@@ -618,11 +618,11 @@ class DropServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("payment.failed(INSTANT) 수신 시 재고가 복구되고 구매자가 취소된다")
+        @DisplayName("payment.failed(DROP) 수신 시 재고가 복구되고 구매자가 취소된다")
         void onPaymentFailed_instant_recoversStock() throws Exception {
             String eventId = UUID.randomUUID().toString();
             PaymentFailedEvent event = new PaymentFailedEvent(
-                    eventId, "INSTANT", userId, "PAYMENT_TIMEOUT", orderId, dropId
+                    eventId, "DROP", userId, "PAYMENT_TIMEOUT", orderId, dropId
             );
 
             stringKafkaTemplate.send("payment.failed", objectMapper.writeValueAsString(event));
@@ -662,7 +662,7 @@ class DropServiceIntegrationTest {
         void duplicateEvent_skipsSecondProcessing() throws Exception {
             String eventId = UUID.randomUUID().toString();
             PaymentFailedEvent event = new PaymentFailedEvent(
-                    eventId, "INSTANT", userId, "PAYMENT_TIMEOUT", orderId, dropId
+                    eventId, "DROP", userId, "PAYMENT_TIMEOUT", orderId, dropId
             );
             String message = objectMapper.writeValueAsString(event);
 

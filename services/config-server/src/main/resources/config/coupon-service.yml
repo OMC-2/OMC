@@ -34,17 +34,19 @@ spring:
     bootstrap-servers: ${KAFKA_URI:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       properties:
         delivery.timeout.ms: 10000
         request.timeout.ms: 5000
     consumer:
       group-id: coupon-service
       auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: manual_immediate
+      missing-topics-fatal: false
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}

@@ -15,6 +15,9 @@ import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
 import com.omc.payment.domain.repository.PaymentRepository;
 import com.omc.payment.infrastructure.client.CouponServiceClient;
 import com.omc.payment.infrastructure.config.KafkaTopics;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -24,10 +27,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
+import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -38,6 +44,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 
@@ -110,6 +117,7 @@ class PaymentKafkaIntegrationTest {
     private static final UUID PRODUCT_ID = UUID.fromString("00000000-0000-0000-0000-000000000301");
 
     @Autowired ObjectMapper objectMapper;
+    @Autowired EmbeddedKafkaBroker embeddedKafkaBroker;
     @Autowired KafkaTemplate<String, String> kafkaTemplate;
     @Autowired KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
     @Autowired PaymentRepository paymentRepository;
@@ -226,6 +234,55 @@ class PaymentKafkaIntegrationTest {
                     .containsExactlyInAnyOrder(KafkaTopics.PAYMENT_COMPLETED, KafkaTopics.REFUND_DONE);
             assertSucceededIdempotencyKey(cancelKey(orderId));
         });
+    }
+
+    @Test
+    @DisplayName("필수값이 없는 주문 생성 이벤트는 결제를 생성하지 않고 DLT로 전송된다")
+    void invalidOrderCreated_consumed_publishesToDlt() throws JsonProcessingException {
+        UUID orderId = UUID.randomUUID();
+        OrderCreatedEvent invalidEvent = new OrderCreatedEvent(
+                UUID.randomUUID().toString(),
+                orderId,
+                USER_ID,
+                "DROP",
+                DROP_ID,
+                null,
+                null,
+                null,
+                10000L,
+                0L,
+                10000L,
+                null,
+                null
+        );
+        String payload = objectMapper.writeValueAsString(invalidEvent);
+
+        Map<String, Object> consumerProperties = KafkaTestUtils.consumerProps(
+                "결제-필수값-검증-DLT-테스트-" + UUID.randomUUID(),
+                "true",
+                embeddedKafkaBroker
+        );
+        DefaultKafkaConsumerFactory<String, String> consumerFactory = new DefaultKafkaConsumerFactory<>(
+                consumerProperties,
+                new StringDeserializer(),
+                new StringDeserializer()
+        );
+
+        try (Consumer<String, String> consumer = consumerFactory.createConsumer()) {
+            embeddedKafkaBroker.consumeFromAnEmbeddedTopic(consumer, KafkaTopics.ORDER_CREATED_DLT);
+            kafkaTemplate.send(KafkaTopics.ORDER_CREATED, payload);
+
+            ConsumerRecord<String, String> dltRecord = KafkaTestUtils.getSingleRecord(
+                    consumer,
+                    KafkaTopics.ORDER_CREATED_DLT,
+                    Duration.ofSeconds(10)
+            );
+
+            assertThat(dltRecord.value()).isEqualTo(payload);
+            assertThat(paymentRepository.findByOrderId(orderId)).isEmpty();
+            assertThat(paymentInboxEventRepository.existsById(invalidEvent.eventId())).isFalse();
+            assertThat(paymentOutboxEventRepository.count()).isZero();
+        }
     }
 
     private void createPaidPayment(UUID orderId) {

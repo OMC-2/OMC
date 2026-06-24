@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 /**
  * 래플(Raffle) 서비스의 진입점이 되는 Spring Boot 메인 애플리케이션 클래스입니다.
  */
-@SpringBootApplication
+@SpringBootApplication(exclude = { org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class })
 @EnableFeignClients
 @EnableScheduling
 @EnableJpaAuditing

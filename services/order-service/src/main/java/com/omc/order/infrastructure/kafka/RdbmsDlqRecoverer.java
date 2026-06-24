@@ -2,6 +2,7 @@ package com.omc.order.infrastructure.kafka;
 
 import com.omc.order.domain.entity.OrderDlqMessage;
 import com.omc.order.domain.repository.OrderDlqRepository;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -34,6 +35,12 @@ public class RdbmsDlqRecoverer implements ConsumerRecordRecoverer {
 
     dlqRepository.save(dlq);
 
-    log.error("[DLQ 적재] topic={}, partition={}, offset={}, errorClass={}", topic, record.partition(), record.offset(), (rootCause == null ? "null" : rootCause.getClass().getSimpleName()));
+    String causeMessage = (rootCause == null) ? "null" : rootCause.getMessage();
+    String feignBody = (rootCause instanceof FeignException fe) ? fe.contentUTF8() : null;
+
+    log.error("[DLQ 적재] topic={}, partition={}, offset={}, errorClass={}, message={}, feignBody={}",
+        topic, record.partition(), record.offset(),
+        (rootCause == null ? "null" : rootCause.getClass().getSimpleName()),
+        causeMessage, feignBody);
   }
 }

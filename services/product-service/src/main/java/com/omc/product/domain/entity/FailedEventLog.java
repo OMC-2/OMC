@@ -1,5 +1,6 @@
 package com.omc.product.domain.entity;
 
+import com.omc.common.util.UuidV7Generator;
 import com.omc.product.domain.enums.FailedEventStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -78,6 +79,7 @@ public class FailedEventLog {
             FailedEventStatus status,
             LocalDateTime createdAt
     ) {
+        this.logId = UuidV7Generator.generate();
         this.originalTopic = originalTopic;
         this.consumerGroup = consumerGroup;
         this.aggregateType = aggregateType;

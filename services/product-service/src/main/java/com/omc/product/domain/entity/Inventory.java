@@ -1,6 +1,7 @@
 package com.omc.product.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
+import com.omc.common.util.UuidV7Generator;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -53,6 +54,7 @@ public class Inventory extends BaseEntity {
 
     @Builder(access = AccessLevel.PRIVATE)
     private Inventory(UUID productId, int totalQuantity) {
+        this.inventoryId = UuidV7Generator.generate();
         this.productId = productId;
         this.totalQuantity = totalQuantity;
         this.soldQuantity = 0;

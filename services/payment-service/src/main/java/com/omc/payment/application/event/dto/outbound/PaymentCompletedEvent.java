@@ -16,6 +16,7 @@ public record PaymentCompletedEvent(
         UUID couponId,
         Long originalAmount,
         Long discountAmount,
-        Long finalAmount
+        Long finalAmount,
+        UUID paymentId
 ) {
 }

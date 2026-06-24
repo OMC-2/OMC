@@ -1,6 +1,7 @@
 package com.omc.product.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.product.domain.enums.ProductStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -54,7 +55,7 @@ public class Product extends BaseEntity {
     private Product(UUID productId, String name, String description,
                     Long price, String brand, String category,
                     String imageUrl, ProductStatus status) {
-        this.productId = productId;
+        this.productId = UuidV7Generator.generate();
         this.name = name;
         this.description = description;
         this.price = price;

@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DropEventConsumer {
 
-    private static final String INSTANT = "INSTANT";
+    private static final String DROP = "DROP";
 
     private final ObjectMapper objectMapper;
     private final HoldService holdService;
@@ -76,7 +76,7 @@ public class DropEventConsumer {
     }
 
     private boolean isNotInstant(String salesType, String eventId, String topic) {
-        if (!INSTANT.equals(salesType)) {
+        if (!DROP.equals(salesType)) {
             log.info("RAFFLE 이벤트 스킵. topic={}, eventId={}", topic, eventId);
             return true;
         }

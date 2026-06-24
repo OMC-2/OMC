@@ -41,3 +41,4 @@ dependencies {
         exclude group: 'org.slf4j', module: 'slf4j-simple'
     }
 }
+dependencies { runtimeOnly 'com.h2database:h2' }
