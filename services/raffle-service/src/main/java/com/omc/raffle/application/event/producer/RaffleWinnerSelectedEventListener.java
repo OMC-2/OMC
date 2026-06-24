@@ -39,4 +39,25 @@ public class RaffleWinnerSelectedEventListener {
             throw new RuntimeException("Failed to serialize Outbox payload", e);
         }
     }
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void handleRaffleLoserNotifiedEvent(RaffleLoserNotifiedEvent event) {
+        log.info("Saving OutboxEvent for RaffleLoserNotifiedEvent: raffleId={}, userId={}", event.raffleId(), event.userId());
+
+        try {
+            String payload = objectMapper.writeValueAsString(event);
+
+            OutboxEvent outboxEvent = OutboxEvent.create(
+                    event.raffleId().toString(), // aggregateId
+                    "Raffle",
+                    "raffle.loser.notified",
+                    payload
+            );
+
+            outboxEventRepository.save(outboxEvent);
+            log.info("Successfully saved OutboxEvent for loser. Event ID: {}", outboxEvent.getId());
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize RaffleLoserNotifiedEvent", e);
+            throw new RuntimeException("Failed to serialize Outbox payload", e);
+        }
+    }
 }
