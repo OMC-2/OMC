@@ -2,6 +2,8 @@ package com.omc.raffle.support;
 
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+
+import java.util.Map;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -34,12 +36,14 @@ public abstract class IntegrationTestSupport {
             new PostgreSQLContainer<>("postgres:16")
                     .withDatabaseName("raffle_test")
                     .withUsername("test")
-                    .withPassword("test");
+                    .withPassword("test")
+                    ;
 
     @Container
     static final GenericContainer<?> REDIS =
             new GenericContainer<>("redis:7")
-                    .withExposedPorts(6379);
+                    .withExposedPorts(6379)
+                    .withTmpFs(Map.of("/data", "rw"));
 
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
