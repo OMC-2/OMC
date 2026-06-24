@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.drop.application.service.HoldService;
 import com.omc.drop.domain.entity.DropProcessedEvent;
 import com.omc.drop.domain.repository.DropProcessedEventRepository;
-import com.omc.drop.infrastructure.kafka.exception.EventProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
