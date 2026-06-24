@@ -3,6 +3,7 @@ package com.omc.product.application.event.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.product.application.event.PaymentCompletedEvent;
 import com.omc.product.application.service.InventoryService;
+import com.omc.product.infrastructure.kafka.KafkaTopics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -19,7 +20,7 @@ public class PaymentCompletedConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(
-            topics = "payment.completed",
+            topics =  KafkaTopics.PAYMENT_COMPLETED,
             groupId = "product-service"
     )
     public void handlePaymentCompleted(
