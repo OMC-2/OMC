@@ -20,14 +20,6 @@ public record CouponCreateRequest(
         @NotNull LocalDateTime expiredAt
 ) {
     public Coupon toEntity() {
-        return Coupon.builder()
-                .name(name)
-                .discountType(discountType)
-                .discountValue(discountValue)
-                .maxDiscountAmount(maxDiscountAmount)
-                .totalQuantity(totalQuantity)
-                .startedAt(startedAt)
-                .expiredAt(expiredAt)
-                .build();
+        return Coupon.create(name, discountType, discountValue, maxDiscountAmount, totalQuantity, startedAt, expiredAt);
     }
 }

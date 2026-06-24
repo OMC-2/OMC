@@ -96,11 +96,7 @@ public class CouponService {
         UserCoupon userCoupon;
         try {
             userCoupon = userCouponRepository.saveAndFlush(
-                    UserCoupon.builder()
-                            .userId(userId)
-                            .coupon(coupon)
-                            .expiredAt(coupon.getExpiredAt())
-                            .build()
+                    UserCoupon.create(userId, coupon, coupon.getExpiredAt())
             );
         } catch (DataIntegrityViolationException e) {
             couponRedisRepository.incrementStock(couponId.toString());

@@ -1,6 +1,7 @@
 package com.omc.coupon.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.coupon.domain.enums.DiscountType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -19,8 +20,7 @@ import java.util.UUID;
 public class Coupon extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "coupon_id")
+    @Column(name = "coupon_id", columnDefinition = "uuid")
     private UUID couponId;
 
     @Column(nullable = false, length = 100)
@@ -48,10 +48,11 @@ public class Coupon extends BaseEntity {
     @Column(name = "expired_at", nullable = false)
     private LocalDateTime expiredAt;
 
-    @Builder
-    public Coupon(String name, DiscountType discountType, BigDecimal discountValue,
-                  BigDecimal maxDiscountAmount, int totalQuantity,
-                  LocalDateTime startedAt, LocalDateTime expiredAt) {
+    @Builder(access = AccessLevel.PRIVATE)
+    private Coupon(String name, DiscountType discountType, BigDecimal discountValue,
+                   BigDecimal maxDiscountAmount, int totalQuantity,
+                   LocalDateTime startedAt, LocalDateTime expiredAt) {
+        this.couponId = UuidV7Generator.generate();
         this.name = name;
         this.discountType = discountType;
         this.discountValue = discountValue;
@@ -60,6 +61,20 @@ public class Coupon extends BaseEntity {
         this.remainingQuantity = totalQuantity;
         this.startedAt = startedAt;
         this.expiredAt = expiredAt;
+    }
+
+    public static Coupon create(String name, DiscountType discountType, BigDecimal discountValue,
+                                BigDecimal maxDiscountAmount, int totalQuantity,
+                                LocalDateTime startedAt, LocalDateTime expiredAt) {
+        return Coupon.builder()
+                .name(name)
+                .discountType(discountType)
+                .discountValue(discountValue)
+                .maxDiscountAmount(maxDiscountAmount)
+                .totalQuantity(totalQuantity)
+                .startedAt(startedAt)
+                .expiredAt(expiredAt)
+                .build();
     }
 
     public boolean isIssuable() {
