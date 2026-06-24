@@ -30,8 +30,12 @@ spring:
     consumer:
       group-id: notification-service
       auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: com.omc.notification.infrastructure.kafka.FlexibleMapDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: manual_immediate
+      missing-topics-fatal: false
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
