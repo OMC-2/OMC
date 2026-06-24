@@ -11,6 +11,7 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.omc.common.util.UuidUtil;
 
 @Entity
 @Table(name = "p_raffles")
@@ -44,7 +45,7 @@ public class Raffle extends BaseTimeEntity {
 
     @Builder
     private Raffle(UUID dropId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
-        this.id = UUID.randomUUID(); // Using v4 here for simplicity, although spec said v7. Spring defaults to v4.
+        this.id = UuidUtil.v7();
         this.dropId = dropId;
         this.name = name;
         this.winnerCount = winnerCount;

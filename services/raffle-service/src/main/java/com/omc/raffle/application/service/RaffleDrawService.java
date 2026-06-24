@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.omc.raffle.application.event.producer.RaffleWinnerSelectedEvent;
+import com.omc.raffle.domain.projection.RaffleEntryProjection;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
@@ -51,23 +52,32 @@ public class RaffleDrawService {
             throw new BusinessException(RaffleErrorCode.RAFFLE_003, "추첨 가능한 상태가 아닙니다.");
         }
 
-        // 2. 전체 응모자 리스트 조회
-        List<RaffleEntry> entries = raffleEntryRepository.findAllByRaffleId(raffleId);
+        // 2. 전체 응모자 리스트 조회 (OOM 방지를 위해 Projection 사용)
+        List<RaffleEntryProjection> projections = raffleEntryRepository.findProjectionsByRaffleId(raffleId);
 
         // 3. 인메모리 무작위 셔플 (공정성 보장)
         // Collections.shuffle: 랜덤 시드 고정 없이 기본 Random 알고리즘 사용 (컨벤션 준수)
-        Collections.shuffle(entries);
+        Collections.shuffle(projections);
 
         // 4. 당첨/낙첨 분류 및 RaffleResult 생성
         int winnerCount = raffle.getWinnerCount();
-        List<RaffleResult> results = new ArrayList<>(entries.size());
+        List<RaffleResult> results = new ArrayList<>(projections.size());
+        List<UUID> winnerIds = new ArrayList<>();
 
-        for (int i = 0; i < entries.size(); i++) {
-            RaffleEntry entry = entries.get(i);
+        for (int i = 0; i < projections.size(); i++) {
+            RaffleEntryProjection proj = projections.get(i);
             RaffleResultStatus status = (i < winnerCount) ? RaffleResultStatus.WIN : RaffleResultStatus.LOSE;
             
-            // 5. 당첨자(WIN)인 경우 Outbox 엔티티(Kafka 결제 요청 이벤트용) 대신 우선 ApplicationEvent 발행
             if (status == RaffleResultStatus.WIN) {
+                winnerIds.add(proj.getId());
+            }
+            results.add(RaffleResult.create(proj.getId(), raffleId, proj.getUserId(), status));
+        }
+
+        // 5. 당첨자(WIN)에 한해 전체 엔티티를 조회하여 ApplicationEvent 발행 (Kafka Outbox 연동용)
+        if (!winnerIds.isEmpty()) {
+            List<RaffleEntry> winners = raffleEntryRepository.findAllById(winnerIds);
+            for (RaffleEntry entry : winners) {
                 RaffleWinnerSelectedEvent event = new RaffleWinnerSelectedEvent(
                         raffleId,
                         entry.getId(),
@@ -81,8 +91,6 @@ public class RaffleDrawService {
                 );
                 eventPublisher.publishEvent(event);
             }
-            
-            results.add(RaffleResult.create(entry.getId(), raffleId, entry.getUserId(), status));
         }
 
         // 5. 결과 일괄 저장 (Bulk Insert)
@@ -110,20 +118,14 @@ public class RaffleDrawService {
         raffleResultRepository.save(failedResult);
         log.info("Canceled WIN status for user {} in raffle {}", failedUserId, raffleId);
 
-        // 2. 남은 낙첨자 중 1명을 무작위로 추출하여 당첨 처리
-        List<RaffleResult> loseResults = raffleResultRepository.findAllByRaffleId(raffleId).stream()
-                .filter(r -> r.getResult() == RaffleResultStatus.LOSE)
-                .toList();
+        // 2. 남은 낙첨자 중 1명을 무작위로 추출하여 당첨 처리 (OOM 방지 Native Query 사용)
+        RaffleResult newWinnerResult = raffleResultRepository.findRandomLoserByRaffleId(raffleId)
+                .orElse(null);
 
-        if (loseResults.isEmpty()) {
+        if (newWinnerResult == null) {
             log.warn("No more entries available for redraw in raffle {}", raffleId);
             return;
         }
-
-        // 3. 무작위로 1명 선정
-        List<RaffleResult> modifiableList = new ArrayList<>(loseResults);
-        Collections.shuffle(modifiableList);
-        RaffleResult newWinnerResult = modifiableList.get(0);
         
         newWinnerResult.updateResult(RaffleResultStatus.WIN);
         raffleResultRepository.save(newWinnerResult);

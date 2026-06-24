@@ -1,4 +1,4 @@
-package com.omc.raffle.presentation.dto.response;
+package com.omc.raffle.application.dto.response;
 
 import com.omc.raffle.domain.enums.RaffleResultStatus;
 import java.time.LocalDateTime;
@@ -12,3 +12,4 @@ public record RaffleResultResponse(
         LocalDateTime decidedAt
 ) {
 }
+

@@ -12,6 +12,7 @@ class E2ERunner {
                 "classpath:user",
                 "classpath:coupon",
                 "classpath:notification",
+                "classpath:drop",
                 "classpath:payment",
                 "classpath:saga"
         );

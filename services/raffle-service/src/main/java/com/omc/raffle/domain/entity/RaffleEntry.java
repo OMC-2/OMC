@@ -10,10 +10,11 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.omc.common.util.UuidUtil;
 
 /**
- * 래플 응모 내역을 관리하는 엔티티.
- * 결제 실패 대비 보상 트랜잭션 처리를 위해, 유저가 선택한 쿠폰과 결제 예정 금액 정보를 저장합니다.
+ * ?�플 ?�모 ?�역??관리하???�티??
+ * 결제 ?�패 ?��?보상 ?�랜??�� 처리�??�해, ?��?가 ?�택??쿠폰�?결제 ?�정 금액 ?�보�??�?�합?�다.
  */
 @Entity
 @Table(name = "p_raffle_entries")
@@ -32,8 +33,8 @@ public class RaffleEntry extends BaseTimeEntity {
     @Column(name = "user_id", nullable = false, columnDefinition = "uuid")
     private UUID userId;
 
-    @Column(name = "billing_key_id", nullable = false, columnDefinition = "uuid")
-    private UUID billingKeyId;
+    @Column(name = "billing_key_id", nullable = false)
+    private String billingKeyId;
 
     @Column(name = "coupon_id", columnDefinition = "uuid")
     private UUID couponId;
@@ -51,8 +52,8 @@ public class RaffleEntry extends BaseTimeEntity {
     private LocalDateTime enteredAt;
 
     @Builder
-    private RaffleEntry(UUID raffleId, UUID userId, UUID billingKeyId, UUID couponId, java.math.BigDecimal originalAmount, java.math.BigDecimal discountAmount, java.math.BigDecimal finalAmount) {
-        this.id = UUID.randomUUID();
+    private RaffleEntry(UUID raffleId, UUID userId, String billingKeyId, UUID couponId, java.math.BigDecimal originalAmount, java.math.BigDecimal discountAmount, java.math.BigDecimal finalAmount) {
+        this.id = UuidUtil.v7();
         this.raffleId = raffleId;
         this.userId = userId;
         this.billingKeyId = billingKeyId;
@@ -63,7 +64,7 @@ public class RaffleEntry extends BaseTimeEntity {
         this.enteredAt = LocalDateTime.now();
     }
 
-    public static RaffleEntry create(UUID raffleId, UUID userId, UUID billingKeyId, UUID couponId, java.math.BigDecimal originalAmount, java.math.BigDecimal discountAmount, java.math.BigDecimal finalAmount) {
+    public static RaffleEntry create(UUID raffleId, UUID userId, String billingKeyId, UUID couponId, java.math.BigDecimal originalAmount, java.math.BigDecimal discountAmount, java.math.BigDecimal finalAmount) {
         return RaffleEntry.builder()
                 .raffleId(raffleId)
                 .userId(userId)
@@ -75,3 +76,4 @@ public class RaffleEntry extends BaseTimeEntity {
                 .build();
     }
 }
+

@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.omc.common.util.UuidUtil;
 
 @Entity
 @Table(name = "p_raffle_results")
@@ -41,7 +42,7 @@ public class RaffleResult {
 
     @Builder
     private RaffleResult(UUID entryId, UUID raffleId, UUID userId, RaffleResultStatus result) {
-        this.id = UUID.randomUUID();
+        this.id = UuidUtil.v7();
         this.entryId = entryId;
         this.raffleId = raffleId;
         this.userId = userId;
@@ -61,5 +62,6 @@ public class RaffleResult {
 
     public void updateResult(RaffleResultStatus result) {
         this.result = result;
+        this.decidedAt = LocalDateTime.now();
     }
 }
