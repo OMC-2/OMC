@@ -1,0 +1,149 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Grant execute permission for Gradle
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
+      - name: Build services
+        run: |
+          ./gradlew \
+            :services:eureka-server:bootJar \
+            :services:config-server:bootJar \
+            :services:gateway:bootJar \
+            :services:user-service:bootJar \
+            :services:drop-service:bootJar \
+            :services:order-service:bootJar \
+            :services:product-service:bootJar \
+            :services:payment-service:bootJar \
+            :services:raffle-service:bootJar \
+            :services:coupon-service:bootJar \
+            :services:notification-service:bootJar \
+            -x test --no-daemon
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push eureka-server
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/eureka-server
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-eureka-server:latest
+
+      - name: Build & Push config-server
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/config-server
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-config-server:latest
+
+      - name: Build & Push gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/gateway
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-gateway:latest
+
+      - name: Build & Push user-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/user-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-user-service:latest
+
+      - name: Build & Push drop-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/drop-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-drop-service:latest
+
+      - name: Build & Push order-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/order-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-order-service:latest
+
+      - name: Build & Push product-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/product-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-product-service:latest
+
+      - name: Build & Push payment-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/payment-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-payment-service:latest
+
+      - name: Build & Push raffle-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/raffle-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-raffle-service:latest
+
+      - name: Build & Push coupon-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/coupon-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-coupon-service:latest
+
+      - name: Build & Push notification-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/notification-service
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/omc-notification-service:latest
+
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/omc
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker-compose.prod.yml --env-file .env.prod pull
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+            docker image prune -f
