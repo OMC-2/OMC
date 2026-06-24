@@ -2,6 +2,7 @@ package com.omc.order.application.event.dto;
 
 import lombok.Builder;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Builder
@@ -11,5 +12,5 @@ public record PurchaseConfirmedEvent(
     UUID dropId,
     UUID userId,
     UUID productId,
-    String holdExpiresAt
+    LocalDateTime holdExpiresAt
 ) {}

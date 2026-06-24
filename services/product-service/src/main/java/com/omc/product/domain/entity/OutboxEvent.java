@@ -1,5 +1,6 @@
 package com.omc.product.domain.entity;
 
+import com.omc.common.util.UuidV7Generator;
 import com.omc.product.domain.enums.OutboxEventType;
 import com.omc.product.domain.enums.OutboxStatus;
 import jakarta.persistence.*;
@@ -64,8 +65,9 @@ public class OutboxEvent {
     private LocalDateTime publishedAt;
 
     @Builder(access = AccessLevel.PRIVATE)
-    private OutboxEvent(String aggregateType, UUID aggregateId,
+    private OutboxEvent(UUID eventId, String aggregateType, UUID aggregateId,
                         OutboxEventType eventType, String payload) {
+        this.eventId = eventId;
         this.aggregateType = aggregateType;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
@@ -75,9 +77,10 @@ public class OutboxEvent {
         this.createdAt = LocalDateTime.now();
     }
 
-    public static OutboxEvent create(String aggregateType, UUID aggregateId,
+    public static OutboxEvent create(UUID eventId, String aggregateType, UUID aggregateId,
                                      OutboxEventType eventType, String payload) {
         return OutboxEvent.builder()
+                .eventId(eventId)
                 .aggregateType(aggregateType)
                 .aggregateId(aggregateId)
                 .eventType(eventType)

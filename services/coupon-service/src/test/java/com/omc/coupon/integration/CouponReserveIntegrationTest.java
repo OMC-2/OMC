@@ -92,14 +92,9 @@ class CouponReserveIntegrationTest {
     }
 
     private Coupon createAndSaveCoupon() {
-        return couponRepository.save(Coupon.builder()
-                .name("내부 API 테스트 쿠폰")
-                .discountType(DiscountType.AMOUNT)
-                .discountValue(new BigDecimal("1000"))
-                .totalQuantity(100)
-                .startedAt(LocalDateTime.now().minusDays(1))
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build());
+        return couponRepository.save(Coupon.create(
+                "내부 API 테스트 쿠폰", DiscountType.AMOUNT, new BigDecimal("1000"),
+                null, 100, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(7)));
     }
 
     // =========================================================================
@@ -109,11 +104,7 @@ class CouponReserveIntegrationTest {
     @Test
     void reserve_success() throws Exception {
         Coupon coupon = createAndSaveCoupon();
-        UserCoupon userCoupon = userCouponRepository.save(UserCoupon.builder()
-                .userId(USER_ID)
-                .coupon(coupon)
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build());
+        UserCoupon userCoupon = userCouponRepository.save(UserCoupon.create(USER_ID, coupon, LocalDateTime.now().plusDays(7)));
         UUID orderId = UUID.randomUUID();
 
         String body = String.format("""
@@ -144,11 +135,7 @@ class CouponReserveIntegrationTest {
     @Test
     void reserve_notAvailable_returns409() throws Exception {
         Coupon coupon = createAndSaveCoupon();
-        UserCoupon userCoupon = UserCoupon.builder()
-                .userId(USER_ID)
-                .coupon(coupon)
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build();
+        UserCoupon userCoupon = UserCoupon.create(USER_ID, coupon, LocalDateTime.now().plusDays(7));
         userCoupon.reserve(UUID.randomUUID()); // AVAILABLE → RESERVED
         userCouponRepository.save(userCoupon);
 
@@ -175,11 +162,7 @@ class CouponReserveIntegrationTest {
     @Test
     void getUserCoupon_success() throws Exception {
         Coupon coupon = createAndSaveCoupon();
-        UserCoupon userCoupon = userCouponRepository.save(UserCoupon.builder()
-                .userId(USER_ID)
-                .coupon(coupon)
-                .expiredAt(LocalDateTime.now().plusDays(7))
-                .build());
+        UserCoupon userCoupon = userCouponRepository.save(UserCoupon.create(USER_ID, coupon, LocalDateTime.now().plusDays(7)));
 
         mockMvc.perform(get("/internal/v1/coupons/{userCouponId}", userCoupon.getUserCouponId())
                         .header("X-Gateway-Secret", GATEWAY_SECRET))
