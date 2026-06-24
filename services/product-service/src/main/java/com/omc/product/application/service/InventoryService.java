@@ -2,6 +2,7 @@ package com.omc.product.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.product.application.event.StockFailedEvent;
 import com.omc.product.application.event.PaymentCompletedEvent;
 import com.omc.product.domain.entity.FailedEventLog;
@@ -155,7 +156,7 @@ public class InventoryService {
 
     private String buildFailedPayload(PaymentCompletedEvent event) {
         return toJson(new StockFailedEvent(
-                UUID.randomUUID().toString(),
+                UuidV7Generator.generate().toString(),
                 event.orderId(),
                 event.productId(),
                 event.dropId(),
