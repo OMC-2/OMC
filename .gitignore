@@ -84,3 +84,7 @@ application-local.yml
 # ============================================================
 CLAUDE.local.md
 harness/
+
+# JMeter load test results
+scripts/load-test/dashboard/
+scripts/load-test/results.jtl
