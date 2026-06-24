@@ -1,6 +1,7 @@
 package com.omc.order.application.service;
 
 import com.omc.common.response.ApiResponse;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.order.application.event.dto.OrderCancelledEvent;
 import com.omc.order.application.event.dto.OrderConfirmedEvent;
 import com.omc.order.application.event.dto.OrderCreatedEvent;
@@ -8,7 +9,7 @@ import com.omc.order.application.event.dto.OrderShippedEvent;
 import com.omc.order.application.event.dto.PurchaseConfirmedEvent;
 import com.omc.order.application.event.dto.RaffleWinnerSelectedEvent;
 import com.omc.order.application.event.dto.RefundRequestedEvent;
-import com.omc.order.application.event.producer.OrderEventProducer;
+import com.omc.order.application.event.outbox.OutboxEventRecorder;
 import com.omc.order.domain.entity.Order;
 import com.omc.order.domain.enums.CancelReason;
 import com.omc.order.domain.exception.OrderNotFoundException;
@@ -27,7 +28,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderService {
 
-  private final OrderEventProducer orderEventProducer;
+  private static final String AGGREGATE_TYPE = "ORDER";
+
+  private final OutboxEventRecorder outboxRecorder;
   private final ProductFeignClient productFeignClient;
   private final OrderRepository orderRepository;
 
@@ -56,21 +59,21 @@ public class OrderService {
       orderRepository.save(order); //DB에 1차 저장
 
       //3. 결제 요청을 위한 order.created 이벤트 발행
-      OrderCreatedEvent createdEvent = OrderCreatedEvent.builder()
-          .eventId(UUID.randomUUID().toString())
-          .orderId(order.getOrderId())
-          .userId(payload.userId())
-          .orderType("DROP")
-          .dropId(payload.dropId())
-          .raffleId(null)
-          .entryId(null)
-          .originalAmount(originalAmount)
-          .discountAmount(0L)
-          .finalAmount(originalAmount)
-          .couponId(null) // 결제 전이므로 null
-          .billingKeyId(null) //드롭은 수동 결제이므로 null
-          .build();
-      orderEventProducer.sendOrderCreated(createdEvent);
+      outboxRecorder.record(AGGREGATE_TYPE, order.getOrderId(), "ORDER_CREATED", "order.created",
+          eventId -> OrderCreatedEvent.builder()
+              .eventId(eventId)
+              .orderId(order.getOrderId())
+              .userId(payload.userId())
+              .orderType("DROP")
+              .dropId(payload.dropId())
+              .raffleId(null)
+              .entryId(null)
+              .originalAmount(originalAmount)
+              .discountAmount(0L)
+              .finalAmount(originalAmount)
+              .couponId(null) // 결제 전이므로 null
+              .billingKeyId(null) //드롭은 수동 결제이므로 null
+              .build());
   }
 
   //2. [RAFFLE] 추첨 당첨자 선정 완료 후 임시 주문 생성 (order-first, PENDING_PAYMENT)
@@ -78,8 +81,8 @@ public class OrderService {
   public void createRaffleOrder(RaffleWinnerSelectedEvent payload) {
     log.info("[OrderService] 래플 주문 생성 시작: entryId={}", payload.entryId());
 
-    //래플은 상류에서 orderId를 주지 않으므로 order가 생성
-    UUID orderId = UUID.randomUUID();
+    //래플은 상류에서 orderId를 주지 않으므로 order가 생성 (UUID v7: 시간순 정렬)
+    UUID orderId = UuidV7Generator.generate();
 
     Order order = Order.createRaffleOrder(
         orderId,
@@ -95,21 +98,21 @@ public class OrderService {
     orderRepository.save(order);
 
     //1. 결제 요청을 위한 order.created 이벤트 발행 (billingKeyId 포함 -> payment 가 capture)
-    OrderCreatedEvent createdEvent = OrderCreatedEvent.builder()
-        .eventId(UUID.randomUUID().toString())
-        .orderId(order.getOrderId())
-        .userId(payload.userId())
-        .orderType("RAFFLE")
-        .dropId(null)
-        .raffleId(payload.raffleId())
-        .entryId(payload.entryId())
-        .originalAmount(payload.originalAmount())
-        .discountAmount(payload.discountAmount())
-        .finalAmount(payload.finalAmount())
-        .couponId(payload.couponId())
-        .billingKeyId(payload.billingKeyId() != null ? payload.billingKeyId().toString() : null)
-        .build();
-    orderEventProducer.sendOrderCreated(createdEvent);
+    outboxRecorder.record(AGGREGATE_TYPE, order.getOrderId(), "ORDER_CREATED", "order.created",
+        eventId -> OrderCreatedEvent.builder()
+            .eventId(eventId)
+            .orderId(order.getOrderId())
+            .userId(payload.userId())
+            .orderType("RAFFLE")
+            .dropId(null)
+            .raffleId(payload.raffleId())
+            .entryId(payload.entryId())
+            .originalAmount(payload.originalAmount())
+            .discountAmount(payload.discountAmount())
+            .finalAmount(payload.finalAmount())
+            .couponId(payload.couponId())
+            .billingKeyId(payload.billingKeyId() != null ? payload.billingKeyId().toString() : null)
+            .build());
   }
 
   //[결제 완료] payment.completed -> PENDING_PAYMENT -> PAID
@@ -128,12 +131,12 @@ public class OrderService {
     Order order = findOrder(orderId);
     order.confirm();
 
-    OrderConfirmedEvent confirmedEvent = OrderConfirmedEvent.builder()
-        .eventId(UUID.randomUUID().toString())
-        .orderId(order.getOrderId())
-        .userId(order.getUserId())
-        .build();
-    orderEventProducer.sendOrderConfirmed(confirmedEvent);
+    outboxRecorder.record(AGGREGATE_TYPE, order.getOrderId(), "ORDER_CONFIRMED", "order.confirmed",
+        eventId -> OrderConfirmedEvent.builder()
+            .eventId(eventId)
+            .orderId(order.getOrderId())
+            .userId(order.getUserId())
+            .build());
   }
 
   //[공통] 재고 차감 실패/ 홀드 만료/ 결제 실패로 인한 주문 취소 처리 -> order.cancelled 발행
@@ -146,15 +149,15 @@ public class OrderService {
     order.cancel(reason);
 
     //2.래플 재추첨 및 유저 알림을 위한 order.cancelled 이벤트 발행
-    OrderCancelledEvent cancelledEvent = OrderCancelledEvent.builder()
-        .eventId(UUID.randomUUID().toString())
-        .orderId(orderId)
-        .userId(order.getUserId())
-        .raffleId(order.getRaffleId())
-        .entryId(order.getEntryId())
-        .reason(reason.name())
-        .build();
-    orderEventProducer.sendOrderCancelled(cancelledEvent);
+    outboxRecorder.record(AGGREGATE_TYPE, orderId, "ORDER_CANCELLED", "order.cancelled",
+        eventId -> OrderCancelledEvent.builder()
+            .eventId(eventId)
+            .orderId(orderId)
+            .userId(order.getUserId())
+            .raffleId(order.getRaffleId())
+            .entryId(order.getEntryId())
+            .reason(reason.name())
+            .build());
   }
 
   //[배송 시작] 배송 스케줄러에서 호출: CONFIRMED -> SHIPPING + order.shipped 발행
@@ -164,12 +167,12 @@ public class OrderService {
     Order order = findOrder(orderId);
     order.startShipping();
 
-    OrderShippedEvent shippedEvent = OrderShippedEvent.builder()
-        .eventId(UUID.randomUUID().toString())
-        .orderId(order.getOrderId())
-        .userId(order.getUserId())
-        .build();
-    orderEventProducer.sendOrderShipped(shippedEvent);
+    outboxRecorder.record(AGGREGATE_TYPE, order.getOrderId(), "ORDER_SHIPPED", "order.shipped",
+        eventId ->  OrderShippedEvent.builder()
+            .eventId(eventId)
+            .orderId(order.getOrderId())
+            .userId(order.getUserId())
+            .build());
   }
 
   //[사용자 환불 요청] CONFIRMED -> REFUND_REQUESTED + refund.requested 발행 (payment 가 PG 취소)
@@ -179,13 +182,13 @@ public class OrderService {
     Order order = findOrder(orderId);
     order.requestRefund(reason);
 
-    RefundRequestedEvent refundEvent = RefundRequestedEvent.builder()
-        .eventId(UUID.randomUUID().toString())
-        .orderId(order.getOrderId())
-        .userId(order.getUserId())
-        .reason(reason.name())
-        .build();
-    orderEventProducer.sendRefundRequested(refundEvent);
+    outboxRecorder.record(AGGREGATE_TYPE, order.getOrderId(),"REFUND_REQUESTED", "refund.requested",
+        eventId -> RefundRequestedEvent.builder()
+            .eventId(eventId)
+            .orderId(order.getOrderId())
+            .userId(order.getUserId())
+            .reason(reason.name())
+            .build());
   }
 
   private Order findOrder(UUID orderId) {
