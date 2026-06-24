@@ -1,18 +1,15 @@
 package com.omc.drop.application.service;
 
-import com.omc.drop.application.event.outbox.PurchaseOutboxWorker;
 import com.omc.drop.domain.exception.DuplicatePurchaseException;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.DropNotOpenException;
 import com.omc.drop.domain.exception.SoldOutException;
-import com.omc.drop.application.event.producer.PurchaseConfirmedEvent;
 import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
 import com.omc.drop.presentation.dto.response.PurchaseResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -30,9 +27,6 @@ class PurchaseServiceTest {
 
     @Mock
     private PurchaseRedisRepository purchaseRedisRepository;
-
-    @Mock
-    private PurchaseOutboxWorker outboxWorker;
 
     @InjectMocks
     private PurchaseService purchaseService;
@@ -53,7 +47,8 @@ class PurchaseServiceTest {
             when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
             when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
             when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(eq(dropId), eq(userId), any(UUID.class), eq(HOLD_TTL_SEC)))
+            when(purchaseRedisRepository.executePurchase(eq(dropId), eq(userId), any(UUID.class),
+                    eq(HOLD_TTL_SEC), eq(PRODUCT_ID), anyString()))
                     .thenReturn(42L);
 
             PurchaseResponse response = purchaseService.purchase(dropId, userId);
@@ -73,7 +68,8 @@ class PurchaseServiceTest {
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
                     .isInstanceOf(DropNotOpenException.class);
 
-            verify(purchaseRedisRepository, never()).executePurchase(any(), any(), any(), anyInt());
+            verify(purchaseRedisRepository, never())
+                    .executePurchase(any(), any(), any(), anyInt(), any(), anyString());
         }
 
         @Test
@@ -89,11 +85,12 @@ class PurchaseServiceTest {
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
                     .isInstanceOf(DropNotFoundException.class);
 
-            verify(purchaseRedisRepository, never()).executePurchase(any(), any(), any(), anyInt());
+            verify(purchaseRedisRepository, never())
+                    .executePurchase(any(), any(), any(), anyInt(), any(), anyString());
         }
 
         @Test
-        @DisplayName("Lua 반환 -1이면 SoldOutException이 발생하고 아웃박스에 적재하지 않는다")
+        @DisplayName("Lua 반환 -1이면 SoldOutException이 발생한다")
         void throwsSoldOutException() {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
@@ -101,16 +98,15 @@ class PurchaseServiceTest {
             when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
             when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
             when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt())).thenReturn(-1L);
+            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+                    .thenReturn(-1L);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
                     .isInstanceOf(SoldOutException.class);
-
-            verify(outboxWorker, never()).enqueue(any());
         }
 
         @Test
-        @DisplayName("Lua 반환 -2이면 DuplicatePurchaseException이 발생하고 아웃박스에 적재하지 않는다")
+        @DisplayName("Lua 반환 -2이면 DuplicatePurchaseException이 발생한다")
         void throwsDuplicatePurchaseException() {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
@@ -118,12 +114,11 @@ class PurchaseServiceTest {
             when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
             when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
             when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt())).thenReturn(-2L);
+            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+                    .thenReturn(-2L);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
                     .isInstanceOf(DuplicatePurchaseException.class);
-
-            verify(outboxWorker, never()).enqueue(any());
         }
 
         @Test
@@ -135,34 +130,30 @@ class PurchaseServiceTest {
             when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
             when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
             when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt())).thenReturn(null);
+            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+                    .thenReturn(null);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
                     .isInstanceOf(DuplicatePurchaseException.class);
         }
 
         @Test
-        @DisplayName("선점 성공 시 PurchaseConfirmedEvent가 아웃박스에 적재된다")
-        void enqueuesEventWithCorrectFields() {
+        @DisplayName("선점 성공 시 executePurchase에 올바른 dropId·userId·productId가 전달된다")
+        void passesCorrectArgumentsToExecutePurchase() {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
             when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
             when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
             when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt())).thenReturn(1L);
+            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+                    .thenReturn(1L);
 
             purchaseService.purchase(dropId, userId);
 
-            ArgumentCaptor<PurchaseConfirmedEvent> captor = ArgumentCaptor.forClass(PurchaseConfirmedEvent.class);
-            verify(outboxWorker).enqueue(captor.capture());
-
-            PurchaseConfirmedEvent event = captor.getValue();
-            assertThat(event.dropId()).isEqualTo(dropId);
-            assertThat(event.userId()).isEqualTo(userId);
-            assertThat(event.productId()).isEqualTo(PRODUCT_ID);
-            assertThat(event.orderId()).isNotNull();
-            assertThat(event.holdExpiresAt()).isNotNull();
+            verify(purchaseRedisRepository).executePurchase(
+                    eq(dropId), eq(userId), any(UUID.class),
+                    eq(HOLD_TTL_SEC), eq(PRODUCT_ID), anyString());
         }
     }
 }

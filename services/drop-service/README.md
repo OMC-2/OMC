@@ -37,7 +37,8 @@ OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으�
 ```
 ① product-service 재고 스냅샷 조회 (GET /internal/v1/products/{productId}/inventories/snapshot)
    → availableQuantity 사용 / product-service 장애 시 드롭 생성 시 저장한 totalQty로 폴백
-② Redis 워밍 (SETNX — 키 없을 때만 세팅, 멀티 인스턴스 재고 초기화 방지)
+② Redis 워밍 — warmup.lua로 4개 키를 원자적으로 초기화
+   status 키 EXISTS 체크 → 이미 OPEN이면 덮어쓰지 않음 (멱등, 멀티 인스턴스 재고 보호)
    stock:{dropId}      = availableQuantity
    drop:{dropId}:status = "OPEN"
    hold_ttl:{dropId}   = holdTtlSec   ← 진입 경로 DB 무접촉을 위한 캐싱
@@ -52,24 +53,24 @@ OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으�
 sequenceDiagram
     participant U as 사용자
     participant D as drop-service
-    participant Q as 인메모리큐
     participant R as Redis
+    participant S as Redis Stream
     participant K as Kafka
 
     U->>D: POST /drops/{id}/purchase
     D->>R: ① OPEN 플래그 검사 (fail-fast)
     D->>R: ② holdTtlSec·productId 조회 (워밍 캐시, DB 무접촉)
-    D->>R: ③ Lua 원자 처리 (중복·재고·hold·순번)
+    D->>R: ③ Lua 원자 처리 (중복·재고·hold·순번 + XADD Stream)
     alt OK
-        D->>Q: ④ 이벤트 인메모리 큐에 적재
+        Note over R,S: ③번 Lua 안에서 선점과 Stream 기록이 원자적으로 처리됨
         D-->>U: 202 Accepted (orderId, queueNumber)
-        Note over Q,K: 워커 스레드가 큐에서 꺼내 Kafka 발행 (재시도 N회)
-        Q->>K: purchase.confirmed 발행 (key=orderId)
+        Note over S,K: PurchaseStreamWorker(100ms)가 XREADGROUP → Kafka 발행 → XACK
+        S->>K: purchase.confirmed 발행 (key=orderId)
     else SOLD_OUT / DUPLICATE
         D-->>U: 409
     end
     Note over K: 주문 생성·DB 차감은 비동기 (order / product)
-    Note over Q: 발행 유실 시 hold TTL(10분) 자연 보상
+    Note over S: Kafka 장애 시 XACK 안 함 → 재시작·다른 인스턴스가 pending 재처리
 ```
 
 ### 2-3. Redis 키 정리 (`DropRedisCleanupScheduler`)
@@ -237,7 +238,7 @@ processed_events (
 | --- | --- | --- |
 | 1 | 동시성 제어를 분산 락(Redisson)이 아닌 **Lua Script**로 | 락은 대기·재시도 오버헤드 발생. 단일 스레드 Redis에서 Lua는 락 없이 원자성 확보 |
 | 2 | `purchase.confirmed` 파티션 키를 dropId가 아닌 **orderId**로 | 트래픽이 단일 인기 드롭에 집중 → dropId 키는 핫 파티션(병렬성 0). 순서 보장은 포기하되 정합성은 멱등 처리 + DB가 담당 |
-| 3 | 진입 API에 **DB Outbox 미적용 → 인메모리 아웃박스 워커** 채택 | 진입 경로가 DB 무접촉이라 DB Outbox는 오히려 DB I/O 추가 및 병목 재발생. 대신 인메모리 큐 + 워커 스레드로 재시도를 보장하여 DB 무접촉 원칙을 유지하면서 발행 안정성 확보. 발행 최종 유실 시 hold TTL(10분)이 자연 보상 |
+| 3 | 진입 API에 **DB Outbox 미적용 → Redis Stream Outbox** 채택 | 진입 경로가 DB 무접촉이라 DB Outbox는 오히려 DB I/O 추가 및 병목 재발생. Redis Stream을 Outbox로 사용하면 purchase.lua의 선점 연산과 XADD가 같은 Lua 블록 안에서 원자적으로 처리되어 DB 무접촉 원칙을 유지하면서 이벤트 유실도 방지. PurchaseStreamWorker가 XREADGROUP → Kafka 발행 → XACK 흐름으로 at-least-once 보장. 서버 재시작 시 pending 메시지를 자동 재처리하고, 멀티 인스턴스 환경에서는 XCLAIM으로 dead consumer의 메시지를 인수 |
 | 4 | TTL 감지를 Keyspace Notification이 아닌 **폴링**으로 | 만료 이벤트는 유실 가능성 존재. 폴링은 재실행 가능해 견고하며, hold.expired Consumer 멱등이 전제 |
 | 5 | 상태 전이를 **조건부 UPDATE**로 멱등화 | 스케줄러 다중 인스턴스 환경에서도 전이·워밍·발행이 정확히 1회 |
 | 6 | `payment.failed` 수신 시 **TTL 대기 없이 즉시 복구** | TTL(600초) 대기 시 그 시간 동안 재고 불필요하게 차단. 즉시 ZREM+INCR+SREM으로 재고 반환 → 다음 사용자 선점 가능 시간 최소화 |
@@ -340,7 +341,7 @@ drop-service
     │   └── event
     │       ├── producer     # DropEventProducer (Kafka 이벤트 발행)
     │       ├── consumer     # DropEventConsumer (payment.completed/failed, stock.failed 수신)
-    │       └── outbox       # PurchaseOutboxWorker (purchase.confirmed 발행 버퍼)
+    │       └── stream       # PurchaseStreamWorker (Redis Stream → Kafka 발행)
     ├── domain
     │   ├── entity           # Drop, DropProcessedEvent
     │   ├── enums            # DropStatus
