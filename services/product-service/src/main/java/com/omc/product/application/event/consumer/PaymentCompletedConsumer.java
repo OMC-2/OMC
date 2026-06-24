@@ -20,7 +20,7 @@ public class PaymentCompletedConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(
-            topics =  KafkaTopics.PAYMENT_COMPLETED,
+            topics = KafkaTopics.PAYMENT_COMPLETED,
             groupId = "product-service"
     )
     public void handlePaymentCompleted(
