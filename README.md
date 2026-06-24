@@ -99,6 +99,18 @@ docker compose down
 docker compose -f docker-compose.yml -f docker-compose.services.yml down
 ```
 
+## 배포
+
+EC2 배포 전체 절차는 [docs/09.deployment.md](./docs/09.deployment.md) 참조.
+
+```
+Phase 1. Terraform으로 EC2 띄우기
+Phase 2. docker-compose.prod.yml 작성
+Phase 3. GitHub Actions 워크플로 작성 + Secrets 등록
+Phase 4. scripts/init-ec2.sh 최초 1회 실행
+Phase 5. feature → main 머지 → CD 파이프라인 첫 배포
+```
+
 ## 기술 스택
 
 - **Java 21** (Amazon Corretto) - 가상 스레드(Virtual Threads) 활용
