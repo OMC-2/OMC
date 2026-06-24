@@ -8,7 +8,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.util.UUID;
-import com.omc.common.util.UuidUtil;
+import com.omc.common.util.UuidV7Generator;
+import org.springframework.util.Assert;
 
 @Entity
 @Table(name = "p_outbox_events")
@@ -40,9 +41,9 @@ public class OutboxEvent extends BaseTimeEntity {
     @Column(name = "retry_count", nullable = false)
     private int retryCount;
 
-    @Builder
+    @Builder(access = AccessLevel.PRIVATE)
     private OutboxEvent(String aggregateId, String aggregateType, String eventType, String payload) {
-        this.id = UuidUtil.v7();
+        this.id = UuidV7Generator.generate();
         this.aggregateId = aggregateId;
         this.aggregateType = aggregateType;
         this.eventType = eventType;
@@ -52,6 +53,11 @@ public class OutboxEvent extends BaseTimeEntity {
     }
 
     public static OutboxEvent create(String aggregateId, String aggregateType, String eventType, String payload) {
+        Assert.hasText(aggregateId, "aggregateId must not be empty");
+        Assert.hasText(aggregateType, "aggregateType must not be empty");
+        Assert.hasText(eventType, "eventType must not be empty");
+        Assert.hasText(payload, "payload must not be empty");
+
         return OutboxEvent.builder()
                 .aggregateId(aggregateId)
                 .aggregateType(aggregateType)
@@ -73,3 +79,4 @@ public class OutboxEvent extends BaseTimeEntity {
         }
     }
 }
+

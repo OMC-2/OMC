@@ -11,7 +11,8 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
-import com.omc.common.util.UuidUtil;
+import com.omc.common.util.UuidV7Generator;
+import org.springframework.util.Assert;
 
 @Entity
 @Table(name = "p_raffles")
@@ -43,9 +44,9 @@ public class Raffle extends BaseTimeEntity {
     @Column(name = "ended_at", nullable = false)
     private LocalDateTime endedAt;
 
-    @Builder
+    @Builder(access = AccessLevel.PRIVATE)
     private Raffle(UUID dropId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
-        this.id = UuidUtil.v7();
+        this.id = UuidV7Generator.generate();
         this.dropId = dropId;
         this.name = name;
         this.winnerCount = winnerCount;
@@ -55,6 +56,13 @@ public class Raffle extends BaseTimeEntity {
     }
 
     public static Raffle create(UUID dropId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
+        Assert.notNull(dropId, "dropId must not be null");
+        Assert.hasText(name, "name must not be empty");
+        Assert.isTrue(winnerCount > 0, "winnerCount must be greater than 0");
+        Assert.notNull(startedAt, "startedAt must not be null");
+        Assert.notNull(endedAt, "endedAt must not be null");
+        Assert.isTrue(startedAt.isBefore(endedAt), "startedAt must be before endedAt");
+
         return Raffle.builder()
                 .dropId(dropId)
                 .name(name)
@@ -73,3 +81,4 @@ public class Raffle extends BaseTimeEntity {
         this.winnerCount = winnerCount;
     }
 }
+
