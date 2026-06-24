@@ -19,10 +19,12 @@ public class PaymentEventConsumer {
 
     private final ObjectMapper objectMapper;
     private final PaymentEventService paymentEventService;
+    private final PaymentEventValidator paymentEventValidator;
 
     @KafkaListener(topics = KafkaTopics.ORDER_CREATED)
     public void consumeOrderCreated(String message, Acknowledgment acknowledgment) {
         OrderCreatedEvent event = readValue(message, OrderCreatedEvent.class, KafkaTopics.ORDER_CREATED);
+        paymentEventValidator.validate(event);
         paymentEventService.handleOrderCreated(event);
         acknowledgment.acknowledge();
     }
@@ -30,6 +32,7 @@ public class PaymentEventConsumer {
     @KafkaListener(topics = KafkaTopics.REFUND_REQUESTED)
     public void consumeRefundRequested(String message, Acknowledgment acknowledgment) {
         RefundRequestedEvent event = readValue(message, RefundRequestedEvent.class, KafkaTopics.REFUND_REQUESTED);
+        paymentEventValidator.validate(event);
         paymentEventService.handleRefundRequested(event);
         acknowledgment.acknowledge();
     }
@@ -37,6 +40,7 @@ public class PaymentEventConsumer {
     @KafkaListener(topics = KafkaTopics.STOCK_FAILED)
     public void consumeStockFailed(String message, Acknowledgment acknowledgment) {
         StockFailedEvent event = readValue(message, StockFailedEvent.class, KafkaTopics.STOCK_FAILED);
+        paymentEventValidator.validate(event);
         paymentEventService.handleStockFailed(event);
         acknowledgment.acknowledge();
     }
