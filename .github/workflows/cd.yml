@@ -5,6 +5,9 @@ on:
     branches:
       - develop
 
+env:
+  OWNER: ${{ github.repository_owner }}
+
 jobs:
   build-and-push:
     name: Build & Push Images
@@ -13,6 +16,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set lowercase owner
+        run: echo "OWNER_LC=${OWNER,,}" >> $GITHUB_ENV
 
       - name: Set up Java 21
         uses: actions/setup-java@v4
@@ -54,77 +60,77 @@ jobs:
         with:
           context: ./services/eureka-server
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-eureka-server:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-eureka-server:latest
 
       - name: Build & Push config-server
         uses: docker/build-push-action@v5
         with:
           context: ./services/config-server
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-config-server:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-config-server:latest
 
       - name: Build & Push gateway
         uses: docker/build-push-action@v5
         with:
           context: ./services/gateway
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-gateway:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-gateway:latest
 
       - name: Build & Push user-service
         uses: docker/build-push-action@v5
         with:
           context: ./services/user-service
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-user-service:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-user-service:latest
 
       - name: Build & Push drop-service
         uses: docker/build-push-action@v5
         with:
           context: ./services/drop-service
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-drop-service:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-drop-service:latest
 
       - name: Build & Push order-service
         uses: docker/build-push-action@v5
         with:
           context: ./services/order-service
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-order-service:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-order-service:latest
 
       - name: Build & Push product-service
         uses: docker/build-push-action@v5
         with:
           context: ./services/product-service
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-product-service:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-product-service:latest
 
       - name: Build & Push payment-service
         uses: docker/build-push-action@v5
         with:
           context: ./services/payment-service
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-payment-service:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-payment-service:latest
 
       - name: Build & Push raffle-service
         uses: docker/build-push-action@v5
         with:
           context: ./services/raffle-service
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-raffle-service:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-raffle-service:latest
 
       - name: Build & Push coupon-service
         uses: docker/build-push-action@v5
         with:
           context: ./services/coupon-service
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-coupon-service:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-coupon-service:latest
 
       - name: Build & Push notification-service
         uses: docker/build-push-action@v5
         with:
           context: ./services/notification-service
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/omc-notification-service:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/omc-notification-service:latest
 
   deploy:
     name: Deploy to EC2
