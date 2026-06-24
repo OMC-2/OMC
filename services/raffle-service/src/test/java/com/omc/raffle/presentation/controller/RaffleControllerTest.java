@@ -131,7 +131,7 @@ class RaffleControllerTest {
             when(raffleResultService.getResult(raffleId, userId)).thenReturn(responseDto);
 
             // when & then
-            mockMvc.perform(get("/api/v1/raffles/{raffleId}/results", raffleId)
+            mockMvc.perform(get("/api/v1/raffles/{raffleId}/winners/me", raffleId)
                             .header("X-User-Id", userId.toString()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))

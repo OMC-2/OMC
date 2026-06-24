@@ -2,6 +2,7 @@ package com.omc.raffle.presentation.controller.admin;
 
 import com.omc.common.config.GatewaySecurityAutoConfiguration;
 import com.omc.raffle.application.service.RaffleDrawService;
+import com.omc.raffle.application.service.AdminRaffleAppService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,9 @@ class AdminRaffleControllerTest {
 
     @MockBean
     private RaffleDrawService raffleDrawService;
+
+    @MockBean
+    private AdminRaffleAppService adminRaffleAppService;
 
     @Test
     @DisplayName("ADMIN 역할 + Gateway Secret → 200 OK")
