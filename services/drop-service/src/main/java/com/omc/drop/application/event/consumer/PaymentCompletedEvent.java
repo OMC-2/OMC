@@ -1,4 +1,4 @@
-package com.omc.drop.infrastructure.kafka.event;
+package com.omc.drop.application.event.consumer;
 
 import java.util.UUID;
 
