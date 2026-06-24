@@ -3,7 +3,7 @@ package com.omc.product.application.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.util.UuidV7Generator;
-import com.omc.product.application.StockDeductedEvent;
+import com.omc.product.application.event.producer.StockDeductedEvent;
 import com.omc.product.application.event.StockFailedEvent;
 import com.omc.product.application.event.PaymentCompletedEvent;
 import com.omc.product.domain.entity.FailedEventLog;

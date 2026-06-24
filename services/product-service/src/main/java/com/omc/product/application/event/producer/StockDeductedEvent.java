@@ -1,4 +1,4 @@
-package com.omc.product.application;
+package com.omc.product.application.event.producer;
 
 import java.util.UUID;
 
