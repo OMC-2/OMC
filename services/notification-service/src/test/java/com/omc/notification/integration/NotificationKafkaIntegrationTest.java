@@ -6,22 +6,29 @@ import com.omc.notification.domain.repository.NotificationRepository;
 import com.omc.notification.domain.repository.ProcessedEventRepository;
 import com.omc.notification.infrastructure.client.SlackClient;
 import com.omc.notification.infrastructure.client.UserServiceClient;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
+import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -40,12 +47,14 @@ import static org.mockito.Mockito.verify;
         topics = {
                 "order.confirmed", "drop.opened", "order.cancelled", "order.shipped",
                 "raffle.winner.selected", "raffle.loser.notified", "coupon.issued", "coupon.used",
-                "refund.done", "payment.failed"
+                "refund.done", "payment.failed",
+                "order.confirmed.DLT"
         },
         bootstrapServersProperty = "spring.kafka.bootstrap-servers"
 )
 @TestPropertySource(properties = {
         "spring.kafka.consumer.auto-offset-reset=earliest",
+        "spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
         "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
         "spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer"
 })
@@ -78,6 +87,7 @@ class NotificationKafkaIntegrationTest {
     @Autowired KafkaTemplate<String, String> kafkaTemplate;
     @Autowired NotificationRepository notificationRepository;
     @Autowired ProcessedEventRepository processedEventRepository;
+    @Autowired EmbeddedKafkaBroker embeddedKafkaBroker;
 
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final String SLACK_ID = "U12345";
@@ -397,6 +407,27 @@ class NotificationKafkaIntegrationTest {
 
         assertThat(notificationRepository.count()).isEqualTo(1);
         verify(slackClient, times(1)).sendMessage(any(), any());
+    }
+
+    // =========================================================================
+    // [OrderConfirmedConsumer] 유효하지 않은 JSON → order.confirmed.DLT 로 라우팅
+    // =========================================================================
+
+    @Test
+    void invalidJson_routedToDlt() {
+        Map<String, Object> consumerProps = KafkaTestUtils.consumerProps(
+                "dlt-test-group", "true", embeddedKafkaBroker);
+        Consumer<String, String> dltConsumer =
+                new DefaultKafkaConsumerFactory<String, String>(consumerProps).createConsumer();
+        embeddedKafkaBroker.consumeFromAnEmbeddedTopic(dltConsumer, "order.confirmed.DLT");
+
+        kafkaTemplate.send("order.confirmed", "NOT_VALID_JSON");
+
+        ConsumerRecords<String, String> records =
+                KafkaTestUtils.getRecords(dltConsumer, Duration.ofSeconds(10));
+        assertThat(records.count()).isGreaterThanOrEqualTo(1);
+
+        dltConsumer.close();
     }
 
     // =========================================================================
