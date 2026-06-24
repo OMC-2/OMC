@@ -28,6 +28,9 @@ public class Raffle extends BaseTimeEntity {
     @Column(name = "drop_id", nullable = false, columnDefinition = "uuid")
     private UUID dropId;
 
+    @Column(name = "product_id", nullable = false, columnDefinition = "uuid")
+    private UUID productId;
+
     @Column(name = "name", nullable = false)
     private String name;
 
@@ -45,12 +48,13 @@ public class Raffle extends BaseTimeEntity {
     private LocalDateTime endedAt;
 
     @Builder(access = AccessLevel.PRIVATE)
-    private Raffle(UUID dropId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
+    private Raffle(UUID dropId, UUID productId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
         // [핵심 컨벤션] UUIDv7 사용
-        // 식별자(PK)로 UUID를 사용할 경우, 시퀀셜한 정렬과 DB 인덱스 단편화 방지를 위해 
-        // 버전 4(랜덤) 대신 시간 기반인 버전 7(UuidV7Generator)을 강제합니다.
+        // 식별자(PK)로 UUID를 사용할 경우, 순차적인 정렬과 DB 인덱스 단편화 방지를 위해 
+        // 버전 4(랜덤) 대신 시간 기반의 버전 7(UuidV7Generator)을 강제합니다.
         this.id = UuidV7Generator.generate();
         this.dropId = dropId;
+        this.productId = productId;
         this.name = name;
         this.winnerCount = winnerCount;
         this.status = RaffleStatus.SCHEDULED;
@@ -58,8 +62,9 @@ public class Raffle extends BaseTimeEntity {
         this.endedAt = endedAt;
     }
 
-    public static Raffle create(UUID dropId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
+    public static Raffle create(UUID dropId, UUID productId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
         Assert.notNull(dropId, "dropId must not be null");
+        Assert.notNull(productId, "productId must not be null");
         Assert.hasText(name, "name must not be empty");
         Assert.isTrue(winnerCount > 0, "winnerCount must be greater than 0");
         Assert.notNull(startedAt, "startedAt must not be null");
@@ -68,6 +73,7 @@ public class Raffle extends BaseTimeEntity {
 
         return Raffle.builder()
                 .dropId(dropId)
+                .productId(productId)
                 .name(name)
                 .winnerCount(winnerCount)
                 .startedAt(startedAt)

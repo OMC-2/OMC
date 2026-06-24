@@ -23,10 +23,10 @@ public class PaymentFailureEventConsumer {
 
             // 래플 서비스에서 보낸 결제건만 처리
             if ("RAFFLE".equalsIgnoreCase(event.salesType())) {
-                log.info("Processing RAFFLE payment failure. raffleId={}, userId={}", event.eventId(), event.userId());
+                log.info("Processing RAFFLE payment failure. raffleId={}, userId={}", event.raffleId(), event.userId());
                 
-                // eventId가 Raffle 도메인에서는 raffleId로 매핑됨
-                raffleDrawService.handlePaymentFailure(event.eventId(), event.userId());
+                // eventId가 아니라 raffleId를 추출하여 Raffle 도메인에 전달
+                raffleDrawService.handlePaymentFailure(event.raffleId(), event.userId());
             } else {
                 log.debug("Ignored payment.failed event for salesType: {}", event.salesType());
             }

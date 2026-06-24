@@ -32,6 +32,7 @@ public class AdminRaffleAppService {
     public RaffleResponse createRaffle(AdminRaffleCreateRequest request) {
         Raffle raffle = Raffle.create(
                 request.dropId(),
+                request.productId(),
                 request.name(),
                 request.winnerCount(),
                 request.startedAt(),

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.omc.raffle.application.event.producer.RaffleWinnerSelectedEvent;
+import com.omc.raffle.application.event.producer.RaffleLoserNotifiedEvent;
 import com.omc.raffle.domain.projection.RaffleEntryProjection;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -63,6 +64,7 @@ public class RaffleDrawService {
         int winnerCount = raffle.getWinnerCount();
         List<RaffleResult> results = new ArrayList<>(projections.size());
         List<UUID> winnerIds = new ArrayList<>();
+        List<UUID> loserIds = new ArrayList<>();
 
         for (int i = 0; i < projections.size(); i++) {
             RaffleEntryProjection proj = projections.get(i);
@@ -70,18 +72,22 @@ public class RaffleDrawService {
             
             if (status == RaffleResultStatus.WIN) {
                 winnerIds.add(proj.getId());
+            } else {
+                loserIds.add(proj.getId());
             }
             results.add(RaffleResult.create(proj.getId(), raffleId, proj.getUserId(), status));
         }
 
-        // 5. 당첨자(WIN)에 한해 전체 엔티티를 조회하여 ApplicationEvent 발행 (Kafka Outbox 연동용)
+        // 5. 당첨자(WIN)에 대해 전체 엔티티를 조회하여 ApplicationEvent 발행 (Kafka Outbox 연동)
         if (!winnerIds.isEmpty()) {
             List<RaffleEntry> winners = raffleEntryRepository.findAllById(winnerIds);
             for (RaffleEntry entry : winners) {
                 RaffleWinnerSelectedEvent event = new RaffleWinnerSelectedEvent(
+                        UUID.randomUUID().toString(),
                         raffleId,
                         entry.getId(),
                         entry.getUserId(),
+                        raffle.getProductId(),
                         entry.getBillingKeyId(),
                         entry.getCouponId(),
                         entry.getOriginalAmount(),
@@ -93,7 +99,20 @@ public class RaffleDrawService {
             }
         }
 
-        // 5. 결과 일괄 저장 (Bulk Insert)
+        // 6. 미당첨자(LOSE)에 대해 ApplicationEvent 발행 (Kafka Outbox 연동)
+        if (!loserIds.isEmpty()) {
+            List<RaffleEntry> losers = raffleEntryRepository.findAllById(loserIds);
+            for (RaffleEntry entry : losers) {
+                RaffleLoserNotifiedEvent event = new RaffleLoserNotifiedEvent(
+                        UUID.randomUUID().toString(),
+                        raffleId,
+                        entry.getUserId()
+                );
+                eventPublisher.publishEvent(event);
+            }
+        }
+
+        // 7. 결과 일괄 저장 (Bulk Insert)
         raffleResultRepository.saveAll(results);
 
         // 6. 래플 상태 업데이트 (종료)
@@ -131,14 +150,19 @@ public class RaffleDrawService {
         raffleResultRepository.save(newWinnerResult);
         log.info("Selected new winner {} for raffle {}", newWinnerResult.getUserId(), raffleId);
 
-        // 4. 새로운 당첨자에 대해 다시 이벤트 발행 (Outbox 저장용)
+        // 4. 새로운 당첨자에 대해 다시 이벤트 발행 (Outbox 연동)
         RaffleEntry entry = raffleEntryRepository.findById(newWinnerResult.getEntryId())
                 .orElseThrow(() -> new BusinessException(RaffleErrorCode.RAFFLE_001, "응모 내역을 찾을 수 없습니다."));
 
+        Raffle raffle = raffleRepository.findById(raffleId)
+                .orElseThrow(() -> new BusinessException(RaffleErrorCode.RAFFLE_001, "래플을 찾을 수 없습니다."));
+
         RaffleWinnerSelectedEvent event = new RaffleWinnerSelectedEvent(
+                UUID.randomUUID().toString(),
                 raffleId,
                 entry.getId(),
                 entry.getUserId(),
+                raffle.getProductId(),
                 entry.getBillingKeyId(),
                 entry.getCouponId(),
                 entry.getOriginalAmount(),

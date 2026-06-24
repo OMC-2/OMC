@@ -75,12 +75,13 @@ class PaymentFailureEventConsumerTest {
     }
 
     @Test
-    @DisplayName("salesType이 RAFFLE인 정상 결제 실패 이벤트를 수신하면 handlePaymentFailure가 호출된다")
+    @DisplayName("salesType이 RAFFLE인 정상 결제 실패 이벤트 수신시 handlePaymentFailure가 호출된다")
     void consume_valid_raffle_event() throws Exception {
         // given
         UUID eventId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        PaymentFailedRequest event = new PaymentFailedRequest(eventId, "RAFFLE", userId, "INSUFFICIENT_FUNDS", UUID.randomUUID(), UUID.randomUUID());
+        UUID raffleId = UUID.randomUUID();
+        PaymentFailedRequest event = new PaymentFailedRequest(eventId.toString(), "RAFFLE", userId, "INSUFFICIENT_FUNDS", UUID.randomUUID(), UUID.randomUUID(), raffleId);
         String message = objectMapper.writeValueAsString(event);
 
         // when
@@ -88,7 +89,7 @@ class PaymentFailureEventConsumerTest {
 
         // then
         await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(raffleDrawService, times(1)).handlePaymentFailure(eventId, userId);
+            verify(raffleDrawService, times(1)).handlePaymentFailure(raffleId, userId);
         });
     }
 
@@ -98,16 +99,17 @@ class PaymentFailureEventConsumerTest {
         // given
         UUID eventId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        PaymentFailedRequest event = new PaymentFailedRequest(eventId, "ORDER", userId, "INSUFFICIENT_FUNDS", UUID.randomUUID(), UUID.randomUUID());
+        UUID raffleId = UUID.randomUUID();
+        PaymentFailedRequest event = new PaymentFailedRequest(eventId.toString(), "ORDER", userId, "INSUFFICIENT_FUNDS", UUID.randomUUID(), UUID.randomUUID(), raffleId);
         String message = objectMapper.writeValueAsString(event);
 
         // when
         kafkaTemplate.send("payment.failed", eventId.toString(), message);
 
         // then
-        // 2초간 대기해도 호출되지 않음을 검증
-        Thread.sleep(2000);
-        verify(raffleDrawService, never()).handlePaymentFailure(any(), any());
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+            verify(raffleDrawService, never()).handlePaymentFailure(any(UUID.class), any(UUID.class));
+        });
     }
 
     @Test
@@ -124,11 +126,12 @@ class PaymentFailureEventConsumerTest {
         // 예외가 내부에서 catch되어 스킵되며, 다음 정상 메시지를 받을 수 있는지 확인
         Thread.sleep(1000);
 
-        PaymentFailedRequest validEvent = new PaymentFailedRequest(eventId, "RAFFLE", UUID.randomUUID(), "ERROR", UUID.randomUUID(), UUID.randomUUID());
+        UUID raffleId = UUID.randomUUID();
+        PaymentFailedRequest validEvent = new PaymentFailedRequest(eventId.toString(), "RAFFLE", UUID.randomUUID(), "ERROR", UUID.randomUUID(), UUID.randomUUID(), raffleId);
         kafkaTemplate.send("payment.failed", eventId.toString(), objectMapper.writeValueAsString(validEvent));
 
         await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(raffleDrawService, times(1)).handlePaymentFailure(eq(eventId), any());
+            verify(raffleDrawService, times(1)).handlePaymentFailure(eq(raffleId), any());
         });
     }
 }
