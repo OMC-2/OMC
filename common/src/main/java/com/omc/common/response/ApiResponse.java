@@ -1,13 +1,13 @@
 package com.omc.common.response;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Getter
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @JsonPropertyOrder({"success", "status", "message", "data"})
 public class ApiResponse<T> {
@@ -16,6 +16,19 @@ public class ApiResponse<T> {
     private int status;
     private String message;
     private T data;
+
+    @JsonCreator
+    private ApiResponse(
+            @JsonProperty("success") boolean success,
+            @JsonProperty("status")  int status,
+            @JsonProperty("message") String message,
+            @JsonProperty("data")    T data
+    ) {
+        this.success = success;
+        this.status  = status;
+        this.message = message;
+        this.data    = data;
+    }
 
     // 데이터 있는 성공 응답 — return ResponseEntity.ok(ApiResponse.success(data));
     public static <T> ApiResponse<T> success(T data) {
