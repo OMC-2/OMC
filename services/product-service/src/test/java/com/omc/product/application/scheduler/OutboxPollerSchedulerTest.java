@@ -37,14 +37,16 @@ class OutboxPollerSchedulerTest {
 
     @BeforeEach
     void setUp() {
+
         stockDeductedEvent = OutboxEvent.create(
+                UUID.randomUUID(),
                 "INVENTORY", UUID.randomUUID(),
-                OutboxEventType.STOCK_DEDUCTED, "{}"
-        );
+                OutboxEventType.STOCK_DEDUCTED, "{}");
+
         stockFailedEvent = OutboxEvent.create(
+                UUID.randomUUID(),
                 "INVENTORY", UUID.randomUUID(),
-                OutboxEventType.STOCK_FAILED, "{}"
-        );
+                OutboxEventType.STOCK_FAILED, "{}");
     }
 
     @Nested
