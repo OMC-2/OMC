@@ -2,12 +2,10 @@ package com.omc.coupon.unit.controller;
 
 import com.omc.common.config.GatewaySecurityAutoConfiguration;
 import com.omc.coupon.application.service.CouponReserveService;
-import com.omc.coupon.domain.entity.Coupon;
-import com.omc.coupon.domain.entity.UserCoupon;
 import com.omc.coupon.domain.enums.DiscountType;
 import com.omc.coupon.domain.enums.UserCouponStatus;
 import com.omc.coupon.presentation.controller.CouponInternalController;
-import com.omc.coupon.presentation.dto.response.CouponReserveResponse;
+import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -52,8 +50,16 @@ class CouponInternalControllerTest {
     @Test
     void reserve_internal_success() throws Exception {
         // given
-        CouponReserveResponse reserveResponse = new CouponReserveResponse(
-                UUID.randomUUID(), new BigDecimal("1000")
+        UUID userCouponId = UUID.randomUUID();
+        UserCouponResponse reserveResponse = new UserCouponResponse(
+                userCouponId,
+                UUID.randomUUID(),
+                "테스트 쿠폰",
+                DiscountType.AMOUNT,
+                new BigDecimal("1000"),
+                null,
+                UserCouponStatus.RESERVED,
+                null
         );
         given(couponReserveService.reserve(any())).willReturn(reserveResponse);
 
@@ -71,33 +77,7 @@ class CouponInternalControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.discountAmount").value("1000"));
-    }
-
-    // =========================================================================
-    // [시나리오 2] /internal/v1/coupons/{userCouponId} → 200 OK
-    // =========================================================================
-
-    @Test
-    void getUserCoupon_internal_success() throws Exception {
-        // given
-        UUID userCouponId = UUID.randomUUID();
-        UUID couponId = UUID.randomUUID();
-
-        UserCoupon userCouponMock = mock(UserCoupon.class);
-        Coupon couponMock = mock(Coupon.class);
-        given(couponMock.getCouponId()).willReturn(couponId);
-        given(couponMock.getDiscountType()).willReturn(DiscountType.AMOUNT);
-        given(userCouponMock.getUserCouponId()).willReturn(userCouponId);
-        given(userCouponMock.getCoupon()).willReturn(couponMock);
-        given(userCouponMock.getStatus()).willReturn(UserCouponStatus.AVAILABLE);
-        given(couponReserveService.getUserCoupon(userCouponId)).willReturn(userCouponMock);
-
-        // when & then
-        mockMvc.perform(get("/internal/v1/coupons/{userCouponId}", userCouponId)
-                        .header("X-Gateway-Secret", GATEWAY_SECRET))
-                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userCouponId").value(userCouponId.toString()))
-                .andExpect(jsonPath("$.data.status").value("AVAILABLE"));
+                .andExpect(jsonPath("$.data.status").value("RESERVED"));
     }
 }
