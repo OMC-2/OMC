@@ -47,7 +47,7 @@ class DropEventConsumerTest {
         void skipsDuplicate() {
             when(processedEventRepository.existsById("evt-dup")).thenReturn(true);
 
-            dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-dup", "INSTANT"));
+            dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-dup", "DROP"));
 
             verify(holdService, never()).confirmHold(any(), any(), any());
             verify(processedEventRepository, never()).save(any());
@@ -65,11 +65,11 @@ class DropEventConsumerTest {
         }
 
         @Test
-        @DisplayName("정상 INSTANT 이벤트면 confirmHold를 호출하고 processed를 저장한다")
+        @DisplayName("정상 DROP 이벤트면 confirmHold를 호출하고 processed를 저장한다")
         void processesInstant() {
             when(processedEventRepository.existsById("evt-ok")).thenReturn(false);
 
-            dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-ok", "INSTANT"));
+            dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-ok", "DROP"));
 
             verify(holdService).confirmHold(DROP_ID, ORDER_ID, USER_ID);
             verify(processedEventRepository).save(any(DropProcessedEvent.class));
@@ -85,7 +85,7 @@ class DropEventConsumerTest {
         void skipsDuplicate() {
             when(processedEventRepository.existsById("evt-dup")).thenReturn(true);
 
-            dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-dup", "INSTANT"));
+            dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-dup", "DROP"));
 
             verify(holdService, never()).recoverHold(any(), any(), any());
             verify(processedEventRepository, never()).save(any());
@@ -103,11 +103,11 @@ class DropEventConsumerTest {
         }
 
         @Test
-        @DisplayName("정상 INSTANT 이벤트면 recoverHold를 호출하고 processed를 저장한다")
+        @DisplayName("정상 DROP 이벤트면 recoverHold를 호출하고 processed를 저장한다")
         void processesInstant() {
             when(processedEventRepository.existsById("evt-ok")).thenReturn(false);
 
-            dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-ok", "INSTANT"));
+            dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-ok", "DROP"));
 
             verify(holdService).recoverHold(DROP_ID, ORDER_ID, USER_ID);
             verify(processedEventRepository).save(any(DropProcessedEvent.class));
