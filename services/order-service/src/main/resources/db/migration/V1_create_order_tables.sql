@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS p_orders (
 
                                         version             INT             NOT NULL DEFAULT 0,
                                         created_by          UUID,
+                                        updated_at          TIMESTAMP,
                                         updated_by          UUID,
                                         deleted_at          TIMESTAMP,
                                         deleted_by          UUID,

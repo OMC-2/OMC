@@ -7,6 +7,11 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    default-schema: raffle_db
+    locations: classpath:db/migration
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -14,6 +19,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: raffle_db
   data:
     redis:
       host: ${REDIS_HOST}
