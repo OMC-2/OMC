@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import com.omc.common.util.UuidV7Generator;
 import java.util.UUID;
 
 @Slf4j
@@ -36,7 +37,7 @@ public class PurchaseService {
         }
 
         // ③ orderId 선발급 — Lua ZADD member로 사용하므로 Lua 호출 전에 생성
-        UUID orderId = UUID.randomUUID();
+        UUID orderId = UuidV7Generator.generate();
 
         // ④ Lua 원자 실행: 중복 체크 → 재고 체크 → 선점 → 순번 발급
         Long result = purchaseRedisRepository.executePurchase(dropId, userId, orderId, holdTtlSec);

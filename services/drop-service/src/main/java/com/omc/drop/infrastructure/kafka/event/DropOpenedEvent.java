@@ -1,5 +1,6 @@
 package com.omc.drop.infrastructure.kafka.event;
 
+import com.omc.common.util.UuidV7Generator;
 import com.omc.drop.domain.entity.Drop;
 
 import java.time.LocalDateTime;
@@ -14,7 +15,7 @@ public record DropOpenedEvent(
 ) {
     public static DropOpenedEvent from(Drop drop) {
         return new DropOpenedEvent(
-                UUID.randomUUID().toString(),
+                UuidV7Generator.generate().toString(),
                 drop.getDropId(),
                 drop.getStartAt(),
                 drop.getEndAt(),
