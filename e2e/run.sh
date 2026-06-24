@@ -90,7 +90,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user coupon notification drop saga user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security"
+VALID_TARGETS="user coupon notification drop saga user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security saga/01_drop_instant_with_coupon"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do
