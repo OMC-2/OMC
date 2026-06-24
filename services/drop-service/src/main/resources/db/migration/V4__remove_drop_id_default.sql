@@ -1,0 +1,1 @@
+ALTER TABLE p_drops ALTER COLUMN drop_id DROP DEFAULT;

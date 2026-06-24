@@ -1,6 +1,7 @@
 package com.omc.drop.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
+import com.omc.common.util.UuidV7Generator;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.exception.DropNotOpenException;
 import com.omc.drop.domain.exception.InvalidDropDateRangeException;
@@ -30,7 +31,6 @@ import java.util.UUID;
 public class Drop extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(columnDefinition = "uuid")
     private UUID dropId;
 
@@ -55,6 +55,7 @@ public class Drop extends BaseEntity {
 
     @Builder(access = AccessLevel.PRIVATE)
     private Drop(UUID productId, LocalDateTime startAt, LocalDateTime endAt, int totalQty, int holdTtlSec) {
+        this.dropId = UuidV7Generator.generate();
         this.productId = productId;
         this.status = DropStatus.SCHEDULED;
         this.startAt = startAt;

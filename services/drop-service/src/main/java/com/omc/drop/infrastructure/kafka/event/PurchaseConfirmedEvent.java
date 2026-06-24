@@ -1,5 +1,6 @@
 package com.omc.drop.infrastructure.kafka.event;
 
+import com.omc.common.util.UuidV7Generator;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -13,7 +14,7 @@ public record PurchaseConfirmedEvent(
 ) {
     public static PurchaseConfirmedEvent of(UUID orderId, UUID dropId, UUID userId, UUID productId, int holdTtlSec) {
         return new PurchaseConfirmedEvent(
-                UUID.randomUUID().toString(),
+                UuidV7Generator.generate().toString(),
                 orderId,
                 dropId,
                 userId,
