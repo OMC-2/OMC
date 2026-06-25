@@ -17,7 +17,7 @@ test {
     testLogging { showStandardStreams = true }
     // E2E는 서버 상태에 따라 결과가 달라지므로 항상 새로 실행
     outputs.upToDateWhen { false }
-    doFirst {
+    doLast {
         file("${buildDir}").listFiles()?.each { f ->
             if (f.isDirectory() && f.name.startsWith('karate-reports_')) delete f
         }
