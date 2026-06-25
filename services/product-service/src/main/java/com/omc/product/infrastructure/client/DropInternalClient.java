@@ -7,7 +7,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
-@FeignClient(name = "drop-service")
+@FeignClient(
+        name = "drop-service",
+        url = "${feign.drop-service.url:}"
+)
 public interface DropInternalClient {
 
     @GetMapping("/internal/v1/drops/products/{productId}/active")
