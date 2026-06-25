@@ -2,8 +2,8 @@ function fn() {
     var config = {
         baseUrl: 'http://localhost:8080',
         paymentServiceUrl: 'http://localhost:8085',
-        gatewaySecret: '',
-        adminSecret: ''
+        gatewaySecret: 'local-secret',
+        adminSecret: 'local-admin-secret'
     };
 
     var gatewaySecret = java.lang.System.getenv('GATEWAY_SECRET');

@@ -6,4 +6,4 @@ spring:
 
 payment:
   service:
-    url: http://localhost:8085
+    url: ${PAYMENT_SERVICE_URL:http://payment-service:8085}
