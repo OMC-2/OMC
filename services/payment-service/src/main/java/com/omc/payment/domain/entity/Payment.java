@@ -8,6 +8,7 @@ import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.enums.Provider;
 import com.omc.payment.domain.enums.SalesType;
+import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -138,18 +139,30 @@ public class Payment extends BaseEntity {
         long resolvedDiscountAmount = discountAmount == null ? 0L : discountAmount;
 
         if (resolvedOriginalAmount < 0) {
-            throw new IllegalArgumentException("원금은 0 이상이어야 합니다.");
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
+                    "원금은 0 이상이어야 합니다."
+            );
         }
         if (resolvedDiscountAmount < 0) {
-            throw new IllegalArgumentException("할인 금액은 0 이상이어야 합니다.");
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
+                    "할인 금액은 0 이상이어야 합니다."
+            );
         }
         if (resolvedDiscountAmount > resolvedOriginalAmount) {
-            throw new IllegalArgumentException("할인 금액은 원금을 초과할 수 없습니다.");
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
+                    "할인 금액은 원금을 초과할 수 없습니다."
+            );
         }
 
         SalesType resolvedSalesType = Objects.requireNonNull(salesType, "판매 유형은 null일 수 없습니다.");
         if (resolvedSalesType == SalesType.RAFFLE && entryId == null) {
-            throw new IllegalArgumentException("래플 결제는 entryId가 필수입니다.");
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_FAILED,
+                    "래플 결제는 entryId가 필수입니다."
+            );
         }
 
         return Payment.builder()

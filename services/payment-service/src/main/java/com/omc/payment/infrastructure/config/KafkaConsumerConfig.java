@@ -1,5 +1,6 @@
 package com.omc.payment.infrastructure.config;
 
+import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
@@ -35,8 +36,8 @@ public class KafkaConsumerConfig {
                 new FixedBackOff(retryIntervalMs, Math.max(0, maxAttempts - 1))
         );
 
-        // 역직렬화 실패나 명백한 잘못된 입력같은 포이즌 필은 재시도 없이 바로 DLT
-        errorHandler.addNotRetryableExceptions(IllegalStateException.class, IllegalArgumentException.class);
+        // 포이즌 필은 바로 DLT
+        errorHandler.addNotRetryableExceptions(NonRetryablePaymentException.class);
 
         // DLT로 이관된 레코드는 offset도 함께 커밋
         // 같은 실패 메시지 무한 반복 소비 방지

@@ -5,6 +5,8 @@ import com.omc.payment.application.event.dto.inbound.OrderCreatedEvent;
 import com.omc.payment.application.event.dto.inbound.RefundRequestedEvent;
 import com.omc.payment.application.event.dto.inbound.StockFailedEvent;
 import com.omc.payment.application.service.PaymentEventService;
+import com.omc.payment.domain.exception.NonRetryablePaymentException;
+import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.infrastructure.config.KafkaTopics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +53,10 @@ public class PaymentEventConsumer {
             return objectMapper.readValue(message, targetType);
         } catch (Exception e) {
             log.error("{} 이벤트 역직렬화에 실패했습니다. payload={}", topic, message, e);
-            throw new IllegalStateException(topic + " 이벤트 역직렬화에 실패했습니다.", e);
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_FAILED,
+                    topic + " 이벤트 역직렬화에 실패했습니다."
+            );
         }
     }
 }
