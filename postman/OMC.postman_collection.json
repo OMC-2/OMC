@@ -21,7 +21,8 @@
     { "key": "paymentId", "value": "", "type": "string" },
     { "key": "raffleId", "value": "", "type": "string" },
     { "key": "addressId", "value": "", "type": "string" },
-    { "key": "notificationId", "value": "", "type": "string" }
+    { "key": "notificationId", "value": "", "type": "string" },
+    { "key": "billingKeyId", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -432,6 +433,22 @@
       "name": "💳 Payment",
       "item": [
         {
+          "name": "빌링키 등록 (Internal — 8085 직접)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200 || pm.response.code === 201) {",
+            "  pm.collectionVariables.set('billingKeyId', pm.response.json().billingKeyId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"customerKey\": \"test-customer-1\",\n  \"authKey\": \"test-auth-1\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{paymentServiceUrl}}/internal/v1/payments/billing-keys", "host": ["{{paymentServiceUrl}}"], "path": ["internal","v1","payments","billing-keys"] }
+          }
+        },
+        {
           "name": "결제 승인 (Internal — 8085 직접)",
           "event": [{ "listen": "test", "script": { "exec": [
             "if (pm.response.code === 201) {",
@@ -602,7 +619,7 @@
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "X-User-Id", "value": "{{userId}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"billingKeyId\": \"billing_key_id_here\",\n  \"couponId\": null,\n  \"originalAmount\": 150000,\n  \"discountAmount\": 0,\n  \"finalAmount\": 150000\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"billingKeyId\": \"{{billingKeyId}}\",\n  \"couponId\": \"{{userCouponId}}\",\n  \"originalAmount\": 150000,\n  \"discountAmount\": 1000,\n  \"finalAmount\": 149000\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/raffles/{{raffleId}}/entries", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","{{raffleId}}","entries"] }
           }
         },
