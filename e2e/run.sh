@@ -20,6 +20,18 @@
 #   payment             → payment/ 폴더 전체 (결제 승인 + 조회 + 취소 + 보안)
 #   saga                → saga/ 폴더 전체 (서비스 연계 시나리오)
 #   scenario            → scenario/ 폴더 전체 (핵심 시연 시나리오)
+#   [시연 시나리오 그룹]
+#   scenario/03_coupon_concurrency  → 쿠폰 동시 발급 시나리오 전체
+#   scenario/06_auth_errors         → 권한 오류 시나리오 전체
+#
+#   [시연 시나리오 개별]
+#   scenario/01_drop_purchase/01_normal                  → 드롭 정상 구매 해피패쓰
+#   scenario/03_coupon_concurrency/01_concurrent_issue   → 동시 발급 → 수량만 성공
+#   scenario/03_coupon_concurrency/02_duplicate_issue    → 중복 발급 차단
+#   scenario/06_auth_errors/00_signup_happy              → 회원가입 해피패쓰
+#   scenario/06_auth_errors/01_unauthenticated           → 비로그인 접근 차단
+#   scenario/06_auth_errors/02_unauthorized              → 권한 오류
+#   scenario/06_auth_errors/03_token_refresh             → 토큰 갱신
 #
 #   [개별 시나리오]
 #   user/signup              → 회원가입 (정상 201 / 중복 409 / 어드민 201)
@@ -82,12 +94,23 @@
 #   bash e2e/run.sh drop/drop_purchase       # 드롭 구매 선점 시나리오만
 #   bash e2e/run.sh payment/payment_flow                # 결제 승인·조회·취소
 #   bash e2e/run.sh payment/payment_security            # 결제 보안 시나리오만
+#   bash e2e/run.sh scenario                                       # 핵심 시연 시나리오 전체
+#   bash e2e/run.sh scenario/03_coupon_concurrency                 # 쿠폰 동시 발급 시나리오 전체
+#   bash e2e/run.sh scenario/06_auth_errors                        # 권한 오류 시나리오 전체
+#   bash e2e/run.sh scenario/01_drop_purchase/01_normal            # 드롭 정상 구매 해피패쓰
+#   bash e2e/run.sh scenario/03_coupon_concurrency/01_concurrent_issue  # 동시 발급
+#   bash e2e/run.sh scenario/03_coupon_concurrency/02_duplicate_issue   # 중복 발급 차단
+#   bash e2e/run.sh scenario/06_auth_errors/00_signup_happy        # 회원가입 해피패쓰
+#   bash e2e/run.sh scenario/06_auth_errors/01_unauthenticated     # 비로그인 접근 차단
+#   bash e2e/run.sh scenario/06_auth_errors/02_unauthorized        # 권한 오류
+#   bash e2e/run.sh scenario/06_auth_errors/03_token_refresh       # 토큰 갱신
 #
 GATEWAY_SECRET=local-secret
 ADMIN_SECRET=local-admin-secret
 JAVA_HOME=${JAVA_HOME:-$(/usr/libexec/java_home -v 21 2>/dev/null || /usr/libexec/java_home 2>/dev/null)}
 
 TARGET=$1
+RESOURCES_DIR="e2e/src/test/resources"
 
 if [ -n "$TARGET" ]; then
   # 1. 사용자가 이미 파일 확장자(.feature)를 붙여서 입력한 경우 그대로 사용
@@ -108,7 +131,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user coupon notification drop saga scenario user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security scenario/01_drop_purchase scenario/01_drop_purchase/01_normal scenario/04_payment_saga scenario/04_payment_saga/01_payment_failure scenario/04_payment_saga/02_stock_failure scenario/04_payment_saga/03_hold_expire scenario/04_payment_saga/04_idempotency scenario/05_admin"
+VALID_TARGETS="user coupon notification drop payment saga scenario user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security scenario/01_drop_purchase scenario/01_drop_purchase/01_normal scenario/03_coupon_concurrency scenario/03_coupon_concurrency/01_concurrent_issue scenario/03_coupon_concurrency/02_duplicate_issue scenario/04_payment_saga scenario/04_payment_saga/01_payment_failure scenario/04_payment_saga/02_stock_failure scenario/04_payment_saga/03_hold_expire scenario/04_payment_saga/04_idempotency scenario/05_admin scenario/05_admin/01_drop_modify scenario/05_admin/02_raffle_modify scenario/05_admin/03_raffle_status scenario/05_admin/04_raffle_draw scenario/06_auth_errors scenario/06_auth_errors/00_signup_happy scenario/06_auth_errors/01_unauthenticated scenario/06_auth_errors/02_unauthorized scenario/06_auth_errors/03_token_refresh"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do
@@ -164,6 +187,20 @@ if [ -n "$TARGET" ]; then
     echo "  scenario/04_payment_saga/02_stock_failure   → 재고 차감 실패 결제 취소"
     echo "  scenario/04_payment_saga/03_hold_expire     → 구매 hold 만료"
     echo "  scenario/04_payment_saga/04_idempotency     → PG 오류 결제 멱등성"
+    echo ""
+    echo "  [시연 시나리오 그룹]"
+    echo "  scenario                        → 핵심 시연 시나리오 전체"
+    echo "  scenario/03_coupon_concurrency  → 쿠폰 동시 발급 시나리오 전체"
+    echo "  scenario/06_auth_errors         → 권한 오류 시나리오 전체"
+    echo ""
+    echo "  [시연 시나리오 개별]"
+    echo "  scenario/01_drop_purchase/01_normal                 → 드롭 정상 구매 해피패쓰"
+    echo "  scenario/03_coupon_concurrency/01_concurrent_issue  → 동시 발급 → 수량만 성공"
+    echo "  scenario/03_coupon_concurrency/02_duplicate_issue   → 중복 발급 차단"
+    echo "  scenario/06_auth_errors/00_signup_happy             → 회원가입 해피패쓰"
+    echo "  scenario/06_auth_errors/01_unauthenticated          → 비로그인 접근 차단"
+    echo "  scenario/06_auth_errors/02_unauthorized             → 권한 오류"
+    echo "  scenario/06_auth_errors/03_token_refresh            → 토큰 갱신"
     exit 1
   fi
 fi
