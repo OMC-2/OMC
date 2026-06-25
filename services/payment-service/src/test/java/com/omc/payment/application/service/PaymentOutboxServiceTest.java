@@ -3,6 +3,7 @@ package com.omc.payment.application.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.domain.entity.Payment;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.CancellationCode;
@@ -94,6 +95,37 @@ class PaymentOutboxServiceTest {
 
             assertThat(outboxEvent.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
             assertThat(payload.get("failureReason").asText()).isEqualTo("카드 승인이 거절되었습니다");
+        }
+
+        @Test
+        @DisplayName("결제 생성 전 검증 실패도 주문 기준 실패 이벤트로 저장한다")
+        void savePaymentFailedBeforeCreation() throws IOException {
+            ObjectMapper realObjectMapper = new ObjectMapper();
+            PaymentOutboxService service = new PaymentOutboxService(paymentOutboxEventRepository, realObjectMapper);
+            PaymentCommand.Failure failure = new PaymentCommand.Failure(
+                    ORDER_ID,
+                    USER_ID,
+                    SalesType.DROP,
+                    DROP_ID,
+                    null,
+                    null,
+                    PRODUCT_ID,
+                    COUPON_ID,
+                    "결제 금액이 일치하지 않습니다."
+            );
+
+            service.savePaymentFailed(failure);
+
+            ArgumentCaptor<PaymentOutboxEvent> outboxCaptor = ArgumentCaptor.forClass(PaymentOutboxEvent.class);
+            verify(paymentOutboxEventRepository).save(outboxCaptor.capture());
+
+            PaymentOutboxEvent outboxEvent = outboxCaptor.getValue();
+            JsonNode payload = realObjectMapper.readTree(outboxEvent.getPayload());
+
+            assertThat(outboxEvent.getAggregateId()).isEqualTo(ORDER_ID);
+            assertThat(outboxEvent.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
+            assertThat(payload.get("orderId").asText()).isEqualTo(ORDER_ID.toString());
+            assertThat(payload.get("failureReason").asText()).isEqualTo("결제 금액이 일치하지 않습니다.");
         }
 
         @Test

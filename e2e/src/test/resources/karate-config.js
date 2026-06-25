@@ -2,8 +2,9 @@ function fn() {
     var config = {
         baseUrl: 'http://localhost:8080',
         paymentServiceUrl: 'http://localhost:8085',
-        gatewaySecret: '',
-        adminSecret: ''
+        kafkaBootstrapServers: 'localhost:9092',
+        gatewaySecret: 'local-secret',
+        adminSecret: 'local-admin-secret'
     };
 
     var gatewaySecret = java.lang.System.getenv('GATEWAY_SECRET');
@@ -17,6 +18,9 @@ function fn() {
 
     var paymentServiceUrl = java.lang.System.getenv('PAYMENT_SERVICE_URL');
     if (paymentServiceUrl) config.paymentServiceUrl = paymentServiceUrl;
+
+    var kafkaBootstrapServers = java.lang.System.getenv('KAFKA_BOOTSTRAP_SERVERS');
+    if (kafkaBootstrapServers) config.kafkaBootstrapServers = kafkaBootstrapServers;
 
     karate.configure('printEnabled', true);
 

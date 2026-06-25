@@ -7,7 +7,7 @@
 #
 #   bash docker-up.sh          # 전체 기동 (빌드 + 인프라 + 서비스)
 #   bash docker-up.sh infra    # 인프라만 기동 (postgres, redis, kafka, keycloak)
-#   bash docker-up.sh services # 빌드 후 서비스만 기동 (eureka, config, gateway, user-service, drop-service, coupon-service)
+#   bash docker-up.sh services # 빌드 후 애플리케이션 서비스 기동
 #
 # ================================================================
 # 기동 순서
@@ -28,7 +28,7 @@
 #     → gateway가 Keycloak JWKS URI를 참조하므로 먼저 헬시해야 함
 #
 #   5단계: 서비스 기동
-#     eureka-server → config-server → gateway + user-service + drop-service + coupon-service
+#     eureka-server → config-server → gateway + user/drop/product/order/payment/coupon/notification
 #
 #   6단계: 서비스 healthy 대기
 #     → actuator/health 기준으로 컨테이너가 정상 기동되었는지 확인
@@ -160,12 +160,14 @@ build_services() {
             :services:coupon-service:bootJar \
             :services:notification-service:bootJar \
             :services:eureka-server:bootJar \
+            :services:order-service:bootJar \
+            :services:raffle-service:bootJar \
             :services:config-server:bootJar
 
   echo ""
   echo "▶ [2단계] Docker 이미지 빌드"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" build \
-    eureka-server config-server gateway user-service drop-service product-service payment-service coupon-service notification-service
+    eureka-server config-server gateway user-service drop-service product-service payment-service coupon-service notification-service order-service raffle-service
 }
 
 # ----------------------------------------------------------------
@@ -188,9 +190,9 @@ start_infra() {
 # ----------------------------------------------------------------
 start_services() {
   echo ""
-  echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service / product-service / payment-service / coupon-service / notification-service)"
+  echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service / product-service / payment-service / coupon-service / notification-service / order-service / raffle-service)"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
-    eureka-server config-server gateway user-service drop-service product-service payment-service coupon-service notification-service
+    eureka-server config-server gateway user-service drop-service product-service payment-service coupon-service notification-service order-service raffle-service
 
   echo ""
   echo "▶ [6단계] 서비스 healthy 대기 (최대 180초)"
@@ -201,6 +203,8 @@ start_services() {
   wait_healthy omc-payment-service 180
   wait_healthy omc-coupon-service 180
   wait_healthy omc-notification-service 180
+  wait_healthy omc-order-service 180
+  wait_healthy omc-raffle-service 180
 
   echo ""
   echo "▶ [7단계] Gateway 라우팅 확인 (Eureka 전파 대기, 최대 90초)"

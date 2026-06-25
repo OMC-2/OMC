@@ -64,6 +64,12 @@ bash e2e/run.sh coupon/coupon_security   # 쿠폰 인증·인가 보안 검증
 bash e2e/run.sh payment/payment_flow     # 결제 승인·조회·취소
 bash e2e/run.sh payment/payment_security # 결제 인증·인가 보안 검증
 
+# 핵심 결제 SAGA 시나리오
+bash e2e/run.sh scenario/04_payment_saga/01_payment_failure # 결제 수단 오류 보상
+bash e2e/run.sh scenario/04_payment_saga/02_stock_failure   # 재고 차감 실패 결제 취소
+bash e2e/run.sh scenario/04_payment_saga/03_hold_expire     # 구매 hold 만료
+bash e2e/run.sh scenario/04_payment_saga/04_idempotency     # PG 오류 결제 멱등성
+
 # 시연 시나리오 그룹
 bash e2e/run.sh scenario/03_coupon_concurrency  # 쿠폰 동시 발급 시나리오 전체
 bash e2e/run.sh scenario/06_auth_errors         # 권한 오류 시나리오 전체
@@ -91,6 +97,7 @@ bash e2e/run.sh scenario/06_auth_errors/03_token_refresh            # 토큰 갱
 | `ADMIN_SECRET` | `local-admin-secret` | X-Admin-Secret 헤더 값 |
 | `BASE_URL` | `http://localhost:8080` | Gateway 주소 |
 | `PAYMENT_SERVICE_URL` | `http://localhost:8085` | 결제 내부 API 테스트 준비 주소 |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | E2E Java 헬퍼의 Kafka 접속 주소 |
 
 ---
 
@@ -121,15 +128,21 @@ e2e/
         ├── payment/                    ← payment-service 시나리오
         │   ├── payment_flow.feature
         │   └── payment_security.feature
-        ├── saga/                       ← 서비스 연계 시나리오
+        ├── saga/                       ← 분산 트랜잭션 검증 시나리오
         └── scenario/                   ← 핵심 시연 시나리오
             ├── 01_drop_purchase/
-            │   └── 01_normal.feature           드롭 정상 구매 해피패쓰
+            │   └── 01_normal.feature
             ├── 03_coupon_concurrency/
             │   ├── _create_user.feature        헬퍼: 유저 생성 (karate.parallel 내부용)
             │   ├── _issue_one.feature          헬퍼: 쿠폰 발급 1건 (karate.parallel 내부용)
             │   ├── 01_concurrent_issue.feature 동시 발급 → 수량만 성공 + 알림 검증
             │   └── 02_duplicate_issue.feature  중복 발급 차단
+            ├── 04_payment_saga/
+            │   ├── 01_payment_failure.feature
+            │   ├── 02_stock_failure.feature
+            │   ├── 03_hold_expire.feature
+            │   └── 04_idempotency.feature
+            └── 05_admin/
             └── 06_auth_errors/
                 ├── 00_signup_happy.feature     회원가입 해피패쓰
                 ├── 01_unauthenticated.feature  비로그인 접근 차단 → 401
@@ -154,5 +167,6 @@ open e2e/build/karate-reports/karate-summary.html
 1. 해당 서비스 폴더에 `.feature` 파일 생성
    - 단일 서비스: `src/test/resources/{서비스명}/`
    - 연계 시나리오: `src/test/resources/saga/`
+   - 핵심 시연 시나리오: `src/test/resources/scenario/{시나리오명}/`
 2. 기존 `.feature` 파일을 참고해 시나리오 작성
 3. `E2ERunner.java`에 `classpath:{서비스명}` 추가
