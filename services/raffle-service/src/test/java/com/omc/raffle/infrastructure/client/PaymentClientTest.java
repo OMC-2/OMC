@@ -9,6 +9,7 @@ import org.springframework.cloud.contract.wiremock.AutoConfigureWireMock;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,7 +34,7 @@ class PaymentClientTest {
         String billingKeyId = "bk_" + UUID.randomUUID().toString();
         BigDecimal amount = BigDecimal.valueOf(100);
 
-        stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
+        stubFor(post(urlPathEqualTo("/internal/v1/payments/pre-auth"))
                 .withRequestBody(matchingJsonPath("$.billingKeyId", equalTo(billingKeyId)))
                 .withRequestBody(matchingJsonPath("$.amount", equalTo("100")))
                 .willReturn(aResponse()
@@ -41,7 +42,7 @@ class PaymentClientTest {
                         .withStatus(200)));
 
         // when & then (no exception thrown)
-        paymentClient.preAuthCard(new PaymentClient.PreAuthRequest(billingKeyId, amount));
+        paymentClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
     }
 
     @Test
@@ -51,13 +52,13 @@ class PaymentClientTest {
         String billingKeyId = "bk_" + UUID.randomUUID().toString();
         BigDecimal amount = BigDecimal.valueOf(100);
 
-        stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
+        stubFor(post(urlPathEqualTo("/internal/v1/payments/pre-auth"))
                 .willReturn(aResponse()
                         .withStatus(500)));
 
         // when & then
         org.junit.jupiter.api.Assertions.assertThrows(feign.FeignException.InternalServerError.class, () -> {
-            paymentClient.preAuthCard(new PaymentClient.PreAuthRequest(billingKeyId, amount));
+            paymentClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
         });
     }
 
@@ -71,13 +72,13 @@ class PaymentClientTest {
         // NOTE: Feign 기본 설정에는 커넥션 타임아웃이 없어 RetryableException 검증이 불가능합니다.
         // 타임아웃 테스트는 FeignConfig에서 timeout 설정 후 별도 진행 필요.
         // 대신 404 응답 처리를 검증합니다.
-        stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
+        stubFor(post(urlPathEqualTo("/internal/v1/payments/pre-auth"))
                 .willReturn(aResponse()
                         .withStatus(404)));
 
         // when & then
         org.junit.jupiter.api.Assertions.assertThrows(feign.FeignException.NotFound.class, () -> {
-            paymentClient.preAuthCard(new PaymentClient.PreAuthRequest(billingKeyId, amount));
+            paymentClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
         });
     }
 }

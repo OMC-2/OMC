@@ -41,6 +41,12 @@
 #   payment/payment_flow                → 결제 승인·조회·취소
 #   payment/payment_security            → 결제 인증·인가 보안
 #
+#   [통합 시나리오]
+#   scenario/05_admin/01_drop_modify            → 오픈 전 드롭 수정 / 삭제
+#   scenario/05_admin/02_raffle_modify          → 오픈 전 래플 수정 / 삭제
+#   scenario/05_admin/03_raffle_status          → 래플 상태 강제 변경 (SCHEDULED → CLOSED)
+#   scenario/05_admin/04_raffle_draw            → 응모자 목록 조회 + 수동 추첨
+#
 # ----------------------------------------------------------------
 # 예시
 # ----------------------------------------------------------------
@@ -78,10 +84,16 @@ JAVA_HOME=${JAVA_HOME:-$(/usr/libexec/java_home -v 21 2>/dev/null || /usr/libexe
 TARGET=$1
 
 if [ -n "$TARGET" ]; then
-  # 슬래시가 포함된 경우 개별 feature 파일 → .feature 확장자 추가
-  # 슬래시가 없는 경우 폴더 전체 → 확장자 불필요
-  if [[ "$TARGET" == */* ]]; then
+  # 1. 사용자가 이미 파일 확장자(.feature)를 붙여서 입력한 경우 그대로 사용
+  if [[ "$TARGET" == *.feature ]]; then
+    KARATE_OPTS="classpath:${TARGET}"
+  # 2. 05_admin처럼 슬래시가 포함된 '폴더' 경로인 경우 (.feature를 붙이지 않음)
+  elif [[ "$TARGET" == */05_admin* || "$TARGET" == *scenario/* && ! "$TARGET" == *.feature ]]; then
+    KARATE_OPTS="classpath:${TARGET}"
+  # 3. 그 외에 슬래시가 포함된 경우 개별 feature 파일로 간주하여 .feature 추가
+  elif [[ "$TARGET" == */* ]]; then
     KARATE_OPTS="classpath:${TARGET}.feature"
+  # 4. 슬래시가 없는 경우 폴더 전체로 간주
   else
     KARATE_OPTS="classpath:$TARGET"
   fi
@@ -90,7 +102,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user coupon notification drop saga user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security saga/01_drop_instant_with_coupon"
+VALID_TARGETS="user coupon notification drop saga scenario user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security scenario/01_drop_purchase scenario/01_drop_purchase/01_normal scenario/05_admin"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do

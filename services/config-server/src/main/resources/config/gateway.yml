@@ -35,6 +35,11 @@ spring:
           predicates:
             - Path=/api/v1/raffles/**
 
+        - id: raffle-service-admin
+          uri: lb://raffle-service
+          predicates:
+            - Path=/api/v1/admin/raffles/**
+
         - id: order-service
           uri: lb://order-service
           predicates:

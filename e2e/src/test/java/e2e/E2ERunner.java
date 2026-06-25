@@ -14,7 +14,8 @@ class E2ERunner {
                 "classpath:notification",
                 "classpath:drop",
                 "classpath:payment",
-                "classpath:saga"
+                "classpath:saga",
+                "classpath:scenario/05_admin"
         );
     }
 }

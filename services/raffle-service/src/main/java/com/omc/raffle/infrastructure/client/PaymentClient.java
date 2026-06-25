@@ -4,6 +4,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 
 import java.math.BigDecimal;
 
@@ -21,8 +22,6 @@ public interface PaymentClient {
      * @param amount 가승인 금액 (예: 100)
      * @return 가승인 성공 여부 또는 트랜잭션 결과 객체
      */
-    @PostMapping("/internal/v1/payments/billing-keys")
+    @PostMapping("/internal/v1/payments/pre-auth")
     void preAuthCard(@RequestBody PreAuthRequest request);
-
-    record PreAuthRequest(String billingKeyId, BigDecimal amount) {}
 }
