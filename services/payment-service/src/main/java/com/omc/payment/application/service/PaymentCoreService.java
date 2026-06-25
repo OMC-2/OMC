@@ -3,6 +3,7 @@ package com.omc.payment.application.service;
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.response.ApiResponse;
+import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
@@ -12,6 +13,7 @@ import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.enums.Provider;
 import com.omc.payment.domain.enums.SalesType;
+import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
@@ -22,6 +24,7 @@ import com.omc.payment.infrastructure.client.CouponUserCouponResponse;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -39,7 +42,10 @@ public class PaymentCoreService {
     private final CouponServiceClient couponServiceClient;
     private final PaymentIdempotencyService paymentIdempotencyService;
 
-    @Transactional(noRollbackFor = BusinessException.class)
+    @Transactional(
+            propagation = Propagation.REQUIRES_NEW,
+            noRollbackFor = BusinessException.class
+    )
     public Payment confirmPayment(
             UUID orderId,
             UUID dropId,
@@ -51,15 +57,29 @@ public class PaymentCoreService {
             Long finalAmount,
             String providerPaymentId
     ) {
-        validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
-
         // 멱등성 방어 로직
         Payment existingPayment = paymentRepository.findByOrderId(orderId).orElse(null);
         if (existingPayment != null) {
             return existingPayment;
         }
 
-        reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
+        try {
+            validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
+            reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
+        } catch (NonRetryablePaymentException e) {
+            saveValidationFailedEvent(
+                    orderId,
+                    userId,
+                    SalesType.DROP,
+                    dropId,
+                    null,
+                    null,
+                    productId,
+                    couponId,
+                    e.getMessage()
+            );
+            throw e;
+        }
 
         Payment payment = paymentRepository.save(
                 Payment.create(
@@ -87,7 +107,10 @@ public class PaymentCoreService {
         return confirmWithGateway(payment, orderId, finalAmount, resolvedProviderPaymentId);
     }
 
-    @Transactional(noRollbackFor = BusinessException.class)
+    @Transactional(
+            propagation = Propagation.REQUIRES_NEW,
+            noRollbackFor = BusinessException.class
+    )
     public Payment confirmBillingPayment(
             UUID orderId,
             UUID entryId,
@@ -101,18 +124,34 @@ public class PaymentCoreService {
             Long discountAmount,
             Long finalAmount
     ) {
-        validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
-
-        if (billingKeyId == null || billingKeyId.isBlank()) {
-            throw new BusinessException(PaymentErrorCode.PAYMENT_FAILED, "자동결제를 위한 billingKey가 없습니다.");
-        }
-
         Payment existingPayment = paymentRepository.findByOrderId(orderId).orElse(null);
         if (existingPayment != null) {
             return existingPayment;
         }
 
-        reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
+        try {
+            validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
+            if (billingKeyId == null || billingKeyId.isBlank()) {
+                throw new NonRetryablePaymentException(
+                        PaymentErrorCode.PAYMENT_FAILED,
+                        "자동결제를 위한 billingKey가 없습니다."
+                );
+            }
+            reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
+        } catch (NonRetryablePaymentException e) {
+            saveValidationFailedEvent(
+                    orderId,
+                    userId,
+                    SalesType.RAFFLE,
+                    null,
+                    entryId,
+                    raffleId,
+                    productId,
+                    couponId,
+                    e.getMessage()
+            );
+            throw e;
+        }
 
         String resolvedCustomerKey = customerKey == null || customerKey.isBlank()
                 ? UUID.randomUUID().toString()
@@ -224,7 +263,7 @@ public class PaymentCoreService {
             /* FAILED 처리 */
             payment.fail(e.getProviderCode(), e.getMessage());
             paymentOutboxService.savePaymentFailed(payment);
-            throw new BusinessException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
             /* UNKNOWN 처리, 추후 재처리 필요 */
             payment.markUnknown();
@@ -261,7 +300,7 @@ public class PaymentCoreService {
         } catch (PaymentGatewayRequestException e) {
             payment.fail(e.getProviderCode(), e.getMessage());
             paymentOutboxService.savePaymentFailed(payment);
-            throw new BusinessException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
             payment.markUnknown();
             throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
@@ -276,7 +315,7 @@ public class PaymentCoreService {
                             payment.getProviderPaymentId(),
                             cancelReason,
                             payment.getFinalAmount(),
-                            paymentIdempotencyService.confirmKey(payment.getOrderId())
+                            paymentIdempotencyService.cancelKey(payment.getOrderId())
                     )
             );
             return result.providerCancellationId();
@@ -289,9 +328,20 @@ public class PaymentCoreService {
 
     // PG 연동 전 검증
     private void validatePaymentAmounts(Long originalAmount, Long discountAmount, Long finalAmount) {
-        // 금액 검증
-        if (originalAmount - discountAmount != finalAmount) {
-            throw new BusinessException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);
+        if (originalAmount == null || discountAmount == null || finalAmount == null) {
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
+                    "결제 금액은 필수입니다."
+            );
+        }
+        if (originalAmount < 0 || discountAmount < 0 || finalAmount < 0) {
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
+                    "결제 금액은 0 이상이어야 합니다."
+            );
+        }
+        if (discountAmount > originalAmount || originalAmount - discountAmount != finalAmount) {
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);
         }
     }
 
@@ -307,20 +357,55 @@ public class PaymentCoreService {
 
         if (couponId == null) {
             if (resolvedDiscountAmount != 0L) {
-                throw new BusinessException(PaymentErrorCode.PAYMENT_INVALID_COUPON, "쿠폰 없이 할인 금액을 적용할 수 없습니다.");
+                throw new NonRetryablePaymentException(
+                        PaymentErrorCode.PAYMENT_INVALID_COUPON,
+                        "쿠폰 없이 할인 금액을 적용할 수 없습니다."
+                );
             }
             return;
         }
 
         CouponUserCouponResponse coupon = reserveCoupon(couponId, orderId, userId);
         if (!"RESERVED".equals(coupon.status())) {
-            throw new BusinessException(PaymentErrorCode.PAYMENT_INVALID_COUPON, "쿠폰 상태가 RESERVED가 아닙니다.");
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_INVALID_COUPON,
+                    "쿠폰 상태가 RESERVED가 아닙니다."
+            );
         }
 
         long expectedDiscountAmount = calculateCouponDiscountAmount(coupon, originalAmount);
         if (expectedDiscountAmount != resolvedDiscountAmount) {
-            throw new BusinessException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH, "쿠폰 할인 금액이 일치하지 않습니다.");
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
+                    "쿠폰 할인 금액이 일치하지 않습니다."
+            );
         }
+    }
+
+    private void saveValidationFailedEvent(
+            UUID orderId,
+            UUID userId,
+            SalesType salesType,
+            UUID dropId,
+            UUID entryId,
+            UUID raffleId,
+            UUID productId,
+            UUID couponId,
+            String failureReason
+    ) {
+        paymentOutboxService.savePaymentFailed(
+                new PaymentCommand.Failure(
+                        orderId,
+                        userId,
+                        salesType,
+                        dropId,
+                        entryId,
+                        raffleId,
+                        productId,
+                        couponId,
+                        failureReason
+                )
+        );
     }
 
     // coupon-service에서 쿠폰을 선점하고 응답을 결제 검증에 사용
@@ -360,6 +445,9 @@ public class PaymentCoreService {
             return calculated.longValue();
         }
 
-        throw new BusinessException(PaymentErrorCode.PAYMENT_INVALID_COUPON, "지원하지 않는 쿠폰 할인 타입입니다.");
+        throw new NonRetryablePaymentException(
+                PaymentErrorCode.PAYMENT_INVALID_COUPON,
+                "지원하지 않는 쿠폰 할인 타입입니다."
+        );
     }
 }

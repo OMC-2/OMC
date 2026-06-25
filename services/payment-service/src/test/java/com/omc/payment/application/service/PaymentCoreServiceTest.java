@@ -3,6 +3,7 @@ package com.omc.payment.application.service;
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.response.ApiResponse;
+import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
@@ -12,6 +13,7 @@ import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.enums.Provider;
 import com.omc.payment.domain.enums.SalesType;
+import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
@@ -144,9 +146,42 @@ class PaymentCoreServiceTest {
                     9000L,
                     "결제 승인 아이디"
             ))
-                    .isInstanceOf(BusinessException.class)
+                    .isInstanceOf(NonRetryablePaymentException.class)
                     .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
                             .isEqualTo(PaymentErrorCode.PAYMENT_INVALID_COUPON));
+
+            ArgumentCaptor<PaymentCommand.Failure> failureCaptor =
+                    ArgumentCaptor.forClass(PaymentCommand.Failure.class);
+            verify(paymentOutboxService).savePaymentFailed(failureCaptor.capture());
+            assertThat(failureCaptor.getValue().orderId()).isEqualTo(ORDER_ID);
+            assertThat(failureCaptor.getValue().salesType()).isEqualTo(SalesType.DROP);
+            assertThat(failureCaptor.getValue().failureReason())
+                    .isEqualTo("쿠폰 없이 할인 금액을 적용할 수 없습니다.");
+        }
+
+        @Test
+        @DisplayName("결제 금액이 일치하지 않으면 실패 아웃박스를 적재한다")
+        void confirmPayment_amountMismatch() {
+            given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> paymentCoreService.confirmPayment(
+                    ORDER_ID,
+                    DROP_ID,
+                    PRODUCT_ID,
+                    null,
+                    USER_ID,
+                    10000L,
+                    0L,
+                    9000L,
+                    "결제 승인 아이디"
+            ))
+                    .isInstanceOf(NonRetryablePaymentException.class)
+                    .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                            .isEqualTo(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH));
+
+            verify(paymentOutboxService).savePaymentFailed(any(PaymentCommand.Failure.class));
+            verify(paymentRepository, never()).save(any(Payment.class));
+            verifyNoInteractions(paymentGatewayPort, couponServiceClient);
         }
 
         @Test
@@ -168,7 +203,7 @@ class PaymentCoreServiceTest {
                     10000L,
                     "결제 승인 아이디"
             ))
-                    .isInstanceOf(BusinessException.class)
+                    .isInstanceOf(NonRetryablePaymentException.class)
                     .satisfies(exception -> {
                         BusinessException businessException = (BusinessException) exception;
                         assertThat(businessException.getErrorCode()).isEqualTo(PaymentErrorCode.PAYMENT_FAILED);
@@ -286,6 +321,12 @@ class PaymentCoreServiceTest {
             assertThat(canceledPayment.getCancellationCode()).isEqualTo(CancellationCode.USER_CANCEL);
             assertThat(canceledPayment.getProviderCancellationId()).isEqualTo("취소 아이디");
             verify(paymentOutboxService).saveRefundDone(canceledPayment);
+
+            ArgumentCaptor<PaymentGatewayCommand.Cancel> commandCaptor =
+                    ArgumentCaptor.forClass(PaymentGatewayCommand.Cancel.class);
+            verify(paymentGatewayPort).cancelPayment(commandCaptor.capture());
+            assertThat(commandCaptor.getValue().providerPaymentId()).isEqualTo("결제 승인 아이디");
+            assertThat(commandCaptor.getValue().idempotencyKey()).isEqualTo("payment:cancel:" + ORDER_ID);
         }
 
         @Test

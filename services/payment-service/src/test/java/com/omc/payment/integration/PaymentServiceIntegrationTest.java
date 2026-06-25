@@ -163,7 +163,7 @@ class PaymentServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("결제 금액이 맞지 않으면 400을 반환하고 저장하지 않는다")
+        @DisplayName("결제 금액이 맞지 않으면 실패 아웃박스를 저장하고 400을 반환한다")
         void confirmPayment_invalidAmount_returns400() throws Exception {
             UUID orderId = UUID.randomUUID();
 
@@ -175,7 +175,75 @@ class PaymentServiceIntegrationTest {
                     .andExpect(jsonPath("$.errorCode").value("PAYMENT-006"));
 
             assertThat(paymentRepository.count()).isZero();
+            PaymentOutboxEvent outboxEvent = onlyOutboxEvent();
+            assertThat(outboxEvent.getAggregateId()).isEqualTo(orderId);
+            assertThat(outboxEvent.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
+        }
+
+        @Test
+        @DisplayName("PG가 결제를 거절하면 실패 결제와 실패 아웃박스를 저장한다")
+        void confirmPayment_gatewayRejected_savesFailedPayment() throws Exception {
+            UUID orderId = UUID.randomUUID();
+
+            mockMvc.perform(post("/internal/v1/payments/confirm")
+                            .header("X-User-Id", USER_ID.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(confirmPaymentBody(
+                                    orderId,
+                                    DROP_ID,
+                                    PRODUCT_ID,
+                                    null,
+                                    10000L,
+                                    0L,
+                                    10000L,
+                                    "E2E_CARD_LIMIT_EXCEEDED"
+                            )))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("PAYMENT-002"));
+
+            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
+            assertThat(payment.getFailureCode()).isEqualTo("EXCEED_MAX_CARD_LIMIT");
+
+            PaymentOutboxEvent outboxEvent = onlyOutboxEvent();
+            assertThat(outboxEvent.getAggregateId()).isEqualTo(payment.getPaymentId());
+            assertThat(outboxEvent.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
+        }
+
+        @Test
+        @DisplayName("PG 연결 오류는 알 수 없음 결제를 저장하고 재요청 시 기존 결제를 반환한다")
+        void confirmPayment_gatewayConnectionFailure_savesUnknownPayment() throws Exception {
+            UUID orderId = UUID.randomUUID();
+            String requestBody = confirmPaymentBody(
+                    orderId,
+                    DROP_ID,
+                    PRODUCT_ID,
+                    null,
+                    10000L,
+                    0L,
+                    10000L,
+                    "E2E_GATEWAY_CONNECTION_ERROR"
+            );
+
+            mockMvc.perform(post("/internal/v1/payments/confirm")
+                            .header("X-User-Id", USER_ID.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.errorCode").value("PAYMENT-005"));
+
+            Payment unknownPayment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            assertThat(unknownPayment.getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
             assertThat(paymentOutboxEventRepository.count()).isZero();
+
+            mockMvc.perform(post("/internal/v1/payments/confirm")
+                            .header("X-User-Id", USER_ID.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.paymentStatus").value("UNKNOWN"));
+
+            assertThat(paymentRepository.count()).isEqualTo(1);
         }
     }
 
@@ -297,11 +365,33 @@ class PaymentServiceIntegrationTest {
             Long discountAmount,
             Long finalAmount
     ) throws Exception {
+        return confirmPaymentBody(
+                orderId,
+                dropId,
+                productId,
+                couponId,
+                originalAmount,
+                discountAmount,
+                finalAmount,
+                "테스트 결제 승인 아이디"
+        );
+    }
+
+    private String confirmPaymentBody(
+            UUID orderId,
+            UUID dropId,
+            UUID productId,
+            UUID couponId,
+            Long originalAmount,
+            Long discountAmount,
+            Long finalAmount,
+            String providerPaymentId
+    ) throws Exception {
         return objectMapper.writeValueAsString(new ConfirmPaymentJson(
                 orderId,
                 dropId,
                 productId,
-                "테스트 결제 승인 아이디",
+                providerPaymentId,
                 couponId,
                 originalAmount,
                 discountAmount,
