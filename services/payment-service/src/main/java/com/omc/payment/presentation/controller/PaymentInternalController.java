@@ -42,4 +42,10 @@ public class PaymentInternalController {
     ) {
         return paymentService.registerBillingKey(request);
     }
+
+    @PostMapping("/payments/pre-auth")
+    public void preAuthCard(@RequestBody com.omc.payment.presentation.dto.request.PreAuthRequest request) {
+        // Dummy pre-auth implementation that always succeeds for testing purposes
+        // In a real scenario, this would validate the billingKey and call Toss Payments API to hold the amount
+    }
 }

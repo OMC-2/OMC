@@ -141,39 +141,40 @@ services:
   # 개발 완료 후 주석 해제
   # -------------------------------------------------------
 
-#  order-service:
-#    build:
-
-#      context: ./services/order-service
-#    container_name: omc-order-service
-#    ports:
-#      - "8083:8083"
-#    environment:
-#      CONFIG_SERVER_URI: http://config-server:8888
-#      DB_URL: postgres:5432
-#      DB_USERNAME: omc
-#      DB_PASSWORD: password
-#      REDIS_HOST: redis
-#      REDIS_PORT: 6379
-#      KAFKA_URI: kafka:29092
-#      GATEWAY_SECRET: local-secret
-#    depends_on:
-#      config-server:
-#        condition: service_healthy
-#      postgres:
-#        condition: service_healthy
-#      redis:
-#        condition: service_healthy
-#      kafka:
-#        condition: service_healthy
-#    healthcheck:
-#      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 10
-#      start_period: 60s
-#    networks:
-#      - omc-network
+  order-service:
+    build:
+      context: ./services/order-service
+    container_name: omc-order-service
+    ports:
+      - "8083:8083"
+    environment:
+      TZ: Asia/Seoul
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: postgres:5432
+      DB_USERNAME: omc
+      DB_PASSWORD: password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_URI: kafka:29092
+      GATEWAY_SECRET: local-secret
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - omc-network
 
   product-service:
     build:
@@ -245,39 +246,40 @@ services:
     networks:
       - omc-network
 
-#  raffle-service:
-#    build:
-
-#      context: ./services/raffle-service
-#    container_name: omc-raffle-service
-#    ports:
-#      - "8086:8086"
-#    environment:
-#      CONFIG_SERVER_URI: http://config-server:8888
-#      DB_URL: postgres:5432
-#      DB_USERNAME: omc
-#      DB_PASSWORD: password
-#      REDIS_HOST: redis
-#      REDIS_PORT: 6379
-#      KAFKA_URI: kafka:29092
-#      GATEWAY_SECRET: local-secret
-#    depends_on:
-#      config-server:
-#        condition: service_healthy
-#      postgres:
-#        condition: service_healthy
-#      redis:
-#        condition: service_healthy
-#      kafka:
-#        condition: service_healthy
-#    healthcheck:
-#      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health || exit 1"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 10
-#      start_period: 60s
-#    networks:
-#      - omc-network
+  raffle-service:
+    build:
+      context: ./services/raffle-service
+    container_name: omc-raffle-service
+    ports:
+      - "8086:8086"
+    environment:
+      TZ: Asia/Seoul
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: postgres:5432
+      DB_USERNAME: omc
+      DB_PASSWORD: password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_URI: kafka:29092
+      GATEWAY_SECRET: local-secret
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - omc-network
 
   coupon-service:
     build:
