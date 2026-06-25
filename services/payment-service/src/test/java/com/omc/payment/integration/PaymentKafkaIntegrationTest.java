@@ -285,6 +285,69 @@ class PaymentKafkaIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("금액 검증 실패는 실패 Outbox를 저장하고 재시도 없이 DLT로 전송된다")
+    void amountMismatch_consumed_savesFailedOutboxAndPublishesToDlt() throws JsonProcessingException {
+        UUID orderId = UUID.randomUUID();
+        OrderCreatedEvent invalidEvent = new OrderCreatedEvent(
+                UUID.randomUUID().toString(),
+                orderId,
+                USER_ID,
+                "DROP",
+                DROP_ID,
+                PRODUCT_ID,
+                null,
+                null,
+                10000L,
+                0L,
+                9000L,
+                null,
+                null
+        );
+        String payload = objectMapper.writeValueAsString(invalidEvent);
+
+        Map<String, Object> consumerProperties = KafkaTestUtils.consumerProps(
+                "결제-금액-검증-DLT-테스트-" + UUID.randomUUID(),
+                "true",
+                embeddedKafkaBroker
+        );
+        DefaultKafkaConsumerFactory<String, String> consumerFactory = new DefaultKafkaConsumerFactory<>(
+                consumerProperties,
+                new StringDeserializer(),
+                new StringDeserializer()
+        );
+
+        try (Consumer<String, String> consumer = consumerFactory.createConsumer()) {
+            embeddedKafkaBroker.consumeFromAnEmbeddedTopic(consumer, KafkaTopics.ORDER_CREATED_DLT);
+            consumer.seekToEnd(consumer.assignment());
+            kafkaTemplate.send(KafkaTopics.ORDER_CREATED, payload);
+
+            ConsumerRecord<String, String> dltRecord = KafkaTestUtils.getSingleRecord(
+                    consumer,
+                    KafkaTopics.ORDER_CREATED_DLT,
+                    Duration.ofSeconds(10)
+            );
+
+            assertThat(dltRecord.value()).isEqualTo(payload);
+            verify(paymentEventService, timeout(10000).times(1))
+                    .handleOrderCreated(any(OrderCreatedEvent.class));
+
+            await().atMost(10, SECONDS).untilAsserted(() -> {
+                assertThat(paymentRepository.findByOrderId(orderId)).isEmpty();
+                assertThat(paymentInboxEventRepository.existsById(invalidEvent.eventId())).isFalse();
+                assertThat(paymentOutboxEventRepository.findAll())
+                        .singleElement()
+                        .satisfies(event -> {
+                            assertThat(event.getAggregateId()).isEqualTo(orderId);
+                            assertThat(event.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
+                            assertThat(event.getPayload()).contains(orderId.toString());
+                            assertThat(event.getPayload()).contains("결제 금액이 일치하지 않습니다.");
+                        });
+                assertThat(stringRedisTemplate.opsForValue().get(confirmKey(orderId))).isNull();
+            });
+        }
+    }
+
     private void createPaidPayment(UUID orderId) {
         String eventId = UUID.randomUUID().toString();
         send(KafkaTopics.ORDER_CREATED, dropOrderCreatedEvent(eventId, orderId));

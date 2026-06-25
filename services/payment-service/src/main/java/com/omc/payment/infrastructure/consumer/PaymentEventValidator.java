@@ -3,6 +3,8 @@ package com.omc.payment.infrastructure.consumer;
 import com.omc.payment.application.event.dto.inbound.OrderCreatedEvent;
 import com.omc.payment.application.event.dto.inbound.RefundRequestedEvent;
 import com.omc.payment.application.event.dto.inbound.StockFailedEvent;
+import com.omc.payment.domain.exception.NonRetryablePaymentException;
+import com.omc.payment.domain.exception.PaymentErrorCode;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -31,7 +33,10 @@ public class PaymentEventValidator {
             return;
         }
 
-        throw new IllegalArgumentException("지원하지 않는 주문 유형입니다: " + event.orderType());
+        throw new NonRetryablePaymentException(
+                PaymentErrorCode.PAYMENT_FAILED,
+                "지원하지 않는 주문 유형입니다: " + event.orderType()
+        );
     }
 
     public void validate(RefundRequestedEvent event) {
@@ -50,13 +55,13 @@ public class PaymentEventValidator {
 
     private void requireNonNull(Object value, String message) {
         if (value == null) {
-            throw new IllegalArgumentException(message);
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, message);
         }
     }
 
     private void requireNotBlank(String value, String message) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(message);
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, message);
         }
     }
 }
