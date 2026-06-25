@@ -43,6 +43,7 @@ bash e2e/run.sh user              # user/ 폴더 전체
 bash e2e/run.sh coupon            # coupon/ 폴더 전체
 bash e2e/run.sh saga              # saga/ 폴더 전체 (서비스 연계 시나리오)
 bash e2e/run.sh payment           # payment/ 폴더 전체
+bash e2e/run.sh scenario          # scenario/ 폴더 전체 (핵심 시연 시나리오)
 
 # user 개별 시나리오
 bash e2e/run.sh user/signup              # 회원가입
@@ -62,6 +63,19 @@ bash e2e/run.sh coupon/coupon_security   # 쿠폰 인증·인가 보안 검증
 # payment 개별 시나리오
 bash e2e/run.sh payment/payment_flow     # 결제 승인·조회·취소
 bash e2e/run.sh payment/payment_security # 결제 인증·인가 보안 검증
+
+# 시연 시나리오 그룹
+bash e2e/run.sh scenario/03_coupon_concurrency  # 쿠폰 동시 발급 시나리오 전체
+bash e2e/run.sh scenario/06_auth_errors         # 권한 오류 시나리오 전체
+
+# 시연 시나리오 개별
+bash e2e/run.sh scenario/01_drop_purchase/01_normal                 # 드롭 정상 구매 해피패쓰
+bash e2e/run.sh scenario/03_coupon_concurrency/01_concurrent_issue  # 동시 발급 → 수량만 성공
+bash e2e/run.sh scenario/03_coupon_concurrency/02_duplicate_issue   # 중복 발급 차단
+bash e2e/run.sh scenario/06_auth_errors/00_signup_happy             # 회원가입 해피패쓰
+bash e2e/run.sh scenario/06_auth_errors/01_unauthenticated          # 비로그인 접근 차단
+bash e2e/run.sh scenario/06_auth_errors/02_unauthorized             # 권한 오류
+bash e2e/run.sh scenario/06_auth_errors/03_token_refresh            # 토큰 갱신
 ```
 
 ---
@@ -107,7 +121,20 @@ e2e/
         ├── payment/                    ← payment-service 시나리오
         │   ├── payment_flow.feature
         │   └── payment_security.feature
-        └── saga/                       ← 서비스 연계 시나리오 (추후 추가)
+        ├── saga/                       ← 서비스 연계 시나리오
+        └── scenario/                   ← 핵심 시연 시나리오
+            ├── 01_drop_purchase/
+            │   └── 01_normal.feature           드롭 정상 구매 해피패쓰
+            ├── 03_coupon_concurrency/
+            │   ├── _create_user.feature        헬퍼: 유저 생성 (karate.parallel 내부용)
+            │   ├── _issue_one.feature          헬퍼: 쿠폰 발급 1건 (karate.parallel 내부용)
+            │   ├── 01_concurrent_issue.feature 동시 발급 → 수량만 성공 + 알림 검증
+            │   └── 02_duplicate_issue.feature  중복 발급 차단
+            └── 06_auth_errors/
+                ├── 00_signup_happy.feature     회원가입 해피패쓰
+                ├── 01_unauthenticated.feature  비로그인 접근 차단 → 401
+                ├── 02_unauthorized.feature     권한 오류 → 403
+                └── 03_token_refresh.feature    토큰 갱신 + 새 토큰 검증
 ```
 
 ---
