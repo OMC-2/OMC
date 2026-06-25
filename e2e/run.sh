@@ -20,7 +20,6 @@
 #   payment             → payment/ 폴더 전체 (결제 승인 + 조회 + 취소 + 보안)
 #   saga                → saga/ 폴더 전체 (서비스 연계 시나리오)
 #   scenario            → scenario/ 폴더 전체 (핵심 시연 시나리오)
-#
 #   [시연 시나리오 그룹]
 #   scenario/03_coupon_concurrency  → 쿠폰 동시 발급 시나리오 전체
 #   scenario/06_auth_errors         → 권한 오류 시나리오 전체
