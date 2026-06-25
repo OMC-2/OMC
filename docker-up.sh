@@ -7,7 +7,7 @@
 #
 #   bash docker-up.sh          # 전체 기동 (빌드 + 인프라 + 서비스)
 #   bash docker-up.sh infra    # 인프라만 기동 (postgres, redis, kafka, keycloak)
-#   bash docker-up.sh services # 빌드 후 서비스만 기동 (eureka, config, gateway, user-service, drop-service, coupon-service)
+#   bash docker-up.sh services # 빌드 후 애플리케이션 서비스 기동
 #
 # ================================================================
 # 기동 순서
@@ -28,7 +28,7 @@
 #     → gateway가 Keycloak JWKS URI를 참조하므로 먼저 헬시해야 함
 #
 #   5단계: 서비스 기동
-#     eureka-server → config-server → gateway + user-service + drop-service + coupon-service
+#     eureka-server → config-server → gateway + user/drop/product/order/payment/coupon/notification
 #
 #   6단계: 서비스 healthy 대기
 #     → actuator/health 기준으로 컨테이너가 정상 기동되었는지 확인

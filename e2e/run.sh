@@ -19,6 +19,7 @@
 #   drop                → drop/ 폴더 전체 (드롭 Admin CRUD + 조회 + 구매 선점)
 #   payment             → payment/ 폴더 전체 (결제 승인 + 조회 + 취소 + 보안)
 #   saga                → saga/ 폴더 전체 (서비스 연계 시나리오)
+#   scenario            → scenario/ 폴더 전체 (핵심 시연 시나리오)
 #
 #   [개별 시나리오]
 #   user/signup              → 회원가입 (정상 201 / 중복 409 / 어드민 201)
@@ -42,6 +43,11 @@
 #   payment/payment_security            → 결제 인증·인가 보안
 #
 #   [통합 시나리오]
+#   scenario/01_drop_purchase/01_normal              → 쿠폰 적용 드롭 정상 구매
+#   scenario/04_payment_saga/01_payment_failure       → 결제 수단 오류 보상
+#   scenario/04_payment_saga/02_stock_failure         → 재고 차감 실패 결제 취소
+#   scenario/04_payment_saga/03_hold_expire           → 구매 hold 만료
+#   scenario/04_payment_saga/04_idempotency           → PG 오류 결제 멱등성
 #   scenario/05_admin/01_drop_modify            → 오픈 전 드롭 수정 / 삭제
 #   scenario/05_admin/02_raffle_modify          → 오픈 전 래플 수정 / 삭제
 #   scenario/05_admin/03_raffle_status          → 래플 상태 강제 변경 (SCHEDULED → CLOSED)
@@ -87,8 +93,8 @@ if [ -n "$TARGET" ]; then
   # 1. 사용자가 이미 파일 확장자(.feature)를 붙여서 입력한 경우 그대로 사용
   if [[ "$TARGET" == *.feature ]]; then
     KARATE_OPTS="classpath:${TARGET}"
-  # 2. 05_admin처럼 슬래시가 포함된 '폴더' 경로인 경우 (.feature를 붙이지 않음)
-  elif [[ "$TARGET" == */05_admin* || "$TARGET" == *scenario/* && ! "$TARGET" == *.feature ]]; then
+  # 2. 실제 폴더 경로인 경우 폴더 전체를 실행
+  elif [ -d "e2e/src/test/resources/$TARGET" ]; then
     KARATE_OPTS="classpath:${TARGET}"
   # 3. 그 외에 슬래시가 포함된 경우 개별 feature 파일로 간주하여 .feature 추가
   elif [[ "$TARGET" == */* ]]; then
@@ -102,7 +108,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user coupon notification drop saga scenario user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security scenario/01_drop_purchase scenario/01_drop_purchase/01_normal scenario/05_admin"
+VALID_TARGETS="user coupon notification drop saga scenario user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_my coupon/coupon_security notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security scenario/01_drop_purchase scenario/01_drop_purchase/01_normal scenario/04_payment_saga scenario/04_payment_saga/01_payment_failure scenario/04_payment_saga/02_stock_failure scenario/04_payment_saga/03_hold_expire scenario/04_payment_saga/04_idempotency scenario/05_admin"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do
@@ -122,6 +128,7 @@ if [ -n "$TARGET" ]; then
     echo "  notification      → notification/ 폴더 전체"
     echo "  payment           → payment/ 폴더 전체"
     echo "  saga              → saga/ 폴더 전체"
+    echo "  scenario          → scenario/ 폴더 전체"
     echo ""
     echo "  [개별 시나리오 — user]"
     echo "  user/signup              → 회원가입"
@@ -151,6 +158,12 @@ if [ -n "$TARGET" ]; then
     echo "  [개별 시나리오 — payment]"
     echo "  payment/payment_flow     → 결제 승인·조회·취소"
     echo "  payment/payment_security → 결제 인증·인가 보안 검증"
+    echo ""
+    echo "  [핵심 시연 시나리오 — payment saga]"
+    echo "  scenario/04_payment_saga/01_payment_failure → 결제 수단 오류 보상"
+    echo "  scenario/04_payment_saga/02_stock_failure   → 재고 차감 실패 결제 취소"
+    echo "  scenario/04_payment_saga/03_hold_expire     → 구매 hold 만료"
+    echo "  scenario/04_payment_saga/04_idempotency     → PG 오류 결제 멱등성"
     exit 1
   fi
 fi

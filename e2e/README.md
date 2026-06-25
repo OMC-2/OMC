@@ -43,6 +43,7 @@ bash e2e/run.sh user              # user/ 폴더 전체
 bash e2e/run.sh coupon            # coupon/ 폴더 전체
 bash e2e/run.sh saga              # saga/ 폴더 전체 (서비스 연계 시나리오)
 bash e2e/run.sh payment           # payment/ 폴더 전체
+bash e2e/run.sh scenario          # scenario/ 폴더 전체 (핵심 시연 시나리오)
 
 # user 개별 시나리오
 bash e2e/run.sh user/signup              # 회원가입
@@ -62,6 +63,12 @@ bash e2e/run.sh coupon/coupon_security   # 쿠폰 인증·인가 보안 검증
 # payment 개별 시나리오
 bash e2e/run.sh payment/payment_flow     # 결제 승인·조회·취소
 bash e2e/run.sh payment/payment_security # 결제 인증·인가 보안 검증
+
+# 핵심 결제 SAGA 시나리오
+bash e2e/run.sh scenario/04_payment_saga/01_payment_failure # 결제 수단 오류 보상
+bash e2e/run.sh scenario/04_payment_saga/02_stock_failure   # 재고 차감 실패 결제 취소
+bash e2e/run.sh scenario/04_payment_saga/03_hold_expire     # 구매 hold 만료
+bash e2e/run.sh scenario/04_payment_saga/04_idempotency     # PG 오류 결제 멱등성
 ```
 
 ---
@@ -107,7 +114,16 @@ e2e/
         ├── payment/                    ← payment-service 시나리오
         │   ├── payment_flow.feature
         │   └── payment_security.feature
-        └── saga/                       ← 서비스 연계 시나리오 (추후 추가)
+        ├── saga/                       ← 분산 트랜잭션 검증 시나리오
+        └── scenario/                   ← 핵심 시연 시나리오
+            ├── 01_drop_purchase/
+            │   └── 01_normal.feature
+            ├── 04_payment_saga/
+            │   ├── 01_payment_failure.feature
+            │   ├── 02_stock_failure.feature
+            │   ├── 03_hold_expire.feature
+            │   └── 04_idempotency.feature
+            └── 05_admin/
 ```
 
 ---
@@ -127,5 +143,6 @@ open e2e/build/karate-reports/karate-summary.html
 1. 해당 서비스 폴더에 `.feature` 파일 생성
    - 단일 서비스: `src/test/resources/{서비스명}/`
    - 연계 시나리오: `src/test/resources/saga/`
+   - 핵심 시연 시나리오: `src/test/resources/scenario/{시나리오명}/`
 2. 기존 `.feature` 파일을 참고해 시나리오 작성
 3. `E2ERunner.java`에 `classpath:{서비스명}` 추가
