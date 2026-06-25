@@ -84,6 +84,7 @@ bash e2e/run.sh scenario/04_payment_saga/04_idempotency     # PG 오류 결제 �
 | `ADMIN_SECRET` | `local-admin-secret` | X-Admin-Secret 헤더 값 |
 | `BASE_URL` | `http://localhost:8080` | Gateway 주소 |
 | `PAYMENT_SERVICE_URL` | `http://localhost:8085` | 결제 내부 API 테스트 준비 주소 |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | E2E Java 헬퍼의 Kafka 접속 주소 |
 
 ---
 
