@@ -11,6 +11,7 @@ import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.entity.OutboxEvent;
 import com.omc.product.domain.entity.ProcessedEvent;
 import com.omc.product.domain.exception.ActiveDropExistsException;
+import com.omc.product.domain.exception.InsufficientStockException;
 import com.omc.product.domain.exception.InventoryNotFoundException;
 import com.omc.product.domain.enums.OutboxEventType;
 import com.omc.product.domain.repository.*;
@@ -68,8 +69,6 @@ public class InventoryService {
     @Transactional
     public void confirmDeduct(PaymentCompletedEvent event) {
 
-        UUID outboxEventId = UuidV7Generator.generate();
-
         if (processedEventRepository.existsByEventId(event.eventId())) {
             log.info("[InventoryService] 이미 처리된 이벤트 스킵. eventId={}", event.eventId());
             return;
@@ -79,6 +78,7 @@ public class InventoryService {
                 .orElseThrow(InventoryNotFoundException::new);
 
         try {
+            UUID outboxEventId = UuidV7Generator.generate();
 
             inventory.confirmDeduct(1);
 
@@ -93,23 +93,12 @@ public class InventoryService {
 
         } catch (ObjectOptimisticLockingFailureException e) {
 
-            log.error("[InventoryService] 재고 차감 실패 (버전 충돌). productId={}, orderId={}",
-                    event.productId(), event.orderId());
-
-            // 실패 로그 기록
-            failedEventLogRepository.save(
-                    FailedEventLog.create(
-                            KafkaTopics.PAYMENT_COMPLETED,
-                            CONSUMER_GROUP,
-                            "INVENTORY",
-                            inventory.getInventoryId(),
-                            toJson(event),
-                            e.getMessage()
-                    )
+            log.error("[InventoryService] 재고 차감 실패 (버전 충돌). productId={}", event.productId());
+            handleStockFailure(inventory, event, e.getMessage()
             );
-
-            saveOutbox(outboxEventId, "INVENTORY", inventory.getInventoryId(),
-                    OutboxEventType.STOCK_FAILED, buildFailedPayload(event, outboxEventId));
+        } catch (InsufficientStockException e) {
+            log.error("[InventoryService] 재고 차감 실패 (재고 부족). productId={}", event.productId());
+            handleStockFailure(inventory, event, e.getMessage());
         }
     }
 
@@ -170,5 +159,25 @@ public class InventoryService {
                 event.dropId(),
                 event.userId()
         ));
+    }
+
+    private void handleStockFailure(Inventory inventory,
+                                    PaymentCompletedEvent event,
+                                    String errorMessage) {
+        UUID outboxEventId = UuidV7Generator.generate();
+
+        failedEventLogRepository.save(
+                FailedEventLog.create(
+                        KafkaTopics.PAYMENT_COMPLETED,
+                        CONSUMER_GROUP,
+                        "INVENTORY",
+                        inventory.getInventoryId(),
+                        toJson(event),
+                        errorMessage
+                )
+        );
+
+        saveOutbox(outboxEventId, "INVENTORY", inventory.getInventoryId(),
+                OutboxEventType.STOCK_FAILED, buildFailedPayload(event, outboxEventId));
     }
 }
