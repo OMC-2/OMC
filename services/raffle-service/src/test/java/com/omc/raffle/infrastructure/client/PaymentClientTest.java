@@ -33,7 +33,7 @@ class PaymentClientTest {
         String billingKeyId = "bk_" + UUID.randomUUID().toString();
         BigDecimal amount = BigDecimal.valueOf(100);
 
-        stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
+        stubFor(post(urlPathEqualTo("/internal/v1/payments/pre-auth"))
                 .withRequestBody(matchingJsonPath("$.billingKeyId", equalTo(billingKeyId)))
                 .withRequestBody(matchingJsonPath("$.amount", equalTo("100")))
                 .willReturn(aResponse()
@@ -51,7 +51,7 @@ class PaymentClientTest {
         String billingKeyId = "bk_" + UUID.randomUUID().toString();
         BigDecimal amount = BigDecimal.valueOf(100);
 
-        stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
+        stubFor(post(urlPathEqualTo("/internal/v1/payments/pre-auth"))
                 .willReturn(aResponse()
                         .withStatus(500)));
 
@@ -71,7 +71,7 @@ class PaymentClientTest {
         // NOTE: Feign 기본 설정에는 커넥션 타임아웃이 없어 RetryableException 검증이 불가능합니다.
         // 타임아웃 테스트는 FeignConfig에서 timeout 설정 후 별도 진행 필요.
         // 대신 404 응답 처리를 검증합니다.
-        stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
+        stubFor(post(urlPathEqualTo("/internal/v1/payments/pre-auth"))
                 .willReturn(aResponse()
                         .withStatus(404)));
 
