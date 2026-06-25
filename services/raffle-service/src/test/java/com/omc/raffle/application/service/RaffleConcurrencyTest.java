@@ -8,6 +8,7 @@ import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.EmbeddedRedisConfig;
 import com.omc.raffle.infrastructure.client.PaymentClient;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,7 +65,7 @@ class RaffleConcurrencyTest {
         raffleId = raffle.getId();
 
         // 결제 가승인 항상 성공
-        doNothing().when(paymentClient).preAuthCard(any(PaymentClient.PreAuthRequest.class));
+        doNothing().when(paymentClient).preAuthCard(any(PreAuthRequest.class));
     }
 
     @AfterEach

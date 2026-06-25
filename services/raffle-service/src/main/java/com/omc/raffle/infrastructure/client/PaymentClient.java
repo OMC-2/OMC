@@ -4,6 +4,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 
 import java.math.BigDecimal;
 
@@ -23,6 +24,4 @@ public interface PaymentClient {
      */
     @PostMapping("/internal/v1/payments/pre-auth")
     void preAuthCard(@RequestBody PreAuthRequest request);
-
-    record PreAuthRequest(String billingKeyId, BigDecimal amount) {}
 }

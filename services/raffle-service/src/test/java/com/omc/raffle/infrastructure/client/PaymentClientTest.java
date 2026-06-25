@@ -9,6 +9,7 @@ import org.springframework.cloud.contract.wiremock.AutoConfigureWireMock;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,7 +42,7 @@ class PaymentClientTest {
                         .withStatus(200)));
 
         // when & then (no exception thrown)
-        paymentClient.preAuthCard(new PaymentClient.PreAuthRequest(billingKeyId, amount));
+        paymentClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
     }
 
     @Test
@@ -57,7 +58,7 @@ class PaymentClientTest {
 
         // when & then
         org.junit.jupiter.api.Assertions.assertThrows(feign.FeignException.InternalServerError.class, () -> {
-            paymentClient.preAuthCard(new PaymentClient.PreAuthRequest(billingKeyId, amount));
+            paymentClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
         });
     }
 
@@ -77,7 +78,7 @@ class PaymentClientTest {
 
         // when & then
         org.junit.jupiter.api.Assertions.assertThrows(feign.FeignException.NotFound.class, () -> {
-            paymentClient.preAuthCard(new PaymentClient.PreAuthRequest(billingKeyId, amount));
+            paymentClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
         });
     }
 }

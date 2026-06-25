@@ -11,6 +11,7 @@ import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.infrastructure.client.PaymentClient;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -66,7 +67,7 @@ class RaffleAppServiceTest {
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(true);
-            doNothing().when(paymentClient).preAuthCard(any(PaymentClient.PreAuthRequest.class));
+            doNothing().when(paymentClient).preAuthCard(any(PreAuthRequest.class));
 
             RaffleEntry savedEntry = RaffleEntry.create(raffleId, request.userId(), request.billingKeyId(), null, BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000));
             when(raffleEntryRepository.save(any(RaffleEntry.class))).thenReturn(savedEntry);
@@ -77,7 +78,7 @@ class RaffleAppServiceTest {
             // then
             assertNotNull(response);
             assertEquals(request.userId(), response.userId());
-            verify(paymentClient, times(1)).preAuthCard(any(PaymentClient.PreAuthRequest.class));
+            verify(paymentClient, times(1)).preAuthCard(any(PreAuthRequest.class));
             verify(raffleEntryRepository, times(1)).save(any(RaffleEntry.class));
         }
 
