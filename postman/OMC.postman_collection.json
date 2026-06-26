@@ -20,9 +20,16 @@
     { "key": "orderId", "value": "", "type": "string" },
     { "key": "paymentId", "value": "", "type": "string" },
     { "key": "raffleId", "value": "", "type": "string" },
+    { "key": "entryId", "value": "", "type": "string" },
     { "key": "addressId", "value": "", "type": "string" },
     { "key": "notificationId", "value": "", "type": "string" },
-    { "key": "billingKeyId", "value": "", "type": "string" }
+    { "key": "billingKeyId", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "dlqId", "value": "", "type": "string" },
+    { "key": "dropStartAt", "value": "", "type": "string" },
+    { "key": "dropEndAt", "value": "", "type": "string" },
+    { "key": "raffleStartedAt", "value": "", "type": "string" },
+    { "key": "raffleEndedAt", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -61,6 +68,7 @@
             "if (pm.response.code === 200) {",
             "  const data = pm.response.json().data;",
             "  pm.collectionVariables.set('accessToken', data.accessToken);",
+            "  pm.collectionVariables.set('refreshToken', data.refreshToken);",
             "  pm.collectionVariables.set('userId', data.userId);",
             "}"
           ], "type": "text/javascript" } }],
@@ -394,30 +402,46 @@
       "item": [
         {
           "name": "드롭 생성 (ADMIN)",
-          "event": [{ "listen": "test", "script": { "exec": [
-            "if (pm.response.code === 200 || pm.response.code === 201) {",
-            "  pm.collectionVariables.set('dropId', pm.response.json().data.dropId);",
-            "}"
-          ], "type": "text/javascript" } }],
+          "event": [
+            { "listen": "prerequest", "script": { "exec": [
+              "const fmt = d => new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 19);",
+              "const now = new Date();",
+              "pm.collectionVariables.set('dropStartAt', fmt(now));",
+              "pm.collectionVariables.set('dropEndAt', fmt(new Date(now.getTime() + 5 * 60000)));"
+            ], "type": "text/javascript" } },
+            { "listen": "test", "script": { "exec": [
+              "if (pm.response.code === 200 || pm.response.code === 201) {",
+              "  pm.collectionVariables.set('dropId', pm.response.json().data.dropId);",
+              "}"
+            ], "type": "text/javascript" } }
+          ],
           "request": {
             "method": "POST",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"startAt\": \"2099-01-01T10:00:00\",\n  \"endAt\": \"2099-01-01T18:00:00\",\n  \"totalQty\": 10,\n  \"holdTtlSec\": 300\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"startAt\": \"{{dropStartAt}}\",\n  \"endAt\": \"{{dropEndAt}}\",\n  \"totalQty\": 10,\n  \"holdTtlSec\": 300\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/drops", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","drops"] }
           }
         },
         {
           "name": "드롭 수정 (ADMIN)",
+          "event": [
+            { "listen": "prerequest", "script": { "exec": [
+              "const fmt = d => new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 19);",
+              "const now = new Date();",
+              "pm.collectionVariables.set('dropStartAt', fmt(now));",
+              "pm.collectionVariables.set('dropEndAt', fmt(new Date(now.getTime() + 5 * 60000)));"
+            ], "type": "text/javascript" } }
+          ],
           "request": {
             "method": "PUT",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"startAt\": \"2099-01-02T10:00:00\",\n  \"endAt\": \"2099-01-02T18:00:00\",\n  \"totalQty\": 20,\n  \"holdTtlSec\": 600\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"startAt\": \"{{dropStartAt}}\",\n  \"endAt\": \"{{dropEndAt}}\",\n  \"totalQty\": 20,\n  \"holdTtlSec\": 600\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/drops/{{dropId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","drops","{{dropId}}"] }
           }
         },
@@ -560,18 +584,26 @@
       "item": [
         {
           "name": "래플 생성 (ADMIN)",
-          "event": [{ "listen": "test", "script": { "exec": [
-            "if (pm.response.code === 200 || pm.response.code === 201) {",
-            "  pm.collectionVariables.set('raffleId', pm.response.json().data.raffleId);",
-            "}"
-          ], "type": "text/javascript" } }],
+          "event": [
+            { "listen": "prerequest", "script": { "exec": [
+              "const fmt = d => new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 19);",
+              "const now = new Date();",
+              "pm.collectionVariables.set('raffleStartedAt', fmt(new Date(now.getTime() + 60000)));",
+              "pm.collectionVariables.set('raffleEndedAt', fmt(new Date(now.getTime() + 5 * 60000)));"
+            ], "type": "text/javascript" } },
+            { "listen": "test", "script": { "exec": [
+              "if (pm.response.code === 200 || pm.response.code === 201) {",
+              "  pm.collectionVariables.set('raffleId', pm.response.json().data.raffleId);",
+              "}"
+            ], "type": "text/javascript" } }
+          ],
           "request": {
             "method": "POST",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"dropId\": \"{{dropId}}\",\n  \"productId\": \"{{productId}}\",\n  \"name\": \"Nike 한정판 래플\",\n  \"winnerCount\": 5,\n  \"startedAt\": \"2099-02-01T10:00:00\",\n  \"endedAt\": \"2099-02-07T23:59:59\"\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"dropId\": \"{{dropId}}\",\n  \"productId\": \"{{productId}}\",\n  \"name\": \"Nike 한정판 래플\",\n  \"winnerCount\": 5,\n  \"startedAt\": \"{{raffleStartedAt}}\",\n  \"endedAt\": \"{{raffleEndedAt}}\"\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles"] }
           }
         },
@@ -650,11 +682,16 @@
         },
         {
           "name": "래플 응모 (USER)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200 || pm.response.code === 201) {",
+            "  pm.collectionVariables.set('entryId', pm.response.json().data.entryId);",
+            "}"
+          ], "type": "text/javascript" } }],
           "request": {
             "method": "POST",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
-              { "key": "X-User-Id", "value": "{{userId}}" }
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"billingKeyId\": \"{{billingKeyId}}\",\n  \"couponId\": \"{{userCouponId}}\",\n  \"originalAmount\": 150000,\n  \"discountAmount\": 1000,\n  \"finalAmount\": 149000\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/raffles/{{raffleId}}/entries", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","{{raffleId}}","entries"] }
@@ -666,7 +703,7 @@
             "method": "GET",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
-              { "key": "X-User-Id", "value": "{{userId}}" }
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
             ],
             "url": { "raw": "{{baseUrl}}/api/v1/raffles/entries/me?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","entries","me"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }] }
           }
@@ -677,7 +714,7 @@
             "method": "GET",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
-              { "key": "X-User-Id", "value": "{{userId}}" }
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
             ],
             "url": { "raw": "{{baseUrl}}/api/v1/raffles/{{raffleId}}/winners/me", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","{{raffleId}}","winners","me"] }
           }
@@ -735,6 +772,14 @@
         },
         {
           "name": "DLQ 목록 조회 (ADMIN)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  const content = pm.response.json().data.content;",
+            "  if (content && content.length > 0) {",
+            "    pm.collectionVariables.set('dlqId', content[0].dlqId);",
+            "  }",
+            "}"
+          ], "type": "text/javascript" } }],
           "request": {
             "method": "GET",
             "header": [
