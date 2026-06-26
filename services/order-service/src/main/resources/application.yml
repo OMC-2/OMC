@@ -3,3 +3,19 @@ spring:
     name: order-service
   config:
     import: optional:configserver:${CONFIG_SERVER_URI:http://localhost:8888}
+  # LocalDateTime 직렬화 (config-server가 주지 않으므로 여기서 설정)
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      adjust-dates-to-context-time-zone: false
+
+gateway:
+  secret: ${GATEWAY_SECRET:local-secret}
+
+logging:
+  level:
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: DEBUG
+    com.omc.order.infrastructure.client: DEBUG
+    feign: DEBUG

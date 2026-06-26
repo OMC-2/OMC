@@ -130,7 +130,7 @@
           }
         },
         {
-          "name": "📦 주소",
+          "name": "🏠 주소",
           "item": [
             {
               "name": "주소 등록",
@@ -307,7 +307,7 @@
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Nike Air Max 2024\",\n  \"description\": \"최신 에어맥스 운동화\",\n  \"price\": 150000,\n  \"brand\": \"Nike\",\n  \"category\": \"Sneakers\",\n  \"imageUrl\": \"https://example.com/image.jpg\",\n  \"initialQuantity\": 100\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Switch 2\",\n  \"description\": \"닌텐도 스위치 2\",\n  \"price\": 680000,\n  \"brand\": \"Nintendo\",\n  \"category\": \" 게이밍 기기\",\n  \"imageUrl\": \"https://example.com/image.jpg\",\n  \"initialQuantity\": 100\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/products", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","products"] }
           }
         },
@@ -319,7 +319,7 @@
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Nike Air Max 2024 (수정)\",\n  \"price\": 140000\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Switch 2 (수정)\",\n  \"price\": 680000\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","products","{{productId}}"] }
           }
         },
@@ -349,6 +349,43 @@
             "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
             "url": { "raw": "{{baseUrl}}/api/v1/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","products","{{productId}}"] }
           }
+        },
+        {
+          "name": "📦 Inventory",
+          "item": [
+            {
+              "name": "재고 상세 조회 (ADMIN)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/admin/products/{{productId}}/inventories",
+                  "path": ["api","v1","admin","products","{{productId}}","inventories"]
+                }
+              }
+            },
+            {
+              "name": "재고 수동 수정 (ADMIN)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"totalQuantity\": 150,\n  \"reason\": \"입고 추가\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/admin/products/{{productId}}/inventories",
+                  "path": ["api","v1","admin","products","{{productId}}","inventories"]
+                }
+              }
+            }
+          ]
         }
       ]
     },
