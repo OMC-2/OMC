@@ -24,15 +24,6 @@ public class OrderRefundController {
 
   private final OrderService orderService;
 
-  //주문 단건 조회: E2E 폴링/상태 확인 및 사용자 주문 상세 조회
-
-  @Operation(summary = "주문 단건 조회", description = "주문 ID로 주문 상태와 상세 정보를 조회합니다.")
-  @GetMapping("/{orderId}")
-  public ResponseEntity<ApiResponse<OrderResponse>> getOrder(@PathVariable UUID orderId){
-    return ResponseEntity.ok(ApiResponse.success(orderService.getOrder(orderId)));
-  }
-
-
   //사용자 직접 환불 요청: CONFIRMED -> REFUND_REQUESTED -> refund.requested 발행
   //상태가 CONFIRMED 가 아니면 OrderStateException(REFUND_NOT_ALLOWED) -> GlobalExceptionHandeler 가 403 응답
   @Operation(summary = "주문 환불 요청", description = "확정된 주문에 대해 사용자가 환불을 요청합니다.")
