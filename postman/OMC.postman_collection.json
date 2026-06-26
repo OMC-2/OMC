@@ -583,7 +583,7 @@
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"dropId\": \"{{dropId}}\",\n  \"productId\": \"{{productId}}\",\n  \"name\": \"Nike 한정판 래플\",\n  \"winnerCount\": 5,\n  \"startedAt\": \"2026-06-26T15:00:00\",\n  \"endedAt\": \"2026-06-26T15:30:00\"\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"name\": \"Nike 한정판 래플\",\n  \"winnerCount\": 5,\n  \"startedAt\": \"2026-06-26T15:00:00\",\n  \"endedAt\": \"2026-06-26T15:30:00\"\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles"] }
           }
         },
