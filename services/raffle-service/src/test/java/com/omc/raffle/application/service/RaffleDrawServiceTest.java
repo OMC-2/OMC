@@ -175,8 +175,8 @@ class RaffleDrawServiceTest {
     // ──────────────────────────────────────────────────────────────
 
     private Raffle openRaffle(int winnerCount) {
-        Raffle raffle = Raffle.create(UUID.randomUUID(), java.util.UUID.randomUUID(), "테스트 래플", winnerCount,
-                LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+        Raffle raffle = Raffle.create(UUID.randomUUID(), "테스트 래플", winnerCount,
+                LocalDateTime.now().minusDays(2), LocalDateTime.now().minusDays(1));
         raffle.updateStatus(RaffleStatus.OPEN);
         return raffleRepository.save(raffle);
     }
