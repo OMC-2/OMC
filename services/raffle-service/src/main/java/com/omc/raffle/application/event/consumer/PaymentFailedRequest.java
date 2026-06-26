@@ -11,7 +11,6 @@ public record PaymentFailedRequest(
         UUID userId,
         String failureReason,
         UUID orderId,
-        UUID dropId,
         UUID raffleId
 ) {
 }

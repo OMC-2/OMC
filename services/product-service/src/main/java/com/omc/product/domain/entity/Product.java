@@ -52,7 +52,7 @@ public class Product extends BaseEntity {
     private ProductStatus status;
 
     @Builder(access = AccessLevel.PRIVATE)
-    private Product(UUID productId, String name, String description,
+    private Product(String name, String description,
                     Long price, String brand, String category,
                     String imageUrl, ProductStatus status) {
         this.productId = UuidV7Generator.generate();

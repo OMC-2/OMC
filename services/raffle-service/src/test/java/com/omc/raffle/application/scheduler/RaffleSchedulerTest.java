@@ -57,8 +57,8 @@ class RaffleSchedulerTest {
     @DisplayName("시작 시간이 지난 SCHEDULED 래플은 OPEN으로 상태가 변경된다")
     void scheduleRaffleOpen() {
         // given
-        Raffle raffle = Raffle.create(UUID.randomUUID(), java.util.UUID.randomUUID(), "오픈 테스트", 5,
-                LocalDateTime.now().minusMinutes(5), // 이미 시작 시간 지남
+        Raffle raffle = Raffle.create(UUID.randomUUID(), "오픈 테스트", 5,
+                LocalDateTime.now().minusMinutes(5),
                 LocalDateTime.now().plusDays(1)
         );
         raffleRepository.save(raffle);
@@ -75,9 +75,9 @@ class RaffleSchedulerTest {
     @DisplayName("종료 시간이 지난 OPEN 래플은 추첨이 진행되고 CLOSED 상태로 변경된다")
     void scheduleRaffleDraw() {
         // given
-        Raffle raffle = Raffle.create(UUID.randomUUID(), java.util.UUID.randomUUID(), "마감 테스트", 5,
+        Raffle raffle = Raffle.create(UUID.randomUUID(), "마감 테스트", 5,
                 LocalDateTime.now().minusDays(1),
-                LocalDateTime.now().minusMinutes(5) // 이미 마감 시간 지남
+                LocalDateTime.now().minusMinutes(5)
         );
         raffle.updateStatus(RaffleStatus.OPEN);
         raffleRepository.save(raffle);

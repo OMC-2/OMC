@@ -11,9 +11,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface RaffleRepository extends JpaRepository<Raffle, UUID> {
-    // 특정 드롭에 대한 래플 이벤트 단건 조회
-    Optional<Raffle> findByDropId(UUID dropId);
-
     // 추첨 스케줄러용: 종료 시간이 지났고 상태가 OPEN인 래플 목록 조회
     List<Raffle> findAllByStatusAndEndedAtBefore(RaffleStatus status, LocalDateTime now);
 

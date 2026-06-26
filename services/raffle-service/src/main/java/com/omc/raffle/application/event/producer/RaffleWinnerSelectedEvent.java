@@ -15,9 +15,9 @@ public record RaffleWinnerSelectedEvent(
         UUID productId,
         String billingKeyId,
         UUID couponId,
-        java.math.BigDecimal originalAmount,
-        java.math.BigDecimal discountAmount,
-        java.math.BigDecimal finalAmount,
+        Long originalAmount,
+        Long discountAmount,
+        Long finalAmount,
         LocalDateTime selectedAt
 ) {
 }
