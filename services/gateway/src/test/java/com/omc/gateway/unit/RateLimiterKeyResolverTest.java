@@ -1,14 +1,13 @@
-package com.omc.gateway.infrastructure.ratelimit;
+package com.omc.gateway.unit;
 
+import com.omc.gateway.infrastructure.ratelimit.RateLimiterKeyResolverConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -18,7 +17,6 @@ import reactor.test.StepVerifier;
 
 import java.net.InetSocketAddress;
 import java.time.Instant;
-import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -29,7 +27,7 @@ class RateLimiterKeyResolverTest {
 
     @BeforeEach
     void setUp() {
-        keyResolver = new RateLimiterKeyResolver().rateLimiterKeyResolver();
+        keyResolver = new RateLimiterKeyResolverConfig().rateLimiterKeyResolver();
     }
 
     @Test
@@ -43,7 +41,6 @@ class RateLimiterKeyResolverTest {
             .build();
 
         JwtAuthenticationToken jwtAuth = new JwtAuthenticationToken(jwt);
-
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getAuthentication()).thenReturn(jwtAuth);
 
