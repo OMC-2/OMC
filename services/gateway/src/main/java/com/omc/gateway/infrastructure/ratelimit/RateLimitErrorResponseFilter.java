@@ -1,6 +1,7 @@
 package com.omc.gateway.infrastructure.ratelimit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.gateway.presentation.dto.response.RateLimitErrorResponse;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
@@ -12,8 +13,6 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import reactor.core.publisher.Mono;
-
-import java.util.Map;
 
 @Component
 public class RateLimitErrorResponseFilter implements GlobalFilter, Ordered {
@@ -29,11 +28,11 @@ public class RateLimitErrorResponseFilter implements GlobalFilter, Ordered {
             public Mono<Void> setComplete() {
                 if (HttpStatus.TOO_MANY_REQUESTS.equals(getStatusCode())) {
                     getHeaders().setContentType(MediaType.APPLICATION_JSON);
-                    byte[] body = toJson(Map.of(
-                        "success", false,
-                        "status", 429,
-                        "errorCode", "RATE_LIMIT_EXCEEDED",
-                        "message", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+                    byte[] body = toJson(new RateLimitErrorResponse(
+                        false,
+                        429,
+                        "RATE_LIMIT_EXCEEDED",
+                        "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
                     ));
                     DataBuffer buffer = bufferFactory().wrap(body);
                     return writeWith(Mono.just(buffer));

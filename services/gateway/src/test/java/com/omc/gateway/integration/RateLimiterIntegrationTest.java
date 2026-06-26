@@ -8,7 +8,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter;
-import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -46,7 +45,6 @@ class RateLimiterIntegrationTest {
     static class TestRateLimiterConfig {
         // burst=2로 낮게 설정해 테스트에서 빠르게 소진
         @Bean
-        @Primary
         public RedisRateLimiter testRateLimiter() {
             return new RedisRateLimiter(1, 2);
         }
