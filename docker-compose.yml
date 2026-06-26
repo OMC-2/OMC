@@ -121,7 +121,7 @@ services:
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
-      - "9090:9090"
+      - "19090:9090"
     networks:
       - omc-network
 
@@ -129,7 +129,7 @@ services:
     image: grafana/grafana:latest
     container_name: omc-grafana
     ports:
-      - "3000:3000"
+      - "13000:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
     volumes:

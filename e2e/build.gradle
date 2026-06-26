@@ -4,6 +4,8 @@ plugins {
 
 dependencies {
     testImplementation 'com.intuit.karate:karate-junit5:1.4.1'
+    testImplementation 'org.apache.kafka:kafka-clients'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -15,4 +17,9 @@ test {
     testLogging { showStandardStreams = true }
     // E2E는 서버 상태에 따라 결과가 달라지므로 항상 새로 실행
     outputs.upToDateWhen { false }
+    doLast {
+        file("${buildDir}").listFiles()?.each { f ->
+            if (f.isDirectory() && f.name.startsWith('karate-reports_')) delete f
+        }
+    }
 }

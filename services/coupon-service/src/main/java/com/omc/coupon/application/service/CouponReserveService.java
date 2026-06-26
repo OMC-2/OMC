@@ -4,7 +4,7 @@ import com.omc.coupon.domain.entity.UserCoupon;
 import com.omc.coupon.domain.exception.UserCouponNotFoundException;
 import com.omc.coupon.domain.repository.UserCouponRepository;
 import com.omc.coupon.presentation.dto.request.CouponReserveRequest;
-import com.omc.coupon.presentation.dto.response.CouponReserveResponse;
+import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,7 +23,7 @@ public class CouponReserveService {
      * 선점 실패 시 예외를 던져 결제 자체를 중단시킨다.
      */
     @Transactional
-    public CouponReserveResponse reserve(CouponReserveRequest request) {
+    public UserCouponResponse reserve(CouponReserveRequest request) {
         UserCoupon userCoupon = userCouponRepository
                 .findById(request.userCouponId())
                 .filter(uc -> uc.getUserId().equals(request.userId()))
@@ -34,11 +34,6 @@ public class CouponReserveService {
         log.info("[CouponReserveService] 쿠폰 선점 완료. userCouponId={}, orderId={}",
                 request.userCouponId(), request.orderId());
 
-        return CouponReserveResponse.from(userCoupon);
-    }
-
-    @Transactional(readOnly = true)
-    public UserCoupon getUserCoupon(java.util.UUID userCouponId) {
-        return userCouponRepository.findById(userCouponId).orElseThrow(UserCouponNotFoundException::new);
+        return UserCouponResponse.from(userCoupon);
     }
 }

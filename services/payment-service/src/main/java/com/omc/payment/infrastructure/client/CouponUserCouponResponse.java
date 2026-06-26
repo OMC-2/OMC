@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-// coupon-service 내부 조회 응답을 그대로 받기 위한 DTO
+// coupon-service 쿠폰 선점 응답
 public record CouponUserCouponResponse(
         UUID userCouponId,
         UUID couponId,

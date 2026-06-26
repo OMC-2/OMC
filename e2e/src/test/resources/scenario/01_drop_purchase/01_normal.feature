@@ -1,8 +1,8 @@
-Feature: [SAGA] 선착순 드롭 쿠폰 적용 완전한 해피패스
+Feature: [시나리오] 선착순 드롭 정상 구매 (쿠폰 적용 + 결제 완료 + 알림)
 
   # ================================================================
   # 선착순(INSTANT) 드롭 + 쿠폰 적용 전체 플로우 시나리오
-  # 실행: bash e2e/run.sh saga
+  # 실행: bash e2e/run.sh scenario/01_drop_purchase/01_normal
   #
   # 검증 흐름:
   #   어드민: 쿠폰 생성 → 상품 등록 → 드롭 생성
@@ -30,15 +30,15 @@ Feature: [SAGA] 선착순 드롭 쿠폰 적용 완전한 해피패스
   Background:
     * url baseUrl
     * def fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
-    * def adminEmail = 'e2e-saga-coupon-drop-admin-' + java.util.UUID.randomUUID() + '@example.com'
-    * def userEmail  = 'e2e-saga-coupon-drop-user-'  + java.util.UUID.randomUUID() + '@example.com'
+    * def adminEmail = 'e2e-drop-normal-admin-' + java.util.UUID.randomUUID() + '@example.com'
+    * def userEmail  = 'e2e-drop-normal-user-'  + java.util.UUID.randomUUID() + '@example.com'
     * def testPassword = 'password123'
 
     # ── 1. ADMIN 계정 생성 + 로그인 ──────────────────────────────────
     Given path '/api/v1/users/admin/signup'
     And header X-Gateway-Secret = gatewaySecret
     And header X-Admin-Secret = adminSecret
-    And request { email: #(adminEmail), password: #(testPassword), nickname: 'sagacoupendropadmin' }
+    And request { email: #(adminEmail), password: #(testPassword), nickname: 'dropnormaladmin' }
     When method post
     Then status 201
 
@@ -52,7 +52,7 @@ Feature: [SAGA] 선착순 드롭 쿠폰 적용 완전한 해피패스
     # ── 2. USER 계정 생성 + 로그인 ───────────────────────────────────
     Given path '/api/v1/users/signup'
     And header X-Gateway-Secret = gatewaySecret
-    And request { email: #(userEmail), password: #(testPassword), nickname: 'sagacoupondropuser' }
+    And request { email: #(userEmail), password: #(testPassword), nickname: 'dropnormaluser' }
     When method post
     Then status 201
     * def userId = response.data.userId
@@ -68,7 +68,7 @@ Feature: [SAGA] 선착순 드롭 쿠폰 적용 완전한 해피패스
     Given path '/api/v1/coupons'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + adminToken
-    And request { name: 'SAGA 드롭 할인 쿠폰', discountType: 'AMOUNT', discountValue: 1000, totalQuantity: 100, startedAt: '2020-01-01T00:00:00', expiredAt: '2099-12-31T23:59:59' }
+    And request { name: '드롭 정상구매 할인 쿠폰', discountType: 'AMOUNT', discountValue: 1000, totalQuantity: 100, startedAt: '2020-01-01T00:00:00', expiredAt: '2099-12-31T23:59:59' }
     When method post
     Then status 201
     * def couponId = response.data.couponId
@@ -86,7 +86,7 @@ Feature: [SAGA] 선착순 드롭 쿠폰 적용 완전한 해피패스
     Given path '/api/v1/admin/products'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + adminToken
-    And request { name: 'SAGA 쿠폰 테스트 상품', description: '쿠폰 E2E용', price: 10000, brand: 'TestBrand', category: 'Sneakers', imageUrl: 'http://img.test/1.jpg', initialQuantity: 100 }
+    And request { name: '드롭 정상구매 테스트 상품', description: '드롭 E2E용', price: 10000, brand: 'TestBrand', category: 'Sneakers', imageUrl: 'http://img.test/1.jpg', initialQuantity: 100 }
     When method post
     Then status 201
     * def productId = response.data.productId
@@ -115,7 +115,7 @@ Feature: [SAGA] 선착순 드롭 쿠폰 적용 완전한 해피패스
   #   구매 선점 → 쿠폰 적용 결제 → 쿠폰 RESERVED 확인
   #   → payment/me 확인 → ORDER_CONFIRMED 알림 → 쿠폰 USED 확인
   # ----------------------------------------------------------------
-  Scenario: [SAGA] 쿠폰 적용 드롭 구매 → 결제 → 쿠폰 USED → 주문 확정 → 알림 수신
+  Scenario: [드롭] 쿠폰 적용 드롭 구매 → 결제 → 쿠폰 USED → 주문 확정 → 알림 수신
     # STEP 1: 구매 선점
     Given path '/api/v1/drops/' + dropId + '/purchase'
     And header X-Gateway-Secret = gatewaySecret
@@ -132,7 +132,7 @@ Feature: [SAGA] 선착순 드롭 쿠폰 적용 완전한 해피패스
     * url paymentServiceUrl
     Given path '/internal/v1/payments/confirm'
     And header X-User-Id = userId
-    And request { orderID: #(orderId), dropId: #(dropId), productId: #(productId), providerPaymentId: 'E2E-COUPON-PAY-001', couponID: #(userCouponId), originalAmount: 10000, discountAmount: 1000, finalAmount: 9000 }
+    And request { orderID: #(orderId), dropId: #(dropId), productId: #(productId), providerPaymentId: 'E2E-DROP-NORMAL-001', couponID: #(userCouponId), originalAmount: 10000, discountAmount: 1000, finalAmount: 9000 }
     When method post
     Then status 201
     And match response.paymentStatus == 'PAID'

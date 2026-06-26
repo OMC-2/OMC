@@ -29,14 +29,16 @@ public class CommonArchRules {
                 .layer("Schedulers").definedBy("..scheduler..")
                 .layer("Events").definedBy("..event..")
                 .layer("Consumers").definedBy("..consumer..")
+                .layer("Infrastructure").definedBy("..infrastructure..")
 
                 .whereLayer("Controllers").mayNotBeAccessedByAnyLayer()
                 .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services", "Schedulers", "Events", "Consumers")
                 .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Repositories", "Schedulers", "Events", "Consumers")
-                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "DTOs", "Schedulers", "Events", "Consumers")
-                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "Schedulers", "Events", "Consumers")
+                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "DTOs", "Schedulers", "Events", "Consumers", "Infrastructure")
+                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "Schedulers", "Events", "Consumers", "Infrastructure")
                 .whereLayer("Consumers").mayNotBeAccessedByAnyLayer()
-                .whereLayer("Schedulers").mayNotBeAccessedByAnyLayer();
+                .whereLayer("Schedulers").mayNotBeAccessedByAnyLayer()
+                .whereLayer("Infrastructure").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Schedulers", "Events", "Consumers", "Infrastructure");
     }
 
     // 2. MSA 직접 침범 금지 (No direct import across domains)

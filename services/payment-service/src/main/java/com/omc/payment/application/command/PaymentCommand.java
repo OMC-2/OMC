@@ -27,6 +27,19 @@ public final class PaymentCommand {
     ) {
     }
 
+    public record Failure(
+            UUID orderId,
+            UUID userId,
+            SalesType salesType,
+            UUID dropId,
+            UUID entryId,
+            UUID raffleId,
+            UUID productId,
+            UUID couponId,
+            String failureReason
+    ) {
+    }
+
     // 동기 호출 전용 Cancel
     public record CancelByPaymentId(
             UUID paymentId,

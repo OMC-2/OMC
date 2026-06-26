@@ -3,6 +3,7 @@ package com.omc.payment.infrastructure.consumer;
 import com.omc.payment.application.event.dto.inbound.OrderCreatedEvent;
 import com.omc.payment.application.event.dto.inbound.RefundRequestedEvent;
 import com.omc.payment.application.event.dto.inbound.StockFailedEvent;
+import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,7 @@ class PaymentEventValidatorTest {
             OrderCreatedEvent event = orderCreatedEvent("DROP", null, null, null, null);
 
             assertThatThrownBy(() -> paymentEventValidator.validate(event))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(NonRetryablePaymentException.class)
                     .hasMessage("드롭 ID는 필수입니다");
         }
 
@@ -53,7 +54,7 @@ class PaymentEventValidatorTest {
             OrderCreatedEvent event = orderCreatedEvent("RAFFLE", null, RAFFLE_ID, ENTRY_ID, " ");
 
             assertThatThrownBy(() -> paymentEventValidator.validate(event))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(NonRetryablePaymentException.class)
                     .hasMessage("빌링키 ID는 필수입니다");
         }
 
@@ -63,7 +64,7 @@ class PaymentEventValidatorTest {
             OrderCreatedEvent event = orderCreatedEvent("일반 주문", null, null, null, null);
 
             assertThatThrownBy(() -> paymentEventValidator.validate(event))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(NonRetryablePaymentException.class)
                     .hasMessage("지원하지 않는 주문 유형입니다: 일반 주문");
         }
     }
@@ -76,7 +77,7 @@ class PaymentEventValidatorTest {
         );
 
         assertThatThrownBy(() -> paymentEventValidator.validate(event))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(NonRetryablePaymentException.class)
                 .hasMessage("환불 사유는 필수입니다");
     }
 
@@ -86,7 +87,7 @@ class PaymentEventValidatorTest {
         StockFailedEvent event = new StockFailedEvent(UUID.randomUUID().toString(), null);
 
         assertThatThrownBy(() -> paymentEventValidator.validate(event))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(NonRetryablePaymentException.class)
                 .hasMessage("주문 ID는 필수입니다");
     }
 

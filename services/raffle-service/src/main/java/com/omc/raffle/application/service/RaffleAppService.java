@@ -22,6 +22,7 @@ import com.omc.raffle.presentation.dto.response.RaffleResponse;
 import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
 
 import com.omc.raffle.infrastructure.client.PaymentClient;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
 
 /**
@@ -62,7 +63,7 @@ public class RaffleAppService {
         // 4. 결제 수단 유효성 검증 (가승인)
         try {
             // 결제 서버에 100원 가승인 요청 (이후 결제 서버 내에서 자동 승인 취소됨)
-            paymentClient.preAuthCard(new PaymentClient.PreAuthRequest(request.billingKeyId(), new java.math.BigDecimal("100")));
+            paymentClient.preAuthCard(new PreAuthRequest(request.billingKeyId(), new java.math.BigDecimal("100")));
         } catch (Exception e) {
             // SAGA 보상 트랜잭션: 결제 수단 가승인 실패 시 이미 SADD된 Redis 값을 제거
             log.error("[RaffleAppService] 결제 수단 가승인 실패. userId={}, billingKeyId={}", request.userId(), request.billingKeyId(), e);

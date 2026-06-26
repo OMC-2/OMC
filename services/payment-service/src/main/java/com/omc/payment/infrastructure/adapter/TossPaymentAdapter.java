@@ -73,8 +73,8 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
                 "/v1/payments/{paymentKey}/cancel",
                 new CancelRequest(command.cancelReason(), command.amount()),
                 PaymentResponse.class,
-                command.providerPaymentId(),
-                command.idempotencyKey()
+                command.idempotencyKey(),
+                command.providerPaymentId()
         );
         // lastTransactionKey가 없을 경우 paymentKey 폴백
         String providerCancellationKey = response.lastTransactionKey() == null

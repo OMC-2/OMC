@@ -2,6 +2,7 @@ package com.omc.product.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
 import com.omc.common.util.UuidV7Generator;
+import com.omc.product.domain.exception.InsufficientStockException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -69,8 +70,9 @@ public class Inventory extends BaseEntity {
 
     public void confirmDeduct(int quantity) {
         if (this.soldQuantity + quantity > this.totalQuantity) {
-            throw new IllegalStateException("재고가 부족합니다.");
+            throw new InsufficientStockException();
         }
+
         this.soldQuantity += quantity;
     }
 

@@ -8,6 +8,7 @@ import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.entity.OutboxEvent;
 import com.omc.product.domain.entity.ProcessedEvent;
 import com.omc.product.domain.exception.ActiveDropExistsException;
+import com.omc.product.domain.exception.InsufficientStockException;
 import com.omc.product.domain.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.product.infrastructure.client.DropInternalClient;
@@ -115,5 +116,25 @@ class InventoryServiceTest {
         assertThatThrownBy(() -> inventoryService.updateInventory(
                 productId, new InventoryUpdateRequest(15, "입고 추가")))
                 .isInstanceOf(ActiveDropExistsException.class);
+    }
+
+    @Test
+    @DisplayName("재고 부족 시 stock.failed 이벤트를 저장하고 실패 로그를 기록한다")
+    void confirmDeduct_insufficientStock() throws Exception {
+        // given
+        given(processedEventRepository.existsByEventId(event.eventId())).willReturn(false);
+        given(inventoryRepository.findByProductId(productId)).willReturn(Optional.of(inventory));
+        given(objectMapper.writeValueAsString(any())).willReturn("{}");
+        doThrow(new InsufficientStockException())
+                .when(inventory).confirmDeduct(anyInt());
+
+        // when
+        inventoryService.confirmDeduct(event);
+
+        // then
+        verify(failedEventLogRepository, times(1)).save(any(FailedEventLog.class));
+        verify(outboxEventRepository, times(1)).save(argThat(outbox ->
+                OutboxEventType.STOCK_FAILED.equals(outbox.getEventType())
+        ));
     }
 }
