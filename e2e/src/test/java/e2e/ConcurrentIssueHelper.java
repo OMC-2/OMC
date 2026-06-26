@@ -57,6 +57,7 @@ public class ConcurrentIssueHelper {
                 result.put("token", t);
                 result.put("issueStatus", resp.statusCode());
                 result.put("issueErrorCode", extractErrorCode(resp.body()));
+                result.put("responseBody", resp.body());
                 return result;
             }));
         }

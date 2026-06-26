@@ -59,10 +59,14 @@ services:
       EUREKA_URI: http://eureka-server:8761/eureka/
       GATEWAY_SECRET: local-secret
       KEYCLOAK_JWKS_URI: http://keycloak:8180/realms/omc/protocol/openid-connect/certs
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       config-server:
         condition: service_healthy
       keycloak:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
