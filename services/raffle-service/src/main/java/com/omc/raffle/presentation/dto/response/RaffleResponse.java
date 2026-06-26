@@ -8,7 +8,6 @@ import java.util.UUID;
 
 public record RaffleResponse(
         UUID raffleId,
-        UUID dropId,
         UUID productId,
         String name,
         int winnerCount,
@@ -20,7 +19,6 @@ public record RaffleResponse(
     public static RaffleResponse from(Raffle raffle) {
         return new RaffleResponse(
                 raffle.getId(),
-                raffle.getDropId(),
                 raffle.getProductId(),
                 raffle.getName(),
                 raffle.getWinnerCount(),
