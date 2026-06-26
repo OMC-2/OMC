@@ -55,7 +55,7 @@ class RaffleConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        Raffle raffle = Raffle.create(UUID.randomUUID(), java.util.UUID.randomUUID(), "테스트 한정판 스니커즈",
+        Raffle raffle = Raffle.create(UUID.randomUUID(), "테스트 한정판 스니커즈",
                 10,
                 LocalDateTime.now().minusDays(1),
                 LocalDateTime.now().plusDays(1)
