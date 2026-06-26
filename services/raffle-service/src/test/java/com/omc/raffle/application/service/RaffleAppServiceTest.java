@@ -62,7 +62,7 @@ class RaffleAppServiceTest {
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
-            Raffle raffle = Raffle.create(UUID.randomUUID(), java.util.UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
             raffle.updateStatus(RaffleStatus.OPEN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
@@ -92,7 +92,7 @@ class RaffleAppServiceTest {
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
-            Raffle raffle = Raffle.create(UUID.randomUUID(), java.util.UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
             // default status is SCHEDULED
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
@@ -112,7 +112,7 @@ class RaffleAppServiceTest {
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
-            Raffle raffle = Raffle.create(UUID.randomUUID(), java.util.UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
             raffle.updateStatus(RaffleStatus.OPEN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
@@ -134,7 +134,7 @@ class RaffleAppServiceTest {
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
-            Raffle raffle = Raffle.create(UUID.randomUUID(), java.util.UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
             raffle.updateStatus(RaffleStatus.OPEN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));

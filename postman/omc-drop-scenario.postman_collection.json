@@ -1,0 +1,298 @@
+{
+  "info": {
+    "name": "OMC MVP — 드롭 구매 시나리오",
+    "_postman_id": "omc-drop-scenario",
+    "description": "## 드롭 선착순 구매 시나리오\n\n**흐름**: 어드민 세팅 → 유저 세팅 → 드롭 OPEN 대기 → 구매 선점 → 결제 승인 → 쿠폰 USED 확인\n\n**주의사항**\n- 전체 서비스 실행 중이어야 함 (Gateway:8080, Payment:8085)\n- 드롭 startAt은 pre-request script로 자동 세팅됨 (현재+10초)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",       "value": "http://localhost:8080" },
+    { "key": "paymentUrl",    "value": "http://localhost:8085" },
+    { "key": "gwSecret",      "value": "local-secret" },
+    { "key": "adminSecret",   "value": "local-admin-secret" },
+    { "key": "adminToken",    "value": "" },
+    { "key": "accessToken",   "value": "" },
+    { "key": "userId",        "value": "" },
+    { "key": "couponId",      "value": "" },
+    { "key": "userCouponId",  "value": "" },
+    { "key": "productId",     "value": "" },
+    { "key": "dropId",        "value": "" },
+    { "key": "billingKeyId",  "value": "" },
+    { "key": "orderId",       "value": "" },
+    { "key": "paymentId",     "value": "" }
+  ],
+  "item": [
+    {
+      "name": "STEP 1 — 어드민 세팅",
+      "item": [
+        {
+          "name": "1-1. 어드민 회원가입",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "X-Admin-Secret",   "value": "{{adminSecret}}" },
+              { "key": "Content-Type",     "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\",\n  \"nickname\": \"adminuser\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/admin/signup", "host": ["{{baseUrl}}"], "path": ["api","v1","users","admin","signup"] }
+          }
+        },
+        {
+          "name": "1-2. 어드민 로그인 → adminToken",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  pm.collectionVariables.set('adminToken', pm.response.json().data.accessToken);",
+            "  console.log('✅ adminToken 세팅');",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Content-Type",     "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/login", "host": ["{{baseUrl}}"], "path": ["api","v1","users","login"] }
+          }
+        },
+        {
+          "name": "1-3. 쿠폰 생성 (ADMIN) → couponId",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if ([200,201].includes(pm.response.code)) {",
+            "  pm.collectionVariables.set('couponId', pm.response.json().data.couponId);",
+            "  console.log('✅ couponId:', pm.response.json().data.couponId);",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Authorization",    "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type",     "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"1000원 할인 쿠폰\",\n  \"discountType\": \"AMOUNT\",\n  \"discountValue\": 1000,\n  \"totalQuantity\": 100,\n  \"startedAt\": \"2020-01-01T00:00:00\",\n  \"expiredAt\": \"2099-12-31T23:59:59\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/coupons", "host": ["{{baseUrl}}"], "path": ["api","v1","coupons"] }
+          }
+        },
+        {
+          "name": "1-4. 상품 등록 (ADMIN) → productId",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if ([200,201].includes(pm.response.code)) {",
+            "  pm.collectionVariables.set('productId', pm.response.json().data.productId);",
+            "  console.log('✅ productId:', pm.response.json().data.productId);",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Authorization",    "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type",     "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Nike Air Max 2024\",\n  \"description\": \"한정판 운동화\",\n  \"price\": 10000,\n  \"brand\": \"Nike\",\n  \"category\": \"Sneakers\",\n  \"imageUrl\": \"https://example.com/image.jpg\",\n  \"initialQuantity\": 100\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/products", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","products"] }
+          }
+        },
+        {
+          "name": "1-5. 드롭 생성 (ADMIN) → dropId  [startAt 자동 = 현재+10초]",
+          "event": [
+            { "listen": "prerequest", "script": { "exec": [
+              "const pad = n => String(n).padStart(2,'0');",
+              "const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;",
+              "pm.collectionVariables.set('dropStartAt', fmt(new Date(Date.now()+10000)));",
+              "pm.collectionVariables.set('dropEndAt',   fmt(new Date(Date.now()+3600000)));",
+              "console.log('dropStartAt:', pm.collectionVariables.get('dropStartAt'));"
+            ], "type": "text/javascript" }},
+            { "listen": "test", "script": { "exec": [
+              "if ([200,201].includes(pm.response.code)) {",
+              "  pm.collectionVariables.set('dropId', pm.response.json().data.dropId);",
+              "  console.log('✅ dropId:', pm.response.json().data.dropId);",
+              "}"
+            ], "type": "text/javascript" }}
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Authorization",    "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type",     "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"startAt\": \"{{dropStartAt}}\",\n  \"endAt\": \"{{dropEndAt}}\",\n  \"totalQty\": 10,\n  \"holdTtlSec\": 300\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/drops", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","drops"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "STEP 2 — 유저 세팅",
+      "item": [
+        {
+          "name": "2-1. 유저 회원가입",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Content-Type",     "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\",\n  \"nickname\": \"testuser\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/signup", "host": ["{{baseUrl}}"], "path": ["api","v1","users","signup"] }
+          }
+        },
+        {
+          "name": "2-2. 유저 로그인 → accessToken",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  const d = pm.response.json().data;",
+            "  pm.collectionVariables.set('accessToken', d.accessToken);",
+            "  const uid = d.userId || d.id || d.user_id;",
+            "  if (uid) { pm.collectionVariables.set('userId', uid); console.log('✅ accessToken + userId'); }",
+            "  else { console.log('✅ accessToken — userId는 2-3에서 세팅'); }",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Content-Type",     "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/login", "host": ["{{baseUrl}}"], "path": ["api","v1","users","login"] }
+          }
+        },
+        {
+          "name": "2-3. 내 프로필 조회 → userId",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  const d = pm.response.json().data;",
+            "  const uid = d.userId || d.id || d.user_id;",
+            "  pm.collectionVariables.set('userId', uid);",
+            "  console.log('✅ userId:', uid);",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Authorization",    "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api","v1","users","me"] }
+          }
+        },
+        {
+          "name": "2-4. 쿠폰 발급 → userCouponId",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if ([200,201].includes(pm.response.code)) {",
+            "  pm.collectionVariables.set('userCouponId', pm.response.json().data.userCouponId);",
+            "  console.log('✅ userCouponId:', pm.response.json().data.userCouponId);",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Authorization",    "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/coupons/{{couponId}}/issue", "host": ["{{baseUrl}}"], "path": ["api","v1","coupons","{{couponId}}","issue"] }
+          }
+        },
+        {
+          "name": "2-5. 빌링키 등록 (Internal 8085) → billingKeyId",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if ([200,201].includes(pm.response.code)) {",
+            "  pm.collectionVariables.set('billingKeyId', pm.response.json().billingKeyId);",
+            "  console.log('✅ billingKeyId:', pm.response.json().billingKeyId);",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"customerKey\": \"test-customer-drop-1\",\n  \"authKey\": \"test-auth-drop-1\"\n}" },
+            "url": { "raw": "{{paymentUrl}}/internal/v1/payments/billing-keys", "host": ["{{paymentUrl}}"], "path": ["internal","v1","payments","billing-keys"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "STEP 3 — 드롭 OPEN 대기  ← status == OPEN 될 때까지 반복",
+      "item": [
+        {
+          "name": "3-1. 드롭 단건 조회  [반복 실행 — status: OPEN 확인]",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const d = pm.response.json().data;",
+            "console.log('드롭 현재 status:', d && d.status);",
+            "pm.test('드롭 OPEN 확인', () => { pm.expect(d.status).to.eql('OPEN'); });"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gwSecret}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/drops/{{dropId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","drops","{{dropId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "STEP 4 — 구매 + 결제",
+      "item": [
+        {
+          "name": "4-1. 구매 선점 → orderId  [202 응답 확인]",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('202 Accepted', () => { pm.expect(pm.response.code).to.eql(202); });",
+            "if (pm.response.code === 202) {",
+            "  pm.collectionVariables.set('orderId', pm.response.json().data.orderId);",
+            "  console.log('✅ orderId:', pm.response.json().data.orderId);",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Authorization",    "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/drops/{{dropId}}/purchase", "host": ["{{baseUrl}}"], "path": ["api","v1","drops","{{dropId}}","purchase"] }
+          }
+        },
+        {
+          "name": "4-2. 결제 승인 (Internal 8085) → paymentId  [201 응답 확인]",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 Created', () => { pm.expect(pm.response.code).to.eql(201); });",
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('paymentId', pm.response.json().paymentId);",
+            "  console.log('✅ paymentId:', pm.response.json().paymentId);",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-User-Id",    "value": "{{userId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"orderID\": \"{{orderId}}\",\n  \"dropId\": \"{{dropId}}\",\n  \"productId\": \"{{productId}}\",\n  \"providerPaymentId\": \"TOSS-DROP-TEST-001\",\n  \"couponID\": \"{{userCouponId}}\",\n  \"originalAmount\": 10000,\n  \"discountAmount\": 1000,\n  \"finalAmount\": 9000\n}" },
+            "url": { "raw": "{{paymentUrl}}/internal/v1/payments/confirm", "host": ["{{paymentUrl}}"], "path": ["internal","v1","payments","confirm"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "STEP 5 — 결과 확인",
+      "item": [
+        {
+          "name": "5-1. 내 쿠폰 조회  [status == USED 확인]",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const d = pm.response.json().data;",
+            "console.log('쿠폰 status:', d && d.status);",
+            "pm.test('쿠폰 USED 확인', () => { pm.expect(d.status).to.eql('USED'); });"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
+              { "key": "Authorization",    "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/coupons/me/{{userCouponId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","coupons","me","{{userCouponId}}"] }
+          }
+        }
+      ]
+    }
+  ]
+}

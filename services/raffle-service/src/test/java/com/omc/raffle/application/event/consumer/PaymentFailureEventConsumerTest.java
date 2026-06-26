@@ -81,7 +81,7 @@ class PaymentFailureEventConsumerTest {
         UUID eventId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID raffleId = UUID.randomUUID();
-        PaymentFailedRequest event = new PaymentFailedRequest(eventId.toString(), "RAFFLE", userId, "INSUFFICIENT_FUNDS", UUID.randomUUID(), UUID.randomUUID(), raffleId);
+        PaymentFailedRequest event = new PaymentFailedRequest(eventId.toString(), "RAFFLE", userId, "INSUFFICIENT_FUNDS", UUID.randomUUID(), raffleId);
         String message = objectMapper.writeValueAsString(event);
 
         // when
@@ -100,7 +100,7 @@ class PaymentFailureEventConsumerTest {
         UUID eventId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID raffleId = UUID.randomUUID();
-        PaymentFailedRequest event = new PaymentFailedRequest(eventId.toString(), "ORDER", userId, "INSUFFICIENT_FUNDS", UUID.randomUUID(), UUID.randomUUID(), raffleId);
+        PaymentFailedRequest event = new PaymentFailedRequest(eventId.toString(), "ORDER", userId, "INSUFFICIENT_FUNDS", UUID.randomUUID(), raffleId);
         String message = objectMapper.writeValueAsString(event);
 
         // when
@@ -127,7 +127,7 @@ class PaymentFailureEventConsumerTest {
         Thread.sleep(1000);
 
         UUID raffleId = UUID.randomUUID();
-        PaymentFailedRequest validEvent = new PaymentFailedRequest(eventId.toString(), "RAFFLE", UUID.randomUUID(), "ERROR", UUID.randomUUID(), UUID.randomUUID(), raffleId);
+        PaymentFailedRequest validEvent = new PaymentFailedRequest(eventId.toString(), "RAFFLE", UUID.randomUUID(), "ERROR", UUID.randomUUID(), raffleId);
         kafkaTemplate.send("payment.failed", eventId.toString(), objectMapper.writeValueAsString(validEvent));
 
         await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {

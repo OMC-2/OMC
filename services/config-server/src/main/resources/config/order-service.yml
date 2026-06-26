@@ -9,12 +9,16 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   flyway:
-    enabled: false
+    enabled: true
+    locations: classpath:db/migration
+    default-schema: order_db
+    create-schemas: true
+    schemas: order_db
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
