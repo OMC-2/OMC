@@ -12,7 +12,7 @@ import reactor.core.publisher.Mono;
 import java.net.InetSocketAddress;
 
 @Configuration
-public class RateLimiterKeyResolver {
+public class RateLimiterKeyResolverConfig {
 
     @Bean
     public KeyResolver rateLimiterKeyResolver() {
