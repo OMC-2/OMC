@@ -403,12 +403,6 @@
         {
           "name": "드롭 생성 (ADMIN)",
           "event": [
-            { "listen": "prerequest", "script": { "exec": [
-              "const fmt = d => new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 19);",
-              "const now = new Date();",
-              "pm.collectionVariables.set('dropStartAt', fmt(now));",
-              "pm.collectionVariables.set('dropEndAt', fmt(new Date(now.getTime() + 5 * 60000)));"
-            ], "type": "text/javascript" } },
             { "listen": "test", "script": { "exec": [
               "if (pm.response.code === 200 || pm.response.code === 201) {",
               "  pm.collectionVariables.set('dropId', pm.response.json().data.dropId);",
@@ -421,27 +415,19 @@
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"startAt\": \"{{dropStartAt}}\",\n  \"endAt\": \"{{dropEndAt}}\",\n  \"totalQty\": 10,\n  \"holdTtlSec\": 300\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"startAt\": \"2026-06-26T15:00:00\",\n  \"endAt\": \"2026-06-26T15:30:00\",\n  \"totalQty\": 10,\n  \"holdTtlSec\": 300\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/drops", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","drops"] }
           }
         },
         {
           "name": "드롭 수정 (ADMIN)",
-          "event": [
-            { "listen": "prerequest", "script": { "exec": [
-              "const fmt = d => new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 19);",
-              "const now = new Date();",
-              "pm.collectionVariables.set('dropStartAt', fmt(now));",
-              "pm.collectionVariables.set('dropEndAt', fmt(new Date(now.getTime() + 5 * 60000)));"
-            ], "type": "text/javascript" } }
-          ],
           "request": {
             "method": "PUT",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"startAt\": \"{{dropStartAt}}\",\n  \"endAt\": \"{{dropEndAt}}\",\n  \"totalQty\": 20,\n  \"holdTtlSec\": 600\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"startAt\": \"2026-06-26T15:00:00\",\n  \"endAt\": \"2026-06-26T15:30:00\",\n  \"totalQty\": 20,\n  \"holdTtlSec\": 600\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/drops/{{dropId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","drops","{{dropId}}"] }
           }
         },
@@ -585,12 +571,6 @@
         {
           "name": "래플 생성 (ADMIN)",
           "event": [
-            { "listen": "prerequest", "script": { "exec": [
-              "const fmt = d => new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 19);",
-              "const now = new Date();",
-              "pm.collectionVariables.set('raffleStartedAt', fmt(new Date(now.getTime() + 60000)));",
-              "pm.collectionVariables.set('raffleEndedAt', fmt(new Date(now.getTime() + 5 * 60000)));"
-            ], "type": "text/javascript" } },
             { "listen": "test", "script": { "exec": [
               "if (pm.response.code === 200 || pm.response.code === 201) {",
               "  pm.collectionVariables.set('raffleId', pm.response.json().data.raffleId);",
@@ -603,7 +583,7 @@
               { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"dropId\": \"{{dropId}}\",\n  \"productId\": \"{{productId}}\",\n  \"name\": \"Nike 한정판 래플\",\n  \"winnerCount\": 5,\n  \"startedAt\": \"{{raffleStartedAt}}\",\n  \"endedAt\": \"{{raffleEndedAt}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "body": { "mode": "raw", "raw": "{\n  \"dropId\": \"{{dropId}}\",\n  \"productId\": \"{{productId}}\",\n  \"name\": \"Nike 한정판 래플\",\n  \"winnerCount\": 5,\n  \"startedAt\": \"2026-06-26T15:00:00\",\n  \"endedAt\": \"2026-06-26T15:30:00\"\n}", "options": { "raw": { "language": "json" } } },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles"] }
           }
         },
