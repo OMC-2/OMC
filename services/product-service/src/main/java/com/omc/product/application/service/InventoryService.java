@@ -15,6 +15,7 @@ import com.omc.product.domain.exception.InsufficientStockException;
 import com.omc.product.domain.exception.InventoryNotFoundException;
 import com.omc.product.domain.enums.OutboxEventType;
 import com.omc.product.domain.repository.*;
+import com.omc.product.application.event.ProductUpdatedEvent;
 import com.omc.product.infrastructure.client.ActiveDropResponse;
 import com.omc.product.infrastructure.client.DropInternalClient;
 import com.omc.product.infrastructure.kafka.KafkaTopics;
@@ -23,6 +24,7 @@ import com.omc.product.presentation.dto.response.InventoryResponse;
 import com.omc.product.presentation.dto.response.InventorySnapshotResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,6 +67,7 @@ public class InventoryService {
     private final FailedEventLogRepository failedEventLogRepository;
     private final ObjectMapper objectMapper;
     private final DropInternalClient dropInternalClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void confirmDeduct(PaymentCompletedEvent event) {
@@ -123,6 +126,12 @@ public class InventoryService {
         Inventory inventory = inventoryRepository.findByProductId(productId)
                 .orElseThrow(InventoryNotFoundException::new);
         inventory.updateTotalQuantity(request.totalQuantity());
+
+        log.info("[InventoryService] 재고 수동 수정. productId={}, totalQuantity={}, reason={}",
+                productId, request.totalQuantity(), request.reason());
+
+        eventPublisher.publishEvent(new ProductUpdatedEvent(productId));
+
         return InventoryResponse.from(inventory);
     }
 
