@@ -16,6 +16,7 @@ import com.omc.order.domain.exception.OrderNotFoundException;
 import com.omc.order.domain.repository.OrderRepository;
 import com.omc.order.infrastructure.client.ProductFeignClient;
 import com.omc.order.infrastructure.client.dto.ProductResponse;
+import com.omc.order.presentation.dto.response.OrderResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -194,6 +195,12 @@ public class OrderService {
   private Order findOrder(UUID orderId) {
     return orderRepository.findById(orderId)
         .orElseThrow(OrderNotFoundException::new);
+  }
+
+  //[조회] 주문 단건 조회 (E2E 폴링/상태 확인용, 읽기 전용)
+  @Transactional(readOnly = true)
+  public OrderResponse getOrder(UUID orderId) {
+    return OrderResponse.from(findOrder(orderId));
   }
 }
 
