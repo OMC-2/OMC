@@ -23,6 +23,7 @@ public class CommonArchRules {
                 .withOptionalLayers(true)
                 .layer("Controllers").definedBy("..controller..")
                 .layer("Services").definedBy("..service..")
+                .layer("Processors").definedBy("..processor..")
                 .layer("Repositories").definedBy("..repository..")
                 .layer("Entities").definedBy("..entity..")
                 .layer("DTOs").definedBy("..dto..")
@@ -33,9 +34,10 @@ public class CommonArchRules {
 
                 .whereLayer("Controllers").mayNotBeAccessedByAnyLayer()
                 .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services", "Schedulers", "Events", "Consumers")
-                .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Repositories", "Schedulers", "Events", "Consumers")
-                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "DTOs", "Schedulers", "Events", "Consumers", "Infrastructure")
-                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Entities", "Schedulers", "Events", "Consumers", "Infrastructure")
+                .whereLayer("Processors").mayOnlyBeAccessedByLayers("Services")
+                .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Processors", "Repositories", "Schedulers", "Events", "Consumers")
+                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Processors", "Repositories", "Entities", "DTOs", "Schedulers", "Events", "Consumers", "Infrastructure")
+                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Processors", "Repositories", "Entities", "Schedulers", "Events", "Consumers", "Infrastructure")
                 .whereLayer("Consumers").mayNotBeAccessedByAnyLayer()
                 .whereLayer("Schedulers").mayNotBeAccessedByAnyLayer()
                 .whereLayer("Infrastructure").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Schedulers", "Events", "Consumers", "Infrastructure");
