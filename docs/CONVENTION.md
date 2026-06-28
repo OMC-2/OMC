@@ -67,6 +67,7 @@ public record UserResponse(Long id, String name) {
 3. **네이밍 및 어노테이션 규칙**
    - `Controller`: `*Controller` 이름 + `@RestController` (또는 `@Controller`)
    - `Service`: `*Service` 이름 + `@Service`
+   - `Processor`: `*Processor` 또는 `*Handler` 이름 + `@Component` (트랜잭션 분리 목적의 처리 단위)
    - `Repository`: `*Repository` 이름 + `@Repository` (또는 인터페이스 상속)
    - `Entity`: 도메인명 그대로 사용 + `@Entity` 어노테이션 필수 (접미사 불필요)
    - `DTO`: 요청은 `*Request`, 응답은 `*Response` 이름 사용
@@ -98,6 +99,7 @@ com.omc.{service-name}
 │       └── response/
 ├── application/
 │   ├── service/              ← 비즈니스 로직 (유스케이스)
+│   ├── processor/            ← 트랜잭션 분리가 필요한 처리 단위 (@Component, REQUIRES_NEW)
 │   ├── scheduler/            ← @Scheduled (드롭 오픈/종료, hold 만료, 배송, 추첨 등)
 │   └── event/
 │       ├── producer/         ← 이벤트 발행 (application이 "무엇을" 발행할지)
