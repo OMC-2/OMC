@@ -2,6 +2,10 @@ server:
   port: 8080
 
 spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   cloud:
     gateway:
       routes:
@@ -9,56 +13,111 @@ spring:
           uri: lb://user-service
           predicates:
             - Path=/api/v1/users/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@userRateLimiter}"
 
         - id: product-service-admin
           uri: lb://product-service
           predicates:
             - Path=/api/v1/admin/products/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@adminRateLimiter}"
 
         - id: product-service
           uri: lb://product-service
           predicates:
             - Path=/api/v1/products/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@productRateLimiter}"
 
         - id: drop-service-admin
           uri: lb://drop-service
           predicates:
             - Path=/api/v1/admin/drops/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@adminRateLimiter}"
 
         - id: drop-service
           uri: lb://drop-service
           predicates:
             - Path=/api/v1/drops/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@dropRateLimiter}"
 
         - id: raffle-service
           uri: lb://raffle-service
           predicates:
             - Path=/api/v1/raffles/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@raffleRateLimiter}"
 
         - id: raffle-service-admin
           uri: lb://raffle-service
           predicates:
             - Path=/api/v1/admin/raffles/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@adminRateLimiter}"
 
         - id: order-service
           uri: lb://order-service
           predicates:
             - Path=/api/v1/orders/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@orderRateLimiter}"
 
         - id: payment-service
           uri: lb://payment-service
           predicates:
             - Path=/api/v1/payments/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@paymentRateLimiter}"
 
         - id: notification-service
           uri: lb://notification-service
           predicates:
             - Path=/api/v1/notifications/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@notificationRateLimiter}"
 
         - id: coupon-service
           uri: lb://coupon-service
           predicates:
             - Path=/api/v1/coupons/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@rateLimiterKeyResolver}"
+                rate-limiter: "#{@couponRateLimiter}"
 
   security:
     oauth2:

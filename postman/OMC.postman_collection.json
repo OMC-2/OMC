@@ -1,0 +1,786 @@
+{
+  "info": {
+    "name": "OMC API",
+    "_postman_id": "omc-api-collection",
+    "description": "OMC 전체 서비스 API 모음\n\n## 시작 전 설정\n1. Variables 탭에서 값 확인\n2. 회원가입 → 로그인 순서로 실행하면 accessToken 자동 세팅\n\n## 헤더 규칙\n- 게이트웨이 경유: X-Gateway-Secret 필수\n- 인증 필요: Authorization: Bearer {{accessToken}}\n- 어드민 전용: Authorization: Bearer {{adminToken}}",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "paymentServiceUrl", "value": "http://localhost:8085", "type": "string" },
+    { "key": "gatewaySecret", "value": "local-secret", "type": "string" },
+    { "key": "adminSecret", "value": "local-admin-secret", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "couponId", "value": "", "type": "string" },
+    { "key": "userCouponId", "value": "", "type": "string" },
+    { "key": "productId", "value": "", "type": "string" },
+    { "key": "dropId", "value": "", "type": "string" },
+    { "key": "orderId", "value": "", "type": "string" },
+    { "key": "paymentId", "value": "", "type": "string" },
+    { "key": "raffleId", "value": "", "type": "string" },
+    { "key": "entryId", "value": "", "type": "string" },
+    { "key": "addressId", "value": "", "type": "string" },
+    { "key": "notificationId", "value": "", "type": "string" },
+    { "key": "billingKeyId", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "dlqId", "value": "", "type": "string" },
+    { "key": "dropStartAt", "value": "", "type": "string" },
+    { "key": "dropEndAt", "value": "", "type": "string" },
+    { "key": "raffleStartedAt", "value": "", "type": "string" },
+    { "key": "raffleEndedAt", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "👤 User",
+      "item": [
+        {
+          "name": "회원가입",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  const data = pm.response.json().data;",
+            "  pm.collectionVariables.set('userId', data.userId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\",\n  \"nickname\": \"testuser\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/signup", "host": ["{{baseUrl}}"], "path": ["api","v1","users","signup"] }
+          }
+        },
+        {
+          "name": "어드민 회원가입",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "X-Admin-Secret", "value": "{{adminSecret}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\",\n  \"nickname\": \"adminuser\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/admin/signup", "host": ["{{baseUrl}}"], "path": ["api","v1","users","admin","signup"] }
+          }
+        },
+        {
+          "name": "로그인 (USER)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  const data = pm.response.json().data;",
+            "  pm.collectionVariables.set('accessToken', data.accessToken);",
+            "  pm.collectionVariables.set('refreshToken', data.refreshToken);",
+            "  pm.collectionVariables.set('userId', data.userId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/login", "host": ["{{baseUrl}}"], "path": ["api","v1","users","login"] }
+          }
+        },
+        {
+          "name": "로그인 (ADMIN)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  const data = pm.response.json().data;",
+            "  pm.collectionVariables.set('adminToken', data.accessToken);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/login", "host": ["{{baseUrl}}"], "path": ["api","v1","users","login"] }
+          }
+        },
+        {
+          "name": "토큰 갱신",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/token/refresh", "host": ["{{baseUrl}}"], "path": ["api","v1","users","token","refresh"] }
+          }
+        },
+        {
+          "name": "내 프로필 조회",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api","v1","users","me"] }
+          }
+        },
+        {
+          "name": "프로필 수정",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"nickname\": \"newnickname\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api","v1","users","me"] }
+          }
+        },
+        {
+          "name": "회원 탈퇴",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api","v1","users","me"] }
+          }
+        },
+        {
+          "name": "🏠 주소",
+          "item": [
+            {
+              "name": "주소 등록",
+              "event": [{ "listen": "test", "script": { "exec": [
+                "if (pm.response.code === 201) {",
+                "  pm.collectionVariables.set('addressId', pm.response.json().data.addressId);",
+                "}"
+              ], "type": "text/javascript" } }],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"recipientName\": \"홍길동\",\n  \"phone\": \"010-1234-5678\",\n  \"zipCode\": \"12345\",\n  \"address\": \"서울시 강남구 테헤란로 123\",\n  \"addressDetail\": \"456호\",\n  \"isDefault\": true\n}", "options": { "raw": { "language": "json" } } },
+                "url": { "raw": "{{baseUrl}}/api/v1/users/addresses", "host": ["{{baseUrl}}"], "path": ["api","v1","users","addresses"] }
+              }
+            },
+            {
+              "name": "주소 목록 조회",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/api/v1/users/addresses", "host": ["{{baseUrl}}"], "path": ["api","v1","users","addresses"] }
+              }
+            },
+            {
+              "name": "주소 단건 조회",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/api/v1/users/addresses/{{addressId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","users","addresses","{{addressId}}"] }
+              }
+            },
+            {
+              "name": "주소 수정",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"recipientName\": \"김철수\",\n  \"phone\": \"010-9999-8888\",\n  \"zipCode\": \"54321\",\n  \"address\": \"서울시 종로구 세종대로 1\",\n  \"addressDetail\": \"101호\"\n}", "options": { "raw": { "language": "json" } } },
+                "url": { "raw": "{{baseUrl}}/api/v1/users/addresses/{{addressId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","users","addresses","{{addressId}}"] }
+              }
+            },
+            {
+              "name": "기본 주소 설정",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/api/v1/users/addresses/{{addressId}}/default", "host": ["{{baseUrl}}"], "path": ["api","v1","users","addresses","{{addressId}}","default"] }
+              }
+            },
+            {
+              "name": "주소 삭제",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/api/v1/users/addresses/{{addressId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","users","addresses","{{addressId}}"] }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🎫 Coupon",
+      "item": [
+        {
+          "name": "쿠폰 생성 (ADMIN)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200 || pm.response.code === 201) {",
+            "  pm.collectionVariables.set('couponId', pm.response.json().data.couponId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"신규가입 1000원 할인\",\n  \"discountType\": \"AMOUNT\",\n  \"discountValue\": 1000,\n  \"totalQuantity\": 100,\n  \"startedAt\": \"2020-01-01T00:00:00\",\n  \"expiredAt\": \"2099-12-31T23:59:59\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/coupons", "host": ["{{baseUrl}}"], "path": ["api","v1","coupons"] }
+          }
+        },
+        {
+          "name": "쿠폰 목록 조회 (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/coupons?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","coupons"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }] }
+          }
+        },
+        {
+          "name": "쿠폰 상세 조회 (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/coupons/{{couponId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","coupons","{{couponId}}"] }
+          }
+        },
+        {
+          "name": "쿠폰 발급 (USER)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200 || pm.response.code === 201) {",
+            "  pm.collectionVariables.set('userCouponId', pm.response.json().data.userCouponId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/coupons/{{couponId}}/issue", "host": ["{{baseUrl}}"], "path": ["api","v1","coupons","{{couponId}}","issue"] }
+          }
+        },
+        {
+          "name": "내 쿠폰 목록 조회",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/coupons/me?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","coupons","me"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }] }
+          }
+        },
+        {
+          "name": "내 쿠폰 단건 조회",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/coupons/me/{{userCouponId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","coupons","me","{{userCouponId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📦 Product",
+      "item": [
+        {
+          "name": "상품 등록 (ADMIN)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200 || pm.response.code === 201) {",
+            "  pm.collectionVariables.set('productId', pm.response.json().data.productId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Switch 2\",\n  \"description\": \"닌텐도 스위치 2\",\n  \"price\": 680000,\n  \"brand\": \"Nintendo\",\n  \"category\": \" 게이밍 기기\",\n  \"imageUrl\": \"https://example.com/image.jpg\",\n  \"initialQuantity\": 100\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/products", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","products"] }
+          }
+        },
+        {
+          "name": "상품 수정 (ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Switch 2 (수정)\",\n  \"price\": 680000\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","products","{{productId}}"] }
+          }
+        },
+        {
+          "name": "상품 삭제 (ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","products","{{productId}}"] }
+          }
+        },
+        {
+          "name": "상품 목록 조회",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/products?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","products"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }, { "key": "category", "value": "", "disabled": true }, { "key": "brand", "value": "", "disabled": true }, { "key": "keyword", "value": "", "disabled": true }] }
+          }
+        },
+        {
+          "name": "상품 상세 조회",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","products","{{productId}}"] }
+          }
+        },
+        {
+          "name": "📦 Inventory",
+          "item": [
+            {
+              "name": "재고 상세 조회 (ADMIN)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/admin/products/{{productId}}/inventories",
+                  "path": ["api","v1","admin","products","{{productId}}","inventories"]
+                }
+              }
+            },
+            {
+              "name": "재고 수동 수정 (ADMIN)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"totalQuantity\": 150,\n  \"reason\": \"입고 추가\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/admin/products/{{productId}}/inventories",
+                  "path": ["api","v1","admin","products","{{productId}}","inventories"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔥 Drop",
+      "item": [
+        {
+          "name": "드롭 생성 (ADMIN)",
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "if (pm.response.code === 200 || pm.response.code === 201) {",
+              "  pm.collectionVariables.set('dropId', pm.response.json().data.dropId);",
+              "}"
+            ], "type": "text/javascript" } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"startAt\": \"2026-06-26T15:00:00\",\n  \"endAt\": \"2026-06-26T15:30:00\",\n  \"totalQty\": 10,\n  \"holdTtlSec\": 300\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/drops", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","drops"] }
+          }
+        },
+        {
+          "name": "드롭 수정 (ADMIN)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"startAt\": \"2026-06-26T15:00:00\",\n  \"endAt\": \"2026-06-26T15:30:00\",\n  \"totalQty\": 20,\n  \"holdTtlSec\": 600\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/drops/{{dropId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","drops","{{dropId}}"] }
+          }
+        },
+        {
+          "name": "드롭 삭제 (ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/drops/{{dropId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","drops","{{dropId}}"] }
+          }
+        },
+        {
+          "name": "드롭 목록 조회",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/drops?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","drops"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }, { "key": "status", "value": "OPEN", "disabled": true }] }
+          }
+        },
+        {
+          "name": "드롭 단건 조회",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/drops/{{dropId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","drops","{{dropId}}"] }
+          }
+        },
+        {
+          "name": "구매 선점 (USER)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 202) {",
+            "  pm.collectionVariables.set('orderId', pm.response.json().data.orderId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/drops/{{dropId}}/purchase", "host": ["{{baseUrl}}"], "path": ["api","v1","drops","{{dropId}}","purchase"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💳 Payment",
+      "item": [
+        {
+          "name": "빌링키 등록 (Internal — 8085 직접)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200 || pm.response.code === 201) {",
+            "  pm.collectionVariables.set('billingKeyId', pm.response.json().billingKeyId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"customerKey\": \"test-customer-1\",\n  \"authKey\": \"test-auth-1\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{paymentServiceUrl}}/internal/v1/payments/billing-keys", "host": ["{{paymentServiceUrl}}"], "path": ["internal","v1","payments","billing-keys"] }
+          }
+        },
+        {
+          "name": "결제 승인 (Internal — 8085 직접)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('paymentId', pm.response.json().paymentId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-User-Id", "value": "{{userId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"orderID\": \"{{orderId}}\",\n  \"dropId\": \"{{dropId}}\",\n  \"productId\": \"{{productId}}\",\n  \"providerPaymentId\": \"TOSS-TEST-001\",\n  \"couponID\": \"{{userCouponId}}\",\n  \"originalAmount\": 150000,\n  \"discountAmount\": 1000,\n  \"finalAmount\": 149000\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{paymentServiceUrl}}/internal/v1/payments/confirm", "host": ["{{paymentServiceUrl}}"], "path": ["internal","v1","payments","confirm"] }
+          }
+        },
+        {
+          "name": "결제 승인 — 쿠폰 없음 (Internal — 8085 직접)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 201) {",
+            "  pm.collectionVariables.set('paymentId', pm.response.json().paymentId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-User-Id", "value": "{{userId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"orderID\": \"{{orderId}}\",\n  \"dropId\": \"{{dropId}}\",\n  \"productId\": \"{{productId}}\",\n  \"providerPaymentId\": \"TOSS-TEST-001\",\n  \"originalAmount\": 150000,\n  \"discountAmount\": 0,\n  \"finalAmount\": 150000\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{paymentServiceUrl}}/internal/v1/payments/confirm", "host": ["{{paymentServiceUrl}}"], "path": ["internal","v1","payments","confirm"] }
+          }
+        },
+        {
+          "name": "내 결제 목록 조회",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/me?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","me"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }] }
+          }
+        },
+        {
+          "name": "전체 결제 조회 (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/payments?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","payments"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }] }
+          }
+        },
+        {
+          "name": "결제 취소",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"cancellationCode\": \"USER_CANCEL\",\n  \"cancelReason\": \"단순 변심\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/payments/{{paymentId}}/cancel", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{paymentId}}","cancel"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎰 Raffle",
+      "item": [
+        {
+          "name": "래플 생성 (ADMIN)",
+          "event": [
+            { "listen": "test", "script": { "exec": [
+              "if (pm.response.code === 200 || pm.response.code === 201) {",
+              "  pm.collectionVariables.set('raffleId', pm.response.json().data.raffleId);",
+              "}"
+            ], "type": "text/javascript" } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"name\": \"Nike 한정판 래플\",\n  \"winnerCount\": 5,\n  \"startedAt\": \"2026-06-26T15:00:00\",\n  \"endedAt\": \"2026-06-26T15:30:00\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles"] }
+          }
+        },
+        {
+          "name": "래플 수정 (ADMIN)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Nike 한정판 래플 (수정)\",\n  \"winnerCount\": 10\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles/{{raffleId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles","{{raffleId}}"] }
+          }
+        },
+        {
+          "name": "래플 상태 변경 (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"OPEN\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles/{{raffleId}}/status", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles","{{raffleId}}","status"] }
+          }
+        },
+        {
+          "name": "수동 추첨 실행 (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles/{{raffleId}}/draw", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles","{{raffleId}}","draw"] }
+          }
+        },
+        {
+          "name": "응모자 목록 조회 (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles/{{raffleId}}/entries?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles","{{raffleId}}","entries"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }] }
+          }
+        },
+        {
+          "name": "래플 삭제 (ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles/{{raffleId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles","{{raffleId}}"] }
+          }
+        },
+        {
+          "name": "래플 목록 조회",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/raffles?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }] }
+          }
+        },
+        {
+          "name": "래플 단건 조회",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/raffles/{{raffleId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","{{raffleId}}"] }
+          }
+        },
+        {
+          "name": "래플 응모 (USER)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200 || pm.response.code === 201) {",
+            "  pm.collectionVariables.set('entryId', pm.response.json().data.entryId);",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"billingKeyId\": \"{{billingKeyId}}\",\n  \"couponId\": \"{{userCouponId}}\",\n  \"originalAmount\": 150000,\n  \"discountAmount\": 1000,\n  \"finalAmount\": 149000\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/v1/raffles/{{raffleId}}/entries", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","{{raffleId}}","entries"] }
+          }
+        },
+        {
+          "name": "내 응모 내역 조회",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/raffles/entries/me?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","entries","me"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }] }
+          }
+        },
+        {
+          "name": "내 당첨 결과 확인",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/raffles/{{raffleId}}/winners/me", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","{{raffleId}}","winners","me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔔 Notification",
+      "item": [
+        {
+          "name": "알림 목록 조회",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  const content = pm.response.json().data.content;",
+            "  if (content && content.length > 0) {",
+            "    pm.collectionVariables.set('notificationId', content[0].notificationId);",
+            "  }",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","notifications"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "10" }] }
+          }
+        },
+        {
+          "name": "알림 읽음 처리",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/read", "host": ["{{baseUrl}}"], "path": ["api","v1","notifications","{{notificationId}}","read"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 Order",
+      "item": [
+        {
+          "name": "환불 요청",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/orders/{{orderId}}/refund", "host": ["{{baseUrl}}"], "path": ["api","v1","orders","{{orderId}}","refund"] }
+          }
+        },
+        {
+          "name": "DLQ 목록 조회 (ADMIN)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) {",
+            "  const content = pm.response.json().data.content;",
+            "  if (content && content.length > 0) {",
+            "    pm.collectionVariables.set('dlqId', content[0].dlqId);",
+            "  }",
+            "}"
+          ], "type": "text/javascript" } }],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/dlq?status=FAILED&page=0&size=20", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","dlq"], "query": [{ "key": "status", "value": "FAILED" }, { "key": "page", "value": "0" }, { "key": "size", "value": "20" }] }
+          }
+        },
+        {
+          "name": "DLQ 메시지 재발행 (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Gateway-Secret", "value": "{{gatewaySecret}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/admin/dlq/{{dlqId}}/republish", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","dlq","{{dlqId}}","republish"] }
+          }
+        }
+      ]
+    }
+  ]
+}

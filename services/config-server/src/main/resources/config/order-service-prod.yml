@@ -11,6 +11,9 @@ spring:
     enabled: true
     default-schema: order_db
     locations: classpath:db/migration
+    create-schemas: false        # 운영: 스키마는 사전 생성 (앱이 안 만듦)
+    clean-disabled: true         # 운영: clean 금지 (실수 방지 필수)
+    validate-on-migrate: true    # 적용된 마이그레이션 체크섬 검증
 
   jpa:
     hibernate:

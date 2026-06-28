@@ -90,9 +90,9 @@ public class RaffleDrawService {
                         raffle.getProductId(),
                         entry.getBillingKeyId(),
                         entry.getCouponId(),
-                        entry.getOriginalAmount(),
-                        entry.getDiscountAmount(),
-                        entry.getFinalAmount(),
+                        entry.getOriginalAmount().longValueExact(),
+                        entry.getDiscountAmount().longValueExact(),
+                        entry.getFinalAmount().longValueExact(),
                         java.time.LocalDateTime.now()
                 );
                 eventPublisher.publishEvent(event);
@@ -165,9 +165,9 @@ public class RaffleDrawService {
                 raffle.getProductId(),
                 entry.getBillingKeyId(),
                 entry.getCouponId(),
-                entry.getOriginalAmount(),
-                entry.getDiscountAmount(),
-                entry.getFinalAmount(),
+                entry.getOriginalAmount().longValueExact(),
+                entry.getDiscountAmount().longValueExact(),
+                entry.getFinalAmount().longValueExact(),
                 java.time.LocalDateTime.now()
         );
         eventPublisher.publishEvent(event);

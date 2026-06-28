@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record AdminRaffleCreateRequest(
-        @NotNull UUID dropId,
         @NotNull UUID productId,
         @NotBlank String name,
         @Positive int winnerCount,

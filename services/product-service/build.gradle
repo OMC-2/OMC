@@ -1,5 +1,4 @@
 dependencies {
-
     // Database
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
@@ -26,6 +25,36 @@ dependencies {
     testImplementation 'org.springframework.kafka:spring-kafka-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:postgresql'
-    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql:1.21.3'
+    testImplementation 'org.testcontainers:kafka:1.21.3'
+    testImplementation 'org.testcontainers:junit-jupiter:1.21.3'
+    testImplementation 'org.testcontainers:testcontainers:1.21.3'
+    testImplementation 'org.wiremock:wiremock-standalone:3.10.0'
+    testImplementation 'org.awaitility:awaitility:4.2.0'
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.testcontainers') {
+            details.useVersion '1.21.3'
+        }
+    }
+}
+
+test {
+    useJUnitPlatform {
+        if (System.getenv('CI') != null) {
+            excludeTags 'integration'
+        }
+    }
+    systemProperty "api.version", "1.44"
+    environment "DOCKER_API_VERSION", "1.44"
+    environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+
+    def standardSocket = new File('/var/run/docker.sock')
+    def macDesktopSocket = new File("${System.getProperty('user.home')}/Library/Containers/com.docker.docker/Data/docker-cli.sock")
+    if (!standardSocket.exists() && macDesktopSocket.exists()) {
+        environment "DOCKER_HOST", "unix://${macDesktopSocket.absolutePath}"
+        environment "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", macDesktopSocket.absolutePath
+    }
 }

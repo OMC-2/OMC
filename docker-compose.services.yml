@@ -17,6 +17,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   config-server:
     build:
@@ -38,6 +42,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   gateway:
     build:
@@ -51,10 +59,14 @@ services:
       EUREKA_URI: http://eureka-server:8761/eureka/
       GATEWAY_SECRET: local-secret
       KEYCLOAK_JWKS_URI: http://keycloak:8180/realms/omc/protocol/openid-connect/certs
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       config-server:
         condition: service_healthy
       keycloak:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
@@ -64,6 +76,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   user-service:
     build:
@@ -100,6 +116,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   drop-service:
     build:
@@ -135,6 +155,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   order-service:
     build:
@@ -170,6 +194,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   product-service:
     build:
@@ -205,6 +233,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   payment-service:
     build:
@@ -245,16 +277,21 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   raffle-service:
     build:
-
       context: ./services/raffle-service
     container_name: omc-raffle-service
     ports:
       - "8086:8086"
     environment:
+      TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
       DB_URL: postgres:5432
       DB_USERNAME: omc
       DB_PASSWORD: password
@@ -279,6 +316,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   coupon-service:
     build:
@@ -314,6 +355,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   notification-service:
     build:
@@ -347,6 +392,10 @@ services:
       start_period: 60s
     networks:
       - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
 networks:
   omc-network:
