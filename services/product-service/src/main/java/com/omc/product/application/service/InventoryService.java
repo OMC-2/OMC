@@ -2,6 +2,9 @@ package com.omc.product.application.service;
 
 import com.omc.product.application.event.PaymentCompletedEvent;
 import com.omc.product.application.event.ProductUpdatedEvent;
+import com.omc.product.application.processor.InventoryDeductProcessor;
+import com.omc.product.application.processor.StockFailureHandler;
+import com.omc.product.application.processor.StockSuccessHandler;
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.exception.ActiveDropExistsException;
 import com.omc.product.domain.exception.InsufficientStockException;

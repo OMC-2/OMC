@@ -1,4 +1,4 @@
-package com.omc.product.application.service;
+package com.omc.product.application.processor;
 
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.exception.InventoryNotFoundException;

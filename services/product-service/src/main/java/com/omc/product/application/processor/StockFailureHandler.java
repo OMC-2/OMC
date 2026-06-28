@@ -1,4 +1,4 @@
-package com.omc.product.application.service;
+package com.omc.product.application.processor;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
