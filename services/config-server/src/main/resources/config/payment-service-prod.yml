@@ -60,7 +60,7 @@ gateway:
 
 payment:
   pg:
-    mode: test
+    mode: ${PAYMENT_PG_MODE:test}
   idempotency:
     processing-ttl-seconds: ${PAYMENT_IDEMPOTENCY_PROCESSING_TTL_SECONDS:600} # 처리 중 락이 영원히 남지 않도록 하는 TTL
     success-ttl-seconds: ${PAYMENT_IDEMPOTENCY_SUCCESS_TTL_SECONDS:86400} # 성공 완료 후 중복 요청을 막아둘 유지 시간
