@@ -4,7 +4,7 @@ import com.omc.drop.domain.exception.DuplicatePurchaseException;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.DropNotOpenException;
 import com.omc.drop.domain.exception.SoldOutException;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import com.omc.drop.presentation.dto.response.PurchaseResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.*;
 class PurchaseServiceTest {
 
     @Mock
-    private PurchaseRedisRepository purchaseRedisRepository;
+    private DropRedisStore dropRedisStore;
 
     @InjectMocks
     private PurchaseService purchaseService;
@@ -44,10 +44,10 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
-            when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(eq(dropId), eq(userId), any(UUID.class),
+            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
+            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
+            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
+            when(dropRedisStore.executePurchase(eq(dropId), eq(userId), any(UUID.class),
                     eq(HOLD_TTL_SEC), eq(PRODUCT_ID), anyString()))
                     .thenReturn(42L);
 
@@ -63,12 +63,12 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(false);
+            when(dropRedisStore.isOpen(dropId)).thenReturn(false);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
                     .isInstanceOf(DropNotOpenException.class);
 
-            verify(purchaseRedisRepository, never())
+            verify(dropRedisStore, never())
                     .executePurchase(any(), any(), any(), anyInt(), any(), anyString());
         }
 
@@ -78,14 +78,14 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
-            when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(purchaseRedisRepository.getProductId(dropId)).thenReturn(null);
+            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
+            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
+            when(dropRedisStore.getProductId(dropId)).thenReturn(null);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
                     .isInstanceOf(DropNotFoundException.class);
 
-            verify(purchaseRedisRepository, never())
+            verify(dropRedisStore, never())
                     .executePurchase(any(), any(), any(), anyInt(), any(), anyString());
         }
 
@@ -95,10 +95,10 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
-            when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
+            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
+            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
+            when(dropRedisStore.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
                     .thenReturn(-1L);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
@@ -111,10 +111,10 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
-            when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
+            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
+            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
+            when(dropRedisStore.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
                     .thenReturn(-2L);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
@@ -127,10 +127,10 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
-            when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
+            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
+            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
+            when(dropRedisStore.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
                     .thenReturn(null);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
@@ -143,15 +143,15 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(true);
-            when(purchaseRedisRepository.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(purchaseRedisRepository.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(purchaseRedisRepository.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
+            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
+            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
+            when(dropRedisStore.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
                     .thenReturn(1L);
 
             purchaseService.purchase(dropId, userId);
 
-            verify(purchaseRedisRepository).executePurchase(
+            verify(dropRedisStore).executePurchase(
                     eq(dropId), eq(userId), any(UUID.class),
                     eq(HOLD_TTL_SEC), eq(PRODUCT_ID), anyString());
         }

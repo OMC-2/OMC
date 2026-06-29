@@ -1,7 +1,7 @@
 package com.omc.drop.application.event.stream;
 
 import com.omc.drop.application.event.producer.PurchaseConfirmedEvent;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.PurchaseStreamStore;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +32,7 @@ public class PurchaseStreamWorker {
     // 이 시간 미만으로 pending된 메시지는 현재 처리 중인 것으로 간주하고 재처리 대상에서 제외한다.
     private static final Duration PENDING_MIN_AGE = Duration.ofSeconds(5);
 
-    private final PurchaseRedisRepository purchaseRedisRepository;
+    private final PurchaseStreamStore purchaseStreamStore;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     /**
@@ -53,7 +53,7 @@ public class PurchaseStreamWorker {
 
     @PostConstruct
     void init() {
-        purchaseRedisRepository.createConsumerGroupIfAbsent();
+        purchaseStreamStore.createConsumerGroupIfAbsent();
         recoverPending();
     }
 
@@ -68,7 +68,7 @@ public class PurchaseStreamWorker {
     @Scheduled(fixedDelay = 100)
     void processNew() {
         List<MapRecord<String, String, String>> records =
-                purchaseRedisRepository.readMessages(consumerId, ReadOffset.lastConsumed(), BATCH_SIZE);
+                purchaseStreamStore.readMessages(consumerId, ReadOffset.lastConsumed(), BATCH_SIZE);
         if (records != null && !records.isEmpty()) {
             publishAndAck(records);
         }
@@ -87,7 +87,7 @@ public class PurchaseStreamWorker {
     @Scheduled(fixedDelay = 60_000)
     void reclaimStalePending() {
         List<MapRecord<String, String, String>> claimed =
-                purchaseRedisRepository.claimStaleMessages(consumerId);
+                purchaseStreamStore.claimStaleMessages(consumerId);
         if (!claimed.isEmpty()) {
             log.info("[PurchaseStream] stale pending {}건 인수", claimed.size());
             publishAndAck(claimed);
@@ -98,7 +98,7 @@ public class PurchaseStreamWorker {
      *  processNew()가 async ACK 대기 중인 메시지는 제외해 중복 발행을 방지한다. */
     private int drainOwnPending() {
         List<MapRecord<String, String, String>> records =
-                purchaseRedisRepository.getOwnStalePending(consumerId, PENDING_MIN_AGE);
+                purchaseStreamStore.getOwnStalePending(consumerId, PENDING_MIN_AGE);
         if (records.isEmpty()) return 0;
         publishAndAck(records);
         return records.size();
@@ -114,7 +114,7 @@ public class PurchaseStreamWorker {
                 continue;
             }
             kafkaTemplate.send("purchase.confirmed", event.orderId().toString(), event)
-                    .thenAccept(r -> purchaseRedisRepository.acknowledge(record.getId()))
+                    .thenAccept(r -> purchaseStreamStore.acknowledge(record.getId()))
                     .exceptionally(ex -> {
                         log.error("[PurchaseStream] Kafka 발행 실패 — pending 유지: messageId={}", record.getId(), ex);
                         return null;

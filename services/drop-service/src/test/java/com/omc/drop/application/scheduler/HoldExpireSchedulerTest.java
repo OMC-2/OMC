@@ -5,7 +5,7 @@ import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.application.event.producer.HoldExpiredEvent;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -35,7 +35,7 @@ class HoldExpireSchedulerTest {
     private DropRepository dropRepository;
 
     @Mock
-    private PurchaseRedisRepository purchaseRedisRepository;
+    private DropRedisStore dropRedisStore;
 
     @Mock
     private DropEventProducer dropEventProducer;
@@ -51,25 +51,25 @@ class HoldExpireSchedulerTest {
         @DisplayName("만료된 orderId가 없으면 아무 처리도 하지 않는다")
         void doesNothingWhenNoExpiredHolds() {
             Drop drop = createOpenDrop();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of(drop.getDropId().toString()));
-            when(purchaseRedisRepository.getExpiredOrderIds(eq(drop.getDropId()), anyLong()))
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of(drop.getDropId().toString()));
+            when(dropRedisStore.getExpiredOrderIds(eq(drop.getDropId()), anyLong()))
                     .thenReturn(Set.of());
 
             holdExpireScheduler.expireHolds();
 
-            verify(purchaseRedisRepository, never()).expireHold(any(), any());
+            verify(dropRedisStore, never()).expireHold(any(), any());
             verify(dropEventProducer, never()).publishHoldExpired(any());
         }
 
         @Test
         @DisplayName("open_drops Set이 비어있고 DB에도 OPEN 드롭이 없으면 아무 처리도 하지 않는다")
         void doesNothingWhenNoOpenDrops() {
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of());
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of());
             when(dropRepository.findByStatus(DropStatus.OPEN)).thenReturn(List.of());
 
             holdExpireScheduler.expireHolds();
 
-            verify(purchaseRedisRepository, never()).getExpiredOrderIds(any(), anyLong());
+            verify(dropRedisStore, never()).getExpiredOrderIds(any(), anyLong());
             verify(dropEventProducer, never()).publishHoldExpired(any());
         }
 
@@ -78,10 +78,10 @@ class HoldExpireSchedulerTest {
         void publishesHoldExpiredWhenExpireLuaReturnsOne() {
             Drop drop = createOpenDrop();
             UUID orderId = UUID.randomUUID();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of(drop.getDropId().toString()));
-            when(purchaseRedisRepository.getExpiredOrderIds(eq(drop.getDropId()), anyLong()))
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of(drop.getDropId().toString()));
+            when(dropRedisStore.getExpiredOrderIds(eq(drop.getDropId()), anyLong()))
                     .thenReturn(Set.of(orderId.toString()));
-            when(purchaseRedisRepository.expireHold(drop.getDropId(), orderId)).thenReturn(1L);
+            when(dropRedisStore.expireHold(drop.getDropId(), orderId)).thenReturn(1L);
 
             holdExpireScheduler.expireHolds();
 
@@ -96,10 +96,10 @@ class HoldExpireSchedulerTest {
         void skipsWhenExpireLuaReturnsZero() {
             Drop drop = createOpenDrop();
             UUID orderId = UUID.randomUUID();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of(drop.getDropId().toString()));
-            when(purchaseRedisRepository.getExpiredOrderIds(eq(drop.getDropId()), anyLong()))
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of(drop.getDropId().toString()));
+            when(dropRedisStore.getExpiredOrderIds(eq(drop.getDropId()), anyLong()))
                     .thenReturn(Set.of(orderId.toString()));
-            when(purchaseRedisRepository.expireHold(drop.getDropId(), orderId)).thenReturn(0L);
+            when(dropRedisStore.expireHold(drop.getDropId(), orderId)).thenReturn(0L);
 
             holdExpireScheduler.expireHolds();
 
@@ -112,12 +112,12 @@ class HoldExpireSchedulerTest {
             Drop drop = createOpenDrop();
             UUID failOrderId = UUID.randomUUID();
             UUID successOrderId = UUID.randomUUID();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of(drop.getDropId().toString()));
-            when(purchaseRedisRepository.getExpiredOrderIds(eq(drop.getDropId()), anyLong()))
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of(drop.getDropId().toString()));
+            when(dropRedisStore.getExpiredOrderIds(eq(drop.getDropId()), anyLong()))
                     .thenReturn(Set.of(failOrderId.toString(), successOrderId.toString()));
-            when(purchaseRedisRepository.expireHold(drop.getDropId(), failOrderId))
+            when(dropRedisStore.expireHold(drop.getDropId(), failOrderId))
                     .thenThrow(new RuntimeException("Redis 오류"));
-            when(purchaseRedisRepository.expireHold(drop.getDropId(), successOrderId)).thenReturn(1L);
+            when(dropRedisStore.expireHold(drop.getDropId(), successOrderId)).thenReturn(1L);
 
             holdExpireScheduler.expireHolds();
 
@@ -133,47 +133,47 @@ class HoldExpireSchedulerTest {
         @DisplayName("open_drops Set이 비었으면 DB에서 OPEN 드롭을 조회하고 addOpenDrop을 호출한다")
         void recoversOpenDropsFromDbWhenSetIsEmpty() {
             Drop drop = createOpenDrop();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of());
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of());
             when(dropRepository.findByStatus(DropStatus.OPEN)).thenReturn(List.of(drop));
             when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(CLOSED), any(LocalDateTime.class)))
                     .thenReturn(List.of());
-            when(purchaseRedisRepository.getExpiredOrderIds(eq(drop.getDropId()), anyLong())).thenReturn(Set.of());
+            when(dropRedisStore.getExpiredOrderIds(eq(drop.getDropId()), anyLong())).thenReturn(Set.of());
 
             holdExpireScheduler.expireHolds();
 
-            verify(purchaseRedisRepository).addOpenDrop(drop.getDropId());
-            verify(purchaseRedisRepository).getExpiredOrderIds(eq(drop.getDropId()), anyLong());
+            verify(dropRedisStore).addOpenDrop(drop.getDropId());
+            verify(dropRedisStore).getExpiredOrderIds(eq(drop.getDropId()), anyLong());
         }
 
         @Test
         @DisplayName("재시작 시 CLOSED이지만 holds가 남은 드롭도 Set에 복구한다")
         void recoversClosedDropWithRemainingHoldsFromDb() {
             Drop closedDrop = createClosedDrop();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of());
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of());
             when(dropRepository.findByStatus(DropStatus.OPEN)).thenReturn(List.of());
             when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(CLOSED), any(LocalDateTime.class)))
                     .thenReturn(List.of(closedDrop));
-            when(purchaseRedisRepository.isHoldsEmpty(closedDrop.getDropId())).thenReturn(false);
-            when(purchaseRedisRepository.getExpiredOrderIds(eq(closedDrop.getDropId()), anyLong())).thenReturn(Set.of());
+            when(dropRedisStore.isHoldsEmpty(closedDrop.getDropId())).thenReturn(false);
+            when(dropRedisStore.getExpiredOrderIds(eq(closedDrop.getDropId()), anyLong())).thenReturn(Set.of());
 
             holdExpireScheduler.expireHolds();
 
-            verify(purchaseRedisRepository).addOpenDrop(closedDrop.getDropId());
+            verify(dropRedisStore).addOpenDrop(closedDrop.getDropId());
         }
 
         @Test
         @DisplayName("재시작 시 CLOSED이고 holds도 비었으면 Set에 복구하지 않는다")
         void doesNotRecoverClosedDropWithEmptyHolds() {
             Drop closedDrop = createClosedDrop();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of());
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of());
             when(dropRepository.findByStatus(DropStatus.OPEN)).thenReturn(List.of());
             when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(CLOSED), any(LocalDateTime.class)))
                     .thenReturn(List.of(closedDrop));
-            when(purchaseRedisRepository.isHoldsEmpty(closedDrop.getDropId())).thenReturn(true);
+            when(dropRedisStore.isHoldsEmpty(closedDrop.getDropId())).thenReturn(true);
 
             holdExpireScheduler.expireHolds();
 
-            verify(purchaseRedisRepository, never()).addOpenDrop(closedDrop.getDropId());
+            verify(dropRedisStore, never()).addOpenDrop(closedDrop.getDropId());
         }
     }
 
@@ -185,28 +185,28 @@ class HoldExpireSchedulerTest {
         @DisplayName("CLOSED 드롭이고 holds가 비었으면 open_drops Set에서 제거한다")
         void removesClosedDropFromSetWhenHoldsEmpty() {
             UUID dropId = UUID.randomUUID();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of(dropId.toString()));
-            when(purchaseRedisRepository.getExpiredOrderIds(eq(dropId), anyLong())).thenReturn(Set.of());
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(false);
-            when(purchaseRedisRepository.isHoldsEmpty(dropId)).thenReturn(true);
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of(dropId.toString()));
+            when(dropRedisStore.getExpiredOrderIds(eq(dropId), anyLong())).thenReturn(Set.of());
+            when(dropRedisStore.isOpen(dropId)).thenReturn(false);
+            when(dropRedisStore.isHoldsEmpty(dropId)).thenReturn(true);
 
             holdExpireScheduler.expireHolds();
 
-            verify(purchaseRedisRepository).removeOpenDrop(dropId);
+            verify(dropRedisStore).removeOpenDrop(dropId);
         }
 
         @Test
         @DisplayName("CLOSED 드롭이어도 holds가 남아있으면 Set에서 제거하지 않는다")
         void doesNotRemoveClosedDropFromSetWhenHoldsRemain() {
             UUID dropId = UUID.randomUUID();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of(dropId.toString()));
-            when(purchaseRedisRepository.getExpiredOrderIds(eq(dropId), anyLong())).thenReturn(Set.of());
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(false);
-            when(purchaseRedisRepository.isHoldsEmpty(dropId)).thenReturn(false);
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of(dropId.toString()));
+            when(dropRedisStore.getExpiredOrderIds(eq(dropId), anyLong())).thenReturn(Set.of());
+            when(dropRedisStore.isOpen(dropId)).thenReturn(false);
+            when(dropRedisStore.isHoldsEmpty(dropId)).thenReturn(false);
 
             holdExpireScheduler.expireHolds();
 
-            verify(purchaseRedisRepository, never()).removeOpenDrop(any());
+            verify(dropRedisStore, never()).removeOpenDrop(any());
         }
 
         @Test
@@ -214,17 +214,17 @@ class HoldExpireSchedulerTest {
         void expiresRemainingHoldsOfClosedDropThenRemovesFromSet() {
             UUID dropId = UUID.randomUUID();
             UUID orderId = UUID.randomUUID();
-            when(purchaseRedisRepository.getOpenDropIds()).thenReturn(Set.of(dropId.toString()));
-            when(purchaseRedisRepository.getExpiredOrderIds(eq(dropId), anyLong()))
+            when(dropRedisStore.getOpenDropIds()).thenReturn(Set.of(dropId.toString()));
+            when(dropRedisStore.getExpiredOrderIds(eq(dropId), anyLong()))
                     .thenReturn(Set.of(orderId.toString()));
-            when(purchaseRedisRepository.expireHold(dropId, orderId)).thenReturn(1L);
-            when(purchaseRedisRepository.isOpen(dropId)).thenReturn(false);
-            when(purchaseRedisRepository.isHoldsEmpty(dropId)).thenReturn(true);
+            when(dropRedisStore.expireHold(dropId, orderId)).thenReturn(1L);
+            when(dropRedisStore.isOpen(dropId)).thenReturn(false);
+            when(dropRedisStore.isHoldsEmpty(dropId)).thenReturn(true);
 
             holdExpireScheduler.expireHolds();
 
             verify(dropEventProducer).publishHoldExpired(argThat(e -> e.orderId().equals(orderId)));
-            verify(purchaseRedisRepository).removeOpenDrop(dropId);
+            verify(dropRedisStore).removeOpenDrop(dropId);
         }
     }
 

@@ -3,7 +3,7 @@ package com.omc.drop.application.scheduler;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,7 +21,7 @@ public class DropRedisCleanupScheduler {
     private static final int CLEANUP_LOOKBACK_DAYS = 2;
 
     private final DropRepository dropRepository;
-    private final PurchaseRedisRepository purchaseRedisRepository;
+    private final DropRedisStore dropRedisStore;
 
     @Scheduled(fixedDelay = 60000)
     public void cleanupClosedDrops() {
@@ -33,7 +33,7 @@ public class DropRedisCleanupScheduler {
             if (!isReadyForCleanup(drop, now)) {
                 continue;
             }
-            long deleted = purchaseRedisRepository.deleteDropKeys(drop.getDropId());
+            long deleted = dropRedisStore.deleteDropKeys(drop.getDropId());
             if (deleted > 0) {
                 log.info("Redis 키 정리 완료. dropId={}, 삭제 키={}", drop.getDropId(), deleted);
             }
@@ -42,6 +42,6 @@ public class DropRedisCleanupScheduler {
 
     private boolean isReadyForCleanup(Drop drop, LocalDateTime now) {
         return drop.getEndAt().plusHours(CLEANUP_BUFFER_HOURS).isBefore(now)
-                && purchaseRedisRepository.isHoldsEmpty(drop.getDropId());
+                && dropRedisStore.isHoldsEmpty(drop.getDropId());
     }
 }

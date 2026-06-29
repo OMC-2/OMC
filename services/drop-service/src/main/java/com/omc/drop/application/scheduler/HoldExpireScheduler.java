@@ -5,7 +5,7 @@ import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.application.event.producer.HoldExpiredEvent;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -25,12 +25,12 @@ import java.util.stream.Collectors;
 public class HoldExpireScheduler {
 
     private final DropRepository dropRepository;
-    private final PurchaseRedisRepository purchaseRedisRepository;
+    private final DropRedisStore dropRedisStore;
     private final DropEventProducer dropEventProducer;
 
     @Scheduled(fixedDelay = 10000)
     public void expireHolds() {
-        Set<String> openDropIds = purchaseRedisRepository.getOpenDropIds();
+        Set<String> openDropIds = dropRedisStore.getOpenDropIds();
 
         if (openDropIds == null || openDropIds.isEmpty()) {
             openDropIds = recoverFromDb();
@@ -40,8 +40,8 @@ public class HoldExpireScheduler {
         for (String dropIdStr : openDropIds) {
             UUID dropId = UUID.fromString(dropIdStr);
             processExpiredHolds(dropId, nowEpoch);
-            if (!purchaseRedisRepository.isOpen(dropId) && purchaseRedisRepository.isHoldsEmpty(dropId)) {
-                purchaseRedisRepository.removeOpenDrop(dropId);
+            if (!dropRedisStore.isOpen(dropId) && dropRedisStore.isHoldsEmpty(dropId)) {
+                dropRedisStore.removeOpenDrop(dropId);
                 log.info("CLOSED 드롭 open_drops 제거 완료. dropId={}", dropId);
             }
         }
@@ -55,7 +55,7 @@ public class HoldExpireScheduler {
 
         List<Drop> openDrops = dropRepository.findByStatus(DropStatus.OPEN);
         openDrops.forEach(drop -> {
-            purchaseRedisRepository.addOpenDrop(drop.getDropId());
+            dropRedisStore.addOpenDrop(drop.getDropId());
             recovered.add(drop.getDropId().toString());
         });
 
@@ -63,9 +63,9 @@ public class HoldExpireScheduler {
         LocalDateTime lookback = LocalDateTime.now().minusDays(RECOVERY_LOOKBACK_DAYS);
         List<Drop> recentClosed = dropRepository.findByStatusAndEndAtGreaterThanEqual(DropStatus.CLOSED, lookback);
         recentClosed.stream()
-                .filter(drop -> !purchaseRedisRepository.isHoldsEmpty(drop.getDropId()))
+                .filter(drop -> !dropRedisStore.isHoldsEmpty(drop.getDropId()))
                 .forEach(drop -> {
-                    purchaseRedisRepository.addOpenDrop(drop.getDropId());
+                    dropRedisStore.addOpenDrop(drop.getDropId());
                     recovered.add(drop.getDropId().toString());
                 });
 
@@ -73,7 +73,7 @@ public class HoldExpireScheduler {
     }
 
     private void processExpiredHolds(UUID dropId, long nowEpoch) {
-        Set<String> expiredOrderIds = purchaseRedisRepository.getExpiredOrderIds(dropId, nowEpoch);
+        Set<String> expiredOrderIds = dropRedisStore.getExpiredOrderIds(dropId, nowEpoch);
         if (expiredOrderIds == null || expiredOrderIds.isEmpty()) {
             return;
         }
@@ -81,7 +81,7 @@ public class HoldExpireScheduler {
         for (String orderIdStr : expiredOrderIds) {
             try {
                 UUID orderId = UUID.fromString(orderIdStr);
-                long removed = purchaseRedisRepository.expireHold(dropId, orderId);
+                long removed = dropRedisStore.expireHold(dropId, orderId);
                 if (removed == 0) {
                     continue;
                 }
