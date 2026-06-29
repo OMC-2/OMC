@@ -4,7 +4,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
+import com.omc.raffle.presentation.dto.request.PreAuthRequest;
 
 import java.math.BigDecimal;
 

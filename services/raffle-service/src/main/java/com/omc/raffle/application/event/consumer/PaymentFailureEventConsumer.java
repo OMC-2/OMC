@@ -32,7 +32,7 @@ public class PaymentFailureEventConsumer {
             }
         } catch (Exception e) {
             log.error("Error processing payment.failed event", e);
-            throw new com.omc.raffle.domain.exception.EventProcessingException(com.omc.raffle.domain.exception.RaffleErrorCode.RAFFLE_009, e.getMessage());
+            throw new com.omc.raffle.domain.exception.EventProcessingException(com.omc.raffle.domain.enums.RaffleErrorCode.RAFFLE_009, e.getMessage());
         }
     }
 }

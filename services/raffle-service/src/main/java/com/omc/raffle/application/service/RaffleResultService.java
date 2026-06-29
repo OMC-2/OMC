@@ -5,7 +5,7 @@ import com.omc.common.exception.BusinessException;
 import com.omc.raffle.presentation.dto.response.RaffleResultResponse;
 import com.omc.raffle.domain.entity.RaffleResult;
 import com.omc.raffle.domain.repository.RaffleResultRepository;
-import com.omc.raffle.domain.exception.RaffleErrorCode;
+import com.omc.raffle.domain.enums.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.entity.Raffle;
@@ -41,10 +41,10 @@ public class RaffleResultService {
 
     public List<PublicRaffleResultResponse> getPublicResults(UUID raffleId) {
         Raffle raffle = raffleRepository.findById(raffleId)
-                .orElseThrow(() -> new com.omc.raffle.domain.exception.RaffleNotFoundException(com.omc.raffle.domain.exception.RaffleErrorCode.RAFFLE_001));
+                .orElseThrow(() -> new com.omc.raffle.domain.exception.RaffleNotFoundException(com.omc.raffle.domain.enums.RaffleErrorCode.RAFFLE_001));
 
         if (raffle.getDrawSeed() == null) {
-            throw new com.omc.raffle.domain.exception.DrawSeedNotGeneratedException(com.omc.raffle.domain.exception.RaffleErrorCode.RAFFLE_005);
+            throw new com.omc.raffle.domain.exception.DrawSeedNotGeneratedException(com.omc.raffle.domain.enums.RaffleErrorCode.RAFFLE_005);
         }
 
         long totalParticipants = raffleEntryRepository.countByRaffleId(raffleId);

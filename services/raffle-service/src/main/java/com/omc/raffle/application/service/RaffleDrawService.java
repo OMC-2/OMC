@@ -8,7 +8,7 @@ import com.omc.raffle.domain.entity.RaffleEntry;
 import com.omc.raffle.domain.entity.RaffleResult;
 import com.omc.raffle.domain.enums.RaffleResultStatus;
 import com.omc.raffle.domain.enums.RaffleStatus;
-import com.omc.raffle.domain.exception.RaffleErrorCode;
+import com.omc.raffle.domain.enums.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.domain.repository.RaffleResultRepository;
