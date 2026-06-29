@@ -26,7 +26,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ProductCrudIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
     @Autowired ProductRepository productRepository;
     @Autowired InventoryRepository inventoryRepository;
     @Autowired OutboxEventRepository outboxEventRepository;
@@ -38,18 +37,18 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
         processedEventRepository.deleteAll();
         inventoryRepository.deleteAll();
         productRepository.deleteAll();
-        resetWireMock();  // ← wireMock.resetAll() 대신
+        resetWireMock();
     }
 
     @Test
     void 상품_등록_성공_DB_저장_확인() throws Exception {
         String request = """
                 {
-                    "name": "Nike Air Jordan",
+                    "name": "Switch 2",
                     "description": "설명",
-                    "price": 189000,
-                    "brand": "Nike",
-                    "category": "SNEAKERS",
+                    "price": 689000,
+                    "brand": "Nintendo",
+                    "category": "게이밍 기기",
                     "initialQuantity": 10
                 }
                 """;
@@ -62,7 +61,7 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
                         .content(request))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.name").value("Nike Air Jordan"))
+                .andExpect(jsonPath("$.data.name").value("Switch 2"))
                 .andExpect(jsonPath("$.data.availableQuantity").value(0));
 
         assertThat(productRepository.findAll()).hasSize(1);
@@ -75,8 +74,8 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void 상품_목록_조회_성공() throws Exception {
-        Product product = Product.create("Nike Air Jordan", "설명", 189000L,
-                "Nike", "SNEAKERS", null);
+        Product product = Product.create("Switch 2", "설명", 689000L,
+                "Nintendo", "게이밍 기기", null);
         productRepository.save(product);
         Inventory inventory = Inventory.create(product.getProductId(), 10);
         inventoryRepository.save(inventory);
@@ -86,13 +85,13 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content").isArray())
                 .andExpect(jsonPath("$.data.totalElements").value(1))
-                .andExpect(jsonPath("$.data.content[0].name").value("Nike Air Jordan"));
+                .andExpect(jsonPath("$.data.content[0].name").value("Switch 2"));
     }
 
     @Test
     void 상품_상세_조회_성공() throws Exception {
-        Product product = Product.create("Nike Air Jordan", "설명", 189000L,
-                "Nike", "SNEAKERS", null);
+        Product product = Product.create("Switch 2", "설명", 689000L,
+                "Nintendo", "게이밍 기기", null);
         productRepository.save(product);
         Inventory inventory = Inventory.create(product.getProductId(), 10);
         inventoryRepository.save(inventory);
@@ -101,7 +100,7 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
                         .header("X-Gateway-Secret", GW_SECRET))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.productId").value(product.getProductId().toString()))
-                .andExpect(jsonPath("$.data.name").value("Nike Air Jordan"));
+                .andExpect(jsonPath("$.data.name").value("Switch 2"));
     }
 
     @Test
@@ -113,8 +112,8 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void 진행중_드롭_없으면_상품_수정_성공() throws Exception {
-        Product product = Product.create("Nike Air Jordan", "설명", 189000L,
-                "Nike", "SNEAKERS", null);
+        Product product = Product.create("Switch 2", "설명", 689000L,
+                "Nintendo", "게이밍 기기", null);
         productRepository.save(product);
         Inventory inventory = Inventory.create(product.getProductId(), 10);
         inventoryRepository.save(inventory);
@@ -136,8 +135,8 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void 진행중_드롭_있으면_상품_수정_409() throws Exception {
-        Product product = Product.create("Nike Air Jordan", "설명", 189000L,
-                "Nike", "SNEAKERS", null);
+        Product product = Product.create("Switch 2", "설명", 689000L,
+                "Nintendo", "게이밍 기기", null);
         productRepository.save(product);
         Inventory inventory = Inventory.create(product.getProductId(), 10);
         inventoryRepository.save(inventory);
@@ -158,8 +157,8 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void 진행중_드롭_없으면_상품_삭제_성공_DB_확인() throws Exception {
-        Product product = Product.create("Nike Air Jordan", "설명", 189000L,
-                "Nike", "SNEAKERS", null);
+        Product product = Product.create("Switch 2", "설명", 689000L,
+                "Nintendo", "게이밍 기기", null);
         productRepository.save(product);
         Inventory inventory = Inventory.create(product.getProductId(), 10);
         inventoryRepository.save(inventory);
@@ -172,5 +171,72 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk());
 
         assertThat(productRepository.findById(product.getProductId())).isEmpty();
+    }
+
+    @Test
+    void Drop_Service_타임아웃_시_상품_수정_503() throws Exception {
+        Product product = Product.create("Switch 2", "설명", 689000L,
+                "Nintendo", "게이밍 기기", null);
+        productRepository.save(product);
+        Inventory inventory = Inventory.create(product.getProductId(), 10);
+        inventoryRepository.save(inventory);
+        stubDropServiceTimeout();
+
+        String request = """
+                { "name": "수정된 상품명" }
+                """;
+
+        mockMvc.perform(patch("/api/v1/admin/products/{productId}", product.getProductId())
+                        .header("X-Gateway-Secret", GW_SECRET)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT-020"));
+    }
+
+    @Test
+    void Drop_Service_타임아웃_시_상품_삭제_503() throws Exception {
+        Product product = Product.create("Switch 2", "설명", 689000L,
+                "Nintendo", "게이밍 기기", null);
+        productRepository.save(product);
+        Inventory inventory = Inventory.create(product.getProductId(), 10);
+        inventoryRepository.save(inventory);
+        stubDropServiceTimeout();
+
+        mockMvc.perform(delete("/api/v1/admin/products/{productId}", product.getProductId())
+                        .header("X-Gateway-Secret", GW_SECRET)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ADMIN"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT-020"));
+    }
+
+    @Test
+    void Drop_Service_타임아웃_시_재고_수동_수정_503() throws Exception {
+        Product product = Product.create("Switch 2", "설명", 689000L,
+                "Nintendo", "게이밍 기기", null);
+        productRepository.save(product);
+        Inventory inventory = Inventory.create(product.getProductId(), 10);
+        inventoryRepository.save(inventory);
+        stubDropServiceTimeout();
+
+        String request = """
+                { "totalQuantity": 20, "reason": "입고 추가" }
+                """;
+
+        mockMvc.perform(patch("/api/v1/admin/products/{productId}/inventories",
+                        product.getProductId())
+                        .header("X-Gateway-Secret", GW_SECRET)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT-020"));
     }
 }
