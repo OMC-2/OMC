@@ -64,7 +64,7 @@ public class RaffleDrawService {
 
         // 3. 당첨 공정성을 보장하기 위한 Random Seed 생성 및 기록
         long seed = System.currentTimeMillis();
-        raffle.setDrawSeed(String.valueOf(seed));
+        raffle.assignDrawSeed(String.valueOf(seed));
         java.util.Random rnd = new java.util.Random(seed);
         Collections.shuffle(projections, rnd);
 

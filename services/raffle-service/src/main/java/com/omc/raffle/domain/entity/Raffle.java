@@ -12,7 +12,6 @@ import org.hibernate.annotations.SQLRestriction;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.math.BigDecimal;
-import lombok.Setter;
 import com.omc.common.util.UuidV7Generator;
 import org.springframework.util.Assert;
 
@@ -32,7 +31,6 @@ public class Raffle extends BaseTimeEntity {
 
 
 
-    @Setter
     @Column(name = "draw_seed")
     private String drawSeed;
 
@@ -96,7 +94,9 @@ public class Raffle extends BaseTimeEntity {
         this.status = status;
     }
 
-
-
+    public void assignDrawSeed(String drawSeed) {
+        Assert.notNull(drawSeed, "Draw seed must not be null");
+        this.drawSeed = drawSeed;
+    }
 
 }
