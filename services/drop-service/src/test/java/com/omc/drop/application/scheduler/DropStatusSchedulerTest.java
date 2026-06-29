@@ -66,6 +66,7 @@ class DropStatusSchedulerTest {
             dropStatusScheduler.openScheduledDrops();
 
             verify(purchaseRedisRepository).warmup(drop.getDropId(), availableQty, drop.getHoldTtlSec(), drop.getProductId());
+            verify(purchaseRedisRepository).addOpenDrop(drop.getDropId());
 
             ArgumentCaptor<DropOpenedEvent> captor = ArgumentCaptor.forClass(DropOpenedEvent.class);
             verify(dropEventProducer).publishDropOpened(captor.capture());
@@ -86,6 +87,7 @@ class DropStatusSchedulerTest {
             dropStatusScheduler.openScheduledDrops();
 
             verify(purchaseRedisRepository).warmup(drop.getDropId(), drop.getTotalQty(), drop.getHoldTtlSec(), drop.getProductId());
+            verify(purchaseRedisRepository).addOpenDrop(drop.getDropId());
             verify(dropEventProducer).publishDropOpened(argThat(e -> e.dropId().equals(drop.getDropId())));
         }
 
@@ -102,6 +104,7 @@ class DropStatusSchedulerTest {
 
             dropStatusScheduler.openScheduledDrops();
 
+            verify(purchaseRedisRepository, never()).addOpenDrop(any());
             verify(dropEventProducer, never()).publishDropOpened(any());
         }
 
@@ -123,6 +126,8 @@ class DropStatusSchedulerTest {
 
             verify(dropRepository, never()).updateStatusConditionally(eq(failDrop.getDropId()), any(), any());
             verify(dropEventProducer, never()).publishDropOpened(argThat(e -> e.dropId().equals(failDrop.getDropId())));
+            verify(purchaseRedisRepository, never()).addOpenDrop(failDrop.getDropId());
+            verify(purchaseRedisRepository).addOpenDrop(successDrop.getDropId());
             verify(dropEventProducer).publishDropOpened(argThat(e -> e.dropId().equals(successDrop.getDropId())));
         }
 
