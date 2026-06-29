@@ -124,10 +124,6 @@ services:
       JAVA_OPTS: "-Xms128m -Xmx256m"
     networks:
       - omc-network
-    deploy:
-      resources:
-        limits:
-          memory: 512m
 
   prometheus:
     image: prom/prometheus:latest
