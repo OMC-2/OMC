@@ -38,8 +38,9 @@ public class RaffleController {
      * 래플 응모 (선결제) API
      * POST /api/v1/raffles/{raffleId}/entries
      */
+    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @PostMapping("/{raffleId}/entries")
-    public ResponseEntity<ApiResponse<RaffleApplyResponse>> enterRaffle(
+    public ApiResponse<RaffleApplyResponse> enterRaffle(
             @RequestHeader("X-User-Id") UUID userId,
             @PathVariable UUID raffleId,
             @RequestBody @Valid RaffleEnterRequest request) {
@@ -55,7 +56,7 @@ public class RaffleController {
         );
         
         RaffleApplyResponse response = raffleAppService.apply(raffleId, appRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(response));
+        return ApiResponse.created(response);
     }
 
     /**
@@ -63,10 +64,10 @@ public class RaffleController {
      * GET /api/v1/raffles
      */
     @GetMapping
-    public ResponseEntity<ApiResponse<PageResponse<RaffleResponse>>> getRaffles(
+    public ApiResponse<PageResponse<RaffleResponse>> getRaffles(
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<RaffleResponse> response = raffleAppService.getRaffles(pageable);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ApiResponse.success(response);
     }
 
     /**
@@ -74,10 +75,10 @@ public class RaffleController {
      * GET /api/v1/raffles/{raffleId}
      */
     @GetMapping("/{raffleId}")
-    public ResponseEntity<ApiResponse<RaffleResponse>> getRaffle(
+    public ApiResponse<RaffleResponse> getRaffle(
             @PathVariable UUID raffleId) {
         RaffleResponse response = raffleAppService.getRaffle(raffleId);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ApiResponse.success(response);
     }
 
     /**
@@ -85,11 +86,11 @@ public class RaffleController {
      * GET /api/v1/raffles/entries/me
      */
     @GetMapping("/entries/me")
-    public ResponseEntity<ApiResponse<PageResponse<RaffleEntryResponse>>> getMyEntries(
+    public ApiResponse<PageResponse<RaffleEntryResponse>> getMyEntries(
             @RequestHeader("X-User-Id") UUID userId,
             @PageableDefault(sort = "enteredAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<RaffleEntryResponse> response = raffleAppService.getMyEntries(userId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ApiResponse.success(response);
     }
 
     /**
@@ -97,14 +98,14 @@ public class RaffleController {
      * GET /api/v1/raffles/{raffleId}/winners/me
      */
     @GetMapping("/{raffleId}/winners/me")
-    public ResponseEntity<ApiResponse<RaffleResultResponse>> getRaffleResult(
+    public ApiResponse<RaffleResultResponse> getRaffleResult(
             @RequestHeader("X-User-Id") UUID userId,
             @PathVariable UUID raffleId) {
 
         RaffleResultResponse response = 
                 raffleResultService.getResult(raffleId, userId);
                 
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ApiResponse.success(response);
     }
 
     /**
@@ -112,10 +113,10 @@ public class RaffleController {
      * GET /api/v1/raffles/{raffleId}/participants-count
      */
     @GetMapping("/{raffleId}/participants-count")
-    public ResponseEntity<ApiResponse<Long>> getParticipantsCount(
+    public ApiResponse<Long> getParticipantsCount(
             @PathVariable UUID raffleId) {
         long count = raffleAppService.getParticipantsCount(raffleId);
-        return ResponseEntity.ok(ApiResponse.success(count));
+        return ApiResponse.success(count);
     }
 }
 

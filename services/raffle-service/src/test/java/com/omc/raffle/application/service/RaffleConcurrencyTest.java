@@ -7,7 +7,7 @@ import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.EmbeddedRedisConfig;
-import com.omc.raffle.infrastructure.client.PaymentClient;
+import com.omc.raffle.infrastructure.client.PaymentFeignClient;
 import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +49,7 @@ class RaffleConcurrencyTest {
     private StringRedisTemplate redisTemplate;
 
     @MockBean
-    private PaymentClient paymentClient;
+    private PaymentFeignClient paymentFeignClient;
 
     private UUID raffleId;
 
@@ -65,7 +65,7 @@ class RaffleConcurrencyTest {
         raffleId = raffle.getId();
 
         // 결제 가승인 항상 성공
-        doNothing().when(paymentClient).preAuthCard(any(PreAuthRequest.class));
+        doNothing().when(paymentFeignClient).preAuthCard(any(PreAuthRequest.class));
     }
 
     @AfterEach

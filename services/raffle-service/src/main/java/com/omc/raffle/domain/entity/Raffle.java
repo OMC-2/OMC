@@ -11,6 +11,8 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.math.BigDecimal;
+import lombok.Setter;
 import com.omc.common.util.UuidV7Generator;
 import org.springframework.util.Assert;
 
@@ -27,6 +29,12 @@ public class Raffle extends BaseTimeEntity {
 
     @Column(name = "product_id", nullable = false, columnDefinition = "uuid")
     private UUID productId;
+
+
+
+    @Setter
+    @Column(name = "draw_seed")
+    private String drawSeed;
 
     @Column(name = "name", nullable = false)
     private String name;

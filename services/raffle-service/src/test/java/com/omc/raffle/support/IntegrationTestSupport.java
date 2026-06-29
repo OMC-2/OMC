@@ -11,7 +11,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.omc.raffle.infrastructure.client.PaymentClient;
+import com.omc.raffle.infrastructure.client.PaymentFeignClient;
 
 /**
  * 통합 테스트 베이스 클래스.
@@ -23,7 +23,7 @@ import com.omc.raffle.infrastructure.client.PaymentClient;
  *   class MyTest extends IntegrationTestSupport { ... }
  *
  * 주의사항:
- *   - PaymentClient는 Feign 외부 호출이므로 기본 @MockBean 처리
+ *   - PaymentFeignClient는 Feign 외부 호출이므로 기본 @MockBean 처리
  *     (필요 시 하위 테스트에서 @MockBean으로 재정의 가능)
  *   - Docker Desktop이 실행 중이어야 합니다.
  */
@@ -66,8 +66,8 @@ public abstract class IntegrationTestSupport {
         registry.add("eureka.client.enabled", () -> "false");
     }
 
-    // PaymentClient는 외부 payment-service에 실제 요청을 보내므로 기본 Mock 처리
+    // PaymentFeignClient는 외부 payment-service에 실제 요청을 보내므로 기본 Mock 처리
     // 하위 테스트에서 doNothing() 또는 doThrow()로 동작 제어
     @MockBean
-    protected PaymentClient paymentClient;
+    protected PaymentFeignClient paymentFeignClient;
 }

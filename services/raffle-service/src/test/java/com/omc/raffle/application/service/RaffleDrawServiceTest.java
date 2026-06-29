@@ -8,7 +8,7 @@ import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.domain.repository.RaffleResultRepository;
-import com.omc.raffle.infrastructure.client.PaymentClient;
+import com.omc.raffle.infrastructure.client.PaymentFeignClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class RaffleDrawServiceTest {
 
     @MockBean
-    private PaymentClient paymentClient;
+    private PaymentFeignClient paymentFeignClient;
 
     @Autowired
     private RaffleDrawService raffleDrawService;
