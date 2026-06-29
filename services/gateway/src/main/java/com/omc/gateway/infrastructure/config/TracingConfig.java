@@ -1,5 +1,6 @@
 package com.omc.gateway.infrastructure.config;
 
+import io.micrometer.observation.ObservationPredicate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.server.reactive.observation.DefaultServerRequestObservationConvention;
@@ -21,6 +22,16 @@ public class TracingConfig {
                 String path = context.getCarrier().getPath().value();
                 return method + " " + path;
             }
+        };
+    }
+
+    @Bean
+    public ObservationPredicate noActuatorObservations() {
+        return (name, context) -> {
+            if (context instanceof ServerRequestObservationContext ctx) {
+                return !ctx.getCarrier().getPath().value().startsWith("/actuator");
+            }
+            return true;
         };
     }
 }
