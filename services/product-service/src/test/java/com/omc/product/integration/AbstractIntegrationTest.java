@@ -21,7 +21,10 @@ import java.util.List;
 import java.util.Map;
 
 @Tag("integration")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.MOCK,
+        properties = "spring.cloud.openfeign.circuitbreaker.enabled=true"
+)
 @AutoConfigureMockMvc
 @Testcontainers
 abstract class AbstractIntegrationTest {
@@ -48,8 +51,6 @@ abstract class AbstractIntegrationTest {
         redis.start();
         wireMock.start();
 
-        // payment.completed 토픽 파티션 3개로 생성
-        // → concurrency 3 스레드가 각각 파티션을 담당해 동시 처리 가능
         try (AdminClient admin = AdminClient.create(Map.of(
                 AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers()
         ))) {
@@ -83,7 +84,7 @@ abstract class AbstractIntegrationTest {
 
     protected void stubHasActiveDrop(java.util.UUID productId, boolean hasActiveDrop) {
         wireMock.stubFor(WireMock.get(WireMock.urlMatching(
-                        ".*internal/v1/drops/products/.*"))
+                        "/internal/v1/drops/products/.*"))
                 .willReturn(WireMock.aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
@@ -95,5 +96,14 @@ abstract class AbstractIntegrationTest {
                                 "data": { "hasActiveDrop": %s }
                             }
                             """.formatted(hasActiveDrop))));
+    }
+
+    protected void stubDropServiceTimeout() {
+        // Feign read-timeout(3초)보다 긴 5초 지연 -> 타임아웃 유발
+        wireMock.stubFor(WireMock.get(WireMock.urlMatching(
+                        "/internal/v1/drops/products/.*"))
+                .willReturn(WireMock.aResponse()
+                        .withFixedDelay(5000)
+                        .withStatus(200)));
     }
 }
