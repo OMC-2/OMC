@@ -9,7 +9,7 @@ import com.omc.drop.infrastructure.client.ProductServiceClient;
 import com.omc.drop.infrastructure.client.InventorySnapshotResponse;
 import com.omc.drop.application.event.producer.DropClosedEvent;
 import com.omc.drop.application.event.producer.DropOpenedEvent;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class DropStatusSchedulerTest {
     private DropRepository dropRepository;
 
     @Mock
-    private PurchaseRedisRepository purchaseRedisRepository;
+    private DropRedisStore dropRedisStore;
 
     @Mock
     private DropEventProducer dropEventProducer;
@@ -65,8 +65,8 @@ class DropStatusSchedulerTest {
 
             dropStatusScheduler.openScheduledDrops();
 
-            verify(purchaseRedisRepository).warmup(drop.getDropId(), availableQty, drop.getHoldTtlSec(), drop.getProductId());
-            verify(purchaseRedisRepository).addOpenDrop(drop.getDropId());
+            verify(dropRedisStore).warmup(drop.getDropId(), availableQty, drop.getHoldTtlSec(), drop.getProductId());
+            verify(dropRedisStore).addOpenDrop(drop.getDropId());
 
             ArgumentCaptor<DropOpenedEvent> captor = ArgumentCaptor.forClass(DropOpenedEvent.class);
             verify(dropEventProducer).publishDropOpened(captor.capture());
@@ -86,8 +86,8 @@ class DropStatusSchedulerTest {
 
             dropStatusScheduler.openScheduledDrops();
 
-            verify(purchaseRedisRepository).warmup(drop.getDropId(), drop.getTotalQty(), drop.getHoldTtlSec(), drop.getProductId());
-            verify(purchaseRedisRepository).addOpenDrop(drop.getDropId());
+            verify(dropRedisStore).warmup(drop.getDropId(), drop.getTotalQty(), drop.getHoldTtlSec(), drop.getProductId());
+            verify(dropRedisStore).addOpenDrop(drop.getDropId());
             verify(dropEventProducer).publishDropOpened(argThat(e -> e.dropId().equals(drop.getDropId())));
         }
 
@@ -104,7 +104,7 @@ class DropStatusSchedulerTest {
 
             dropStatusScheduler.openScheduledDrops();
 
-            verify(purchaseRedisRepository, never()).addOpenDrop(any());
+            verify(dropRedisStore, never()).addOpenDrop(any());
             verify(dropEventProducer, never()).publishDropOpened(any());
         }
 
@@ -118,7 +118,7 @@ class DropStatusSchedulerTest {
             when(productServiceClient.getInventorySnapshot(any()))
                     .thenReturn(ApiResponse.success(new InventorySnapshotResponse(100)));
             doThrow(new RuntimeException("Redis 연결 실패"))
-                    .when(purchaseRedisRepository).warmup(eq(failDrop.getDropId()), anyInt(), anyInt(), any());
+                    .when(dropRedisStore).warmup(eq(failDrop.getDropId()), anyInt(), anyInt(), any());
             when(dropRepository.updateStatusConditionally(successDrop.getDropId(), DropStatus.SCHEDULED, DropStatus.OPEN))
                     .thenReturn(1);
 
@@ -126,8 +126,8 @@ class DropStatusSchedulerTest {
 
             verify(dropRepository, never()).updateStatusConditionally(eq(failDrop.getDropId()), any(), any());
             verify(dropEventProducer, never()).publishDropOpened(argThat(e -> e.dropId().equals(failDrop.getDropId())));
-            verify(purchaseRedisRepository, never()).addOpenDrop(failDrop.getDropId());
-            verify(purchaseRedisRepository).addOpenDrop(successDrop.getDropId());
+            verify(dropRedisStore, never()).addOpenDrop(failDrop.getDropId());
+            verify(dropRedisStore).addOpenDrop(successDrop.getDropId());
             verify(dropEventProducer).publishDropOpened(argThat(e -> e.dropId().equals(successDrop.getDropId())));
         }
 
@@ -159,7 +159,7 @@ class DropStatusSchedulerTest {
 
             dropStatusScheduler.closeOpenDrops();
 
-            verify(purchaseRedisRepository).deleteStatus(drop.getDropId());
+            verify(dropRedisStore).deleteStatus(drop.getDropId());
 
             ArgumentCaptor<DropClosedEvent> captor = ArgumentCaptor.forClass(DropClosedEvent.class);
             verify(dropEventProducer).publishDropClosed(captor.capture());
@@ -177,7 +177,7 @@ class DropStatusSchedulerTest {
 
             dropStatusScheduler.closeOpenDrops();
 
-            verify(purchaseRedisRepository, never()).deleteStatus(any());
+            verify(dropRedisStore, never()).deleteStatus(any());
             verify(dropEventProducer, never()).publishDropClosed(any());
         }
 

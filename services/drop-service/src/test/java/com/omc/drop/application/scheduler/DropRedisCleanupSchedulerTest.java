@@ -3,7 +3,7 @@ package com.omc.drop.application.scheduler;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -27,7 +27,7 @@ class DropRedisCleanupSchedulerTest {
     private DropRepository dropRepository;
 
     @Mock
-    private PurchaseRedisRepository purchaseRedisRepository;
+    private DropRedisStore dropRedisStore;
 
     @InjectMocks
     private DropRedisCleanupScheduler dropRedisCleanupScheduler;
@@ -41,12 +41,12 @@ class DropRedisCleanupSchedulerTest {
         void deletesKeysWhenReadyForCleanup() {
             Drop drop = createClosedDrop(LocalDateTime.now().minusHours(2));
             when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(DropStatus.CLOSED), any(LocalDateTime.class))).thenReturn(List.of(drop));
-            when(purchaseRedisRepository.isHoldsEmpty(drop.getDropId())).thenReturn(true);
-            when(purchaseRedisRepository.deleteDropKeys(drop.getDropId())).thenReturn(6L);
+            when(dropRedisStore.isHoldsEmpty(drop.getDropId())).thenReturn(true);
+            when(dropRedisStore.deleteDropKeys(drop.getDropId())).thenReturn(6L);
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository).deleteDropKeys(drop.getDropId());
+            verify(dropRedisStore).deleteDropKeys(drop.getDropId());
         }
 
         @Test
@@ -57,7 +57,7 @@ class DropRedisCleanupSchedulerTest {
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository, never()).deleteDropKeys(any());
+            verify(dropRedisStore, never()).deleteDropKeys(any());
         }
 
         @Test
@@ -65,11 +65,11 @@ class DropRedisCleanupSchedulerTest {
         void skipsWhenHoldsNotEmpty() {
             Drop drop = createClosedDrop(LocalDateTime.now().minusHours(2));
             when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(DropStatus.CLOSED), any(LocalDateTime.class))).thenReturn(List.of(drop));
-            when(purchaseRedisRepository.isHoldsEmpty(drop.getDropId())).thenReturn(false);
+            when(dropRedisStore.isHoldsEmpty(drop.getDropId())).thenReturn(false);
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository, never()).deleteDropKeys(any());
+            verify(dropRedisStore, never()).deleteDropKeys(any());
         }
 
         @Test
@@ -77,12 +77,12 @@ class DropRedisCleanupSchedulerTest {
         void doesNotLogWhenAlreadyCleaned() {
             Drop drop = createClosedDrop(LocalDateTime.now().minusHours(2));
             when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(DropStatus.CLOSED), any(LocalDateTime.class))).thenReturn(List.of(drop));
-            when(purchaseRedisRepository.isHoldsEmpty(drop.getDropId())).thenReturn(true);
-            when(purchaseRedisRepository.deleteDropKeys(drop.getDropId())).thenReturn(0L);
+            when(dropRedisStore.isHoldsEmpty(drop.getDropId())).thenReturn(true);
+            when(dropRedisStore.deleteDropKeys(drop.getDropId())).thenReturn(0L);
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository).deleteDropKeys(drop.getDropId());
+            verify(dropRedisStore).deleteDropKeys(drop.getDropId());
         }
 
         @Test
@@ -92,8 +92,8 @@ class DropRedisCleanupSchedulerTest {
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository, never()).isHoldsEmpty(any());
-            verify(purchaseRedisRepository, never()).deleteDropKeys(any());
+            verify(dropRedisStore, never()).isHoldsEmpty(any());
+            verify(dropRedisStore, never()).deleteDropKeys(any());
         }
     }
 

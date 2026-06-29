@@ -2,7 +2,7 @@ package com.omc.drop.application.service;
 
 import com.omc.drop.application.event.producer.DropEventProducer;
 import com.omc.drop.application.event.producer.RefundRequestedEvent;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 class HoldServiceTest {
 
     @Mock
-    private PurchaseRedisRepository purchaseRedisRepository;
+    private DropRedisStore dropRedisStore;
 
     @Mock
     private DropEventProducer dropEventProducer;
@@ -40,7 +40,7 @@ class HoldServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID orderId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            when(purchaseRedisRepository.removeHold(dropId, orderId)).thenReturn(1L);
+            when(dropRedisStore.removeHold(dropId, orderId)).thenReturn(1L);
 
             holdService.confirmHold(dropId, orderId, userId);
 
@@ -53,7 +53,7 @@ class HoldServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID orderId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            when(purchaseRedisRepository.removeHold(dropId, orderId)).thenReturn(0L);
+            when(dropRedisStore.removeHold(dropId, orderId)).thenReturn(0L);
 
             holdService.confirmHold(dropId, orderId, userId);
 
@@ -75,11 +75,11 @@ class HoldServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID orderId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            when(purchaseRedisRepository.recoverStock(dropId, orderId, userId)).thenReturn(1L);
+            when(dropRedisStore.recoverStock(dropId, orderId, userId)).thenReturn(1L);
 
             holdService.recoverHold(dropId, orderId, userId);
 
-            verify(purchaseRedisRepository).recoverStock(dropId, orderId, userId);
+            verify(dropRedisStore).recoverStock(dropId, orderId, userId);
         }
 
         @Test
@@ -88,11 +88,11 @@ class HoldServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID orderId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            when(purchaseRedisRepository.recoverStock(dropId, orderId, userId)).thenReturn(0L);
+            when(dropRedisStore.recoverStock(dropId, orderId, userId)).thenReturn(0L);
 
             holdService.recoverHold(dropId, orderId, userId);
 
-            verify(purchaseRedisRepository).recoverStock(dropId, orderId, userId);
+            verify(dropRedisStore).recoverStock(dropId, orderId, userId);
             verify(dropEventProducer, never()).publishRefundRequested(any());
         }
     }

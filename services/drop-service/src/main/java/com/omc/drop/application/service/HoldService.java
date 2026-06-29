@@ -2,7 +2,7 @@ package com.omc.drop.application.service;
 
 import com.omc.drop.application.event.producer.DropEventProducer;
 import com.omc.drop.application.event.producer.RefundRequestedEvent;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,11 +14,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class HoldService {
 
-    private final PurchaseRedisRepository purchaseRedisRepository;
+    private final DropRedisStore dropRedisStore;
     private final DropEventProducer dropEventProducer;
 
     public void confirmHold(UUID dropId, UUID orderId, UUID userId) {
-        long removed = purchaseRedisRepository.removeHold(dropId, orderId);
+        long removed = dropRedisStore.removeHold(dropId, orderId);
         if (removed == 0) {
             // TTL 만료 스케줄러가 먼저 ZREM → 만료 후 뒤늦게 온 결제
             log.warn("만료된 hold에 결제 완료 수신. dropId={}, orderId={} → refund.requested 발행", dropId, orderId);
@@ -29,7 +29,7 @@ public class HoldService {
     }
 
     public void recoverHold(UUID dropId, UUID orderId, UUID userId) {
-        long removed = purchaseRedisRepository.recoverStock(dropId, orderId, userId);
+        long removed = dropRedisStore.recoverStock(dropId, orderId, userId);
         if (removed == 0) {
             log.info("이미 복구된 hold. dropId={}, orderId={}", dropId, orderId);
             return;
