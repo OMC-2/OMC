@@ -38,14 +38,8 @@ public class PaymentInternalController {
     // 클라이언트가 결제창/SDK 리다이렉트로 받은 customerKey, authKey
     @PostMapping("/payments/billing-keys")
     public RegisterBillingKeyResponse registerBillingKey(
-            @Valid @RequestBody RegisterBillingKeyRequest request
+            @RequestBody RegisterBillingKeyRequest request
     ) {
         return paymentService.registerBillingKey(request);
-    }
-
-    @PostMapping("/payments/pre-auth")
-    public void preAuthCard(@RequestBody com.omc.payment.presentation.dto.request.PreAuthRequest request) {
-        // Dummy pre-auth implementation that always succeeds for testing purposes
-        // In a real scenario, this would validate the billingKey and call Toss Payments API to hold the amount
     }
 }

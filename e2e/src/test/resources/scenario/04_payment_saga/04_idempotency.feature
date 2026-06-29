@@ -17,7 +17,7 @@ Feature: [시나리오] 외부 결제 오류 멱등성 검증
     * url baseUrl
     * def uniqueId = java.util.UUID.randomUUID().toString()
     * def testPassword = 'password123'
-    * def userEmail = 'e2e-idem-' + uniqueId + '@example.com'
+    * def userEmail = 'e2e-pi-u-' + uniqueId + '@example.com'
 
     # User Service에 결제 멱등성 테스트용 구매자 계정을 생성
     Given path '/api/v1/users/signup'
