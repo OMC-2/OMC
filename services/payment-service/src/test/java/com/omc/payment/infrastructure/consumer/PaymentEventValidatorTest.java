@@ -49,13 +49,45 @@ class PaymentEventValidatorTest {
         }
 
         @Test
-        @DisplayName("래플 주문에 빌링키 아이디가 없으면 검증에 실패한다")
+        @DisplayName("래플 주문에 빌링키 아이디가 없어도 검증에 성공한다")
         void validateRaffleOrderWithoutBillingKeyId() {
             OrderCreatedEvent event = orderCreatedEvent("RAFFLE", null, RAFFLE_ID, ENTRY_ID, " ");
 
+            assertThatCode(() -> paymentEventValidator.validate(event))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("래플 주문에 래플 아이디가 없으면 검증에 실패한다")
+        void validateRaffleOrderWithoutRaffleId() {
+            OrderCreatedEvent event = orderCreatedEvent("RAFFLE", null, null, ENTRY_ID, "빌링키");
+
             assertThatThrownBy(() -> paymentEventValidator.validate(event))
                     .isInstanceOf(NonRetryablePaymentException.class)
-                    .hasMessage("빌링키 ID는 필수입니다");
+                    .hasMessage("래플 ID는 필수입니다");
+        }
+
+        @Test
+        @DisplayName("결제 금액이 없어도 이벤트 구조 검증은 성공한다")
+        void validateOrderWithoutAmounts() {
+            OrderCreatedEvent event = new OrderCreatedEvent(
+                    UUID.randomUUID().toString(),
+                    ORDER_ID,
+                    USER_ID,
+                    "DROP",
+                    DROP_ID,
+                    PRODUCT_ID,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            );
+
+            assertThatCode(() -> paymentEventValidator.validate(event))
+                    .doesNotThrowAnyException();
         }
 
         @Test

@@ -97,35 +97,6 @@ class PaymentOutboxServiceTest {
         }
 
         @Test
-        @DisplayName("결제 생성 전 검증 실패도 주문 기준 실패 이벤트로 저장한다")
-        void savePaymentFailedBeforeCreation() throws IOException {
-            ObjectMapper realObjectMapper = new ObjectMapper();
-            PaymentOutboxService service = new PaymentOutboxService(paymentOutboxEventRepository, realObjectMapper);
-            service.savePaymentFailed(
-                    ORDER_ID,
-                    USER_ID,
-                    SalesType.DROP,
-                    DROP_ID,
-                    null,
-                    null,
-                    PRODUCT_ID,
-                    COUPON_ID,
-                    "결제 금액이 일치하지 않습니다."
-            );
-
-            ArgumentCaptor<PaymentOutboxEvent> outboxCaptor = ArgumentCaptor.forClass(PaymentOutboxEvent.class);
-            verify(paymentOutboxEventRepository).save(outboxCaptor.capture());
-
-            PaymentOutboxEvent outboxEvent = outboxCaptor.getValue();
-            JsonNode payload = realObjectMapper.readTree(outboxEvent.getPayload());
-
-            assertThat(outboxEvent.getAggregateId()).isEqualTo(ORDER_ID);
-            assertThat(outboxEvent.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
-            assertThat(payload.get("orderId").asText()).isEqualTo(ORDER_ID.toString());
-            assertThat(payload.get("failureReason").asText()).isEqualTo("결제 금액이 일치하지 않습니다.");
-        }
-
-        @Test
         @DisplayName("환불 완료 이벤트 본문을 저장한다")
         void saveRefundDone() throws IOException {
             ObjectMapper realObjectMapper = new ObjectMapper();
@@ -192,6 +163,7 @@ class PaymentOutboxServiceTest {
                 SalesType.DROP,
                 10000L,
                 1000L,
+                9000L,
                 Provider.TOSS,
                 PaymentMethod.CARD
         );

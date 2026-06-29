@@ -163,20 +163,24 @@ class PaymentServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("결제 금액이 맞지 않으면 실패 아웃박스를 저장하고 400을 반환한다")
-        void confirmPayment_invalidAmount_returns400() throws Exception {
+        @DisplayName("결제 금액이 맞지 않으면 실패 아웃박스를 저장하고 실패 결제를 반환한다")
+        void confirmPayment_invalidAmount_returnsFailedPayment() throws Exception {
             UUID orderId = UUID.randomUUID();
 
             mockMvc.perform(post("/internal/v1/payments/confirm")
                             .header("X-User-Id", USER_ID.toString())
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(confirmPaymentBody(orderId, DROP_ID, PRODUCT_ID, null, 10000L, 1000L, 10000L)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.errorCode").value("PAYMENT-006"));
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.paymentStatus").value("FAILED"));
 
-            assertThat(paymentRepository.count()).isZero();
+            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
+            assertThat(payment.getFailureCode()).isEqualTo("PAYMENT-006");
+            assertThat(payment.getFailureMessage()).isEqualTo("결제 금액이 일치하지 않습니다.");
+
             PaymentOutboxEvent outboxEvent = onlyOutboxEvent();
-            assertThat(outboxEvent.getAggregateId()).isEqualTo(orderId);
+            assertThat(outboxEvent.getAggregateId()).isEqualTo(payment.getPaymentId());
             assertThat(outboxEvent.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
         }
 

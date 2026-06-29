@@ -132,57 +132,49 @@ public class Payment extends BaseEntity {
             SalesType salesType,
             Long originalAmount,
             Long discountAmount,
+            Long finalAmount,
             Provider provider,
             PaymentMethod paymentMethod
     ) {
-        long resolvedOriginalAmount = Objects.requireNonNull(originalAmount, "원금은 null일 수 없습니다.");
+        /*
+        * 필수적인 검증만 진행하고 가능한 비즈니스 실패로 빼서 Outbox 발행까지 진행
+        * */
+        long resolvedOriginalAmount = originalAmount == null ? 0L : originalAmount;
         long resolvedDiscountAmount = discountAmount == null ? 0L : discountAmount;
+        long resolvedFinalAmount = finalAmount == null ? 0L : finalAmount;
 
-        if (resolvedOriginalAmount < 0) {
-            throw new NonRetryablePaymentException(
-                    PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
-                    "원금은 0 이상이어야 합니다."
-            );
-        }
-        if (resolvedDiscountAmount < 0) {
-            throw new NonRetryablePaymentException(
-                    PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
-                    "할인 금액은 0 이상이어야 합니다."
-            );
-        }
-        if (resolvedDiscountAmount > resolvedOriginalAmount) {
-            throw new NonRetryablePaymentException(
-                    PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
-                    "할인 금액은 원금을 초과할 수 없습니다."
-            );
-        }
-
-        SalesType resolvedSalesType = Objects.requireNonNull(salesType, "판매 유형은 null일 수 없습니다.");
-        if (resolvedSalesType == SalesType.RAFFLE && entryId == null) {
-            throw new NonRetryablePaymentException(
-                    PaymentErrorCode.PAYMENT_FAILED,
-                    "래플 결제는 entryId가 필수입니다."
-            );
-        }
-
+        SalesType resolvedSalesType = require(
+                salesType,
+                PaymentErrorCode.PAYMENT_FAILED,
+                "판매 유형은 null일 수 없습니다."
+        );
         return Payment.builder()
                 .paymentId(UuidV7Generator.generate())
-                .orderId(Objects.requireNonNull(orderId, "주문 ID는 null일 수 없습니다."))
+                .orderId(require(orderId, PaymentErrorCode.PAYMENT_FAILED, "주문 ID는 null일 수 없습니다."))
                 .dropId(dropId)
                 .raffleId(raffleId)
                 .entryId(entryId)
                 .productId(productId)
                 .couponId(couponId)
-                .userId(Objects.requireNonNull(userId, "유저 ID는 null일 수 없습니다."))
+                .userId(require(userId, PaymentErrorCode.PAYMENT_FAILED, "유저 ID는 null일 수 없습니다."))
                 .salesType(resolvedSalesType)
                 .originalAmount(resolvedOriginalAmount)
                 .discountAmount(resolvedDiscountAmount)
-                .finalAmount(resolvedOriginalAmount - resolvedDiscountAmount)
-                .provider(Objects.requireNonNull(provider, "결제 제공사는 null일 수 없습니다."))
-                .paymentMethod(Objects.requireNonNull(paymentMethod, "결제 수단은 null일 수 없습니다."))
+                .finalAmount(resolvedFinalAmount)
+                .provider(require(provider, PaymentErrorCode.PAYMENT_FAILED, "결제 제공자는 null일 수 없습니다."))
+                .paymentMethod(require(paymentMethod, PaymentErrorCode.PAYMENT_FAILED, "결제 수단은 null일 수 없습니다."))
                 .paymentStatus(PaymentStatus.READY)
                 .requestedAt(LocalDateTime.now())
                 .build();
+    }
+
+    // 결제 생성 전 검증 실패는 Outbox 발행 불가
+    // DLT로 바로 발행
+    private static <T> T require(T value, PaymentErrorCode errorCode, String message) {
+        if (value == null) {
+            throw new NonRetryablePaymentException(errorCode, message);
+        }
+        return value;
     }
 
     // 결제 승인 요청 이벤트 처리
