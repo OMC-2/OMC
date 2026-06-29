@@ -44,7 +44,8 @@ OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으�
    hold_ttl:{dropId}   = holdTtlSec   ← 진입 경로 DB 무접촉을 위한 캐싱
    product_id:{dropId} = productId    ← purchase.confirmed 이벤트 조립용 캐싱
 ③ 조건부 UPDATE (WHERE status='SCHEDULED')  ← 인스턴스가 여러 대여도 전이는 1회
-④ drop.opened 발행
+④ open_drops SADD {dropId}  ← HoldExpireScheduler가 DB 조회 없이 참조
+⑤ drop.opened 발행
 ```
 
 ### 2-2. 선착순 진입 (`POST /drops/{id}/purchase`)
@@ -80,10 +81,11 @@ CLOSE 직후 바로 삭제하지 않는다. hold TTL(10분) + 늦은 결제 이�
 ```
 조건 (AND):
 ① status == CLOSED
-② endAt + 1시간 < now    ← hold TTL 10분 + 여유 버퍼
-③ ZCARD holds:{dropId} == 0  ← 대기 중인 hold 없음
+② endAt >= now - 2일  ← 2일 이내 종료된 드롭만 조회 (무제한 증가 방지)
+③ endAt + 1시간 < now ← hold TTL 10분 + 여유 버퍼
+④ ZCARD holds:{dropId} == 0  ← 대기 중인 hold 없음
 
-→ 셋 다 만족하면 DEL:
+→ 모두 만족하면 DEL:
    stock, purchased, holds, queue, hold_ttl, product_id (6개)
    (status는 CLOSE 시 이미 삭제)
 ```
@@ -178,6 +180,7 @@ processed_events (
 | `drop:{dropId}:status` | String | OPEN 플래그 (fail-fast) | 전이 시 SETNX / 종료 시 즉시 DEL |
 | `hold_ttl:{dropId}` | String | 선점 유지 시간(초) 캐시 | 워밍 SETNX / 정산 후 DEL |
 | `product_id:{dropId}` | String | productId 캐시 (이벤트 조립용) | 워밍 SETNX / 정산 후 DEL |
+| `open_drops` | Set | OPEN 드롭 ID 목록 (HoldExpireScheduler DB 조회 대체) | OPEN 전이 시 SADD / holds 소진 후 SREM |
 
 ---
 
@@ -348,7 +351,7 @@ drop-service
     │   ├── repository       # DropRepository, DropProcessedEventRepository (JPA 인터페이스)
     │   └── exception        # 도메인 예외, DropErrorCode
     └── infrastructure
-        ├── redis            # PurchaseRedisRepository (Lua 스크립트 기반 원자적 처리)
+        ├── redis            # DropRedisStore (상태·hold·warmup), PurchaseStreamStore (Redis Stream)
         ├── kafka
         │   ├── event        # Kafka 이벤트 record (PaymentCompletedEvent 등)
         │   └── exception    # EventProcessingException
