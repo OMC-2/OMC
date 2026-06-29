@@ -18,6 +18,12 @@ management:
   endpoint:
     prometheus:
       enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}

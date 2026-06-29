@@ -105,6 +105,8 @@ configure(subprojects.findAll { it.name in jpaServiceModules }) {
         runtimeOnly 'org.postgresql:postgresql'
         implementation 'org.springframework.boot:spring-boot-starter-actuator'
         implementation 'io.micrometer:micrometer-registry-prometheus'
+        implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+        implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
         implementation project(':common')
         implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
         implementation 'org.springframework.cloud:spring-cloud-starter-config'
@@ -141,6 +143,8 @@ project(':services:gateway') {
         implementation 'org.springframework.cloud:spring-cloud-starter-config'
         implementation 'org.springframework.boot:spring-boot-starter-actuator'
         implementation 'io.micrometer:micrometer-registry-prometheus'
+        implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+        implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
         implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
         implementation(project(':common')) {
             exclude group: 'org.springframework.boot', module: 'spring-boot-starter-web'

@@ -12,9 +12,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -37,9 +37,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8888/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -71,9 +71,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -111,9 +111,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -150,9 +150,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -189,9 +189,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -228,9 +228,9 @@ services:
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health || exit 1" ]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -268,9 +268,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -307,9 +307,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -346,9 +346,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:
@@ -383,9 +383,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health || exit 1"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 10
-      start_period: 60s
+      start_period: 180s
     networks:
       - omc-network
     deploy:

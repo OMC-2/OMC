@@ -195,16 +195,16 @@ start_services() {
     eureka-server config-server gateway user-service drop-service product-service payment-service coupon-service notification-service order-service raffle-service
 
   echo ""
-  echo "▶ [6단계] 서비스 healthy 대기 (최대 180초)"
-  wait_healthy omc-gateway 180
-  wait_healthy omc-user-service 180
-  wait_healthy omc-drop-service 180
-  wait_healthy omc-product-service 180
-  wait_healthy omc-payment-service 180
-  wait_healthy omc-coupon-service 180
-  wait_healthy omc-notification-service 180
-  wait_healthy omc-order-service 180
-  wait_healthy omc-raffle-service 180
+  echo "▶ [6단계] 서비스 healthy 대기 (최대 300초)"
+  wait_healthy omc-gateway 300
+  wait_healthy omc-user-service 300
+  wait_healthy omc-drop-service 300
+  wait_healthy omc-product-service 300
+  wait_healthy omc-payment-service 300
+  wait_healthy omc-coupon-service 300
+  wait_healthy omc-notification-service 300
+  wait_healthy omc-order-service 300
+  wait_healthy omc-raffle-service 300
 
   echo ""
   echo "▶ [7단계] Gateway 라우팅 확인 (Eureka 전파 대기, 최대 90초)"
