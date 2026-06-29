@@ -40,3 +40,19 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  endpoint:
+    prometheus:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: order-service   # Grafana에서 서비스 구분용
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true # API 응답시간 히스토그램 자동 수집
