@@ -13,7 +13,7 @@ import java.util.UUID;
 /**
  * 결제 서비스(payment-service)와 통신하여 카드 가승인 및 검증을 수행하는 Feign Client입니다.
  */
-@FeignClient(name = "payment-service", url = "${payment.service.url:http://payment-service:8080}", configuration = com.omc.raffle.infrastructure.config.FeignConfig.class)
+@FeignClient(name = "payment-service", url = "${payment.service.url:http://payment-service:8080}", configuration = com.omc.raffle.infrastructure.config.FeignConfig.class, fallback = PaymentFeignClientFallback.class)
 public interface PaymentFeignClient {
 
     /**
