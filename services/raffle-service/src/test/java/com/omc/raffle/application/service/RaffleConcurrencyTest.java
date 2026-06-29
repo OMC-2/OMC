@@ -56,10 +56,7 @@ class RaffleConcurrencyTest {
     @BeforeEach
     void setUp() {
         Raffle raffle = Raffle.create(UUID.randomUUID(), "테스트 한정판 스니커즈",
-                10,
-                LocalDateTime.now().minusDays(1),
-                LocalDateTime.now().plusDays(1)
-        );
+                5, com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
         raffle.updateStatus(RaffleStatus.OPEN);
         raffle = raffleRepository.save(raffle);
         raffleId = raffle.getId();

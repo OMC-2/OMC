@@ -35,6 +35,7 @@ public class AdminRaffleAppService {
                 request.productId(),
                 request.name(),
                 request.winnerCount(),
+                com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED,
                 request.startedAt(),
                 request.endedAt()
         );
