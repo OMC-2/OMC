@@ -18,15 +18,16 @@ import java.util.List;
 public class DropRedisCleanupScheduler {
 
     private static final int CLEANUP_BUFFER_HOURS = 1;
+    private static final int CLEANUP_LOOKBACK_DAYS = 2;
 
     private final DropRepository dropRepository;
     private final PurchaseRedisRepository purchaseRedisRepository;
 
-    // TODO: CLOSED 드롭 누적 시 endAt 범위 제한 또는 SETTLED 상태 추가 고려
     @Scheduled(fixedDelay = 60000)
     public void cleanupClosedDrops() {
-        List<Drop> closedDrops = dropRepository.findByStatus(DropStatus.CLOSED);
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime lookbackFrom = now.minusDays(CLEANUP_LOOKBACK_DAYS);
+        List<Drop> closedDrops = dropRepository.findByStatusAndEndAtGreaterThanEqual(DropStatus.CLOSED, lookbackFrom);
 
         for (Drop drop : closedDrops) {
             if (!isReadyForCleanup(drop, now)) {

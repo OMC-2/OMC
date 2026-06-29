@@ -1,24 +1,18 @@
 package com.omc.product.application.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.common.util.UuidV7Generator;
-import com.omc.product.application.event.producer.StockDeductedEvent;
-import com.omc.product.application.event.StockFailedEvent;
 import com.omc.product.application.event.PaymentCompletedEvent;
-import com.omc.product.domain.entity.FailedEventLog;
+import com.omc.product.application.event.ProductUpdatedEvent;
+import com.omc.product.application.processor.InventoryDeductProcessor;
+import com.omc.product.application.processor.StockFailureHandler;
+import com.omc.product.application.processor.StockSuccessHandler;
 import com.omc.product.domain.entity.Inventory;
-import com.omc.product.domain.entity.OutboxEvent;
-import com.omc.product.domain.entity.ProcessedEvent;
 import com.omc.product.domain.exception.ActiveDropExistsException;
 import com.omc.product.domain.exception.InsufficientStockException;
 import com.omc.product.domain.exception.InventoryNotFoundException;
-import com.omc.product.domain.enums.OutboxEventType;
-import com.omc.product.domain.repository.*;
-import com.omc.product.application.event.ProductUpdatedEvent;
+import com.omc.product.domain.repository.InventoryRepository;
+import com.omc.product.domain.repository.ProcessedEventRepository;
 import com.omc.product.infrastructure.client.ActiveDropResponse;
 import com.omc.product.infrastructure.client.DropInternalClient;
-import com.omc.product.infrastructure.kafka.KafkaTopics;
 import com.omc.product.presentation.dto.request.InventoryUpdateRequest;
 import com.omc.product.presentation.dto.response.InventoryResponse;
 import com.omc.product.presentation.dto.response.InventorySnapshotResponse;
@@ -46,7 +40,7 @@ import java.util.UUID;
  * - 차감 성공 시 STOCK_DEDUCTED 이벤트를 Outbox에 저장
  *
  * SAGA 보상 처리
- * - 낙관적 락 충돌로 재고 차감에 실패하면 STOCK_FAILED 이벤트를 발행
+ * - 낙관적 락 충돌 또는 재고 부족으로 차감 실패 시 STOCK_FAILED 이벤트를 발행
  * - Payment Service는 해당 이벤트를 수신하여 환불 등 보상 트랜잭션을 수행
  *
  * 재고 수정 정책
@@ -59,17 +53,28 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class InventoryService {
 
-    private static final String CONSUMER_GROUP = "product-service";
-
     private final InventoryRepository inventoryRepository;
     private final ProcessedEventRepository processedEventRepository;
-    private final OutboxEventRepository outboxEventRepository;
-    private final FailedEventLogRepository failedEventLogRepository;
-    private final ObjectMapper objectMapper;
     private final DropInternalClient dropInternalClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final InventoryDeductProcessor inventoryDeductProcessor;
+    private final StockSuccessHandler stockSuccessHandler;
+    private final StockFailureHandler stockFailureHandler;
 
-    @Transactional
+    /**
+     * 재고 확정 차감 (payment.completed 이벤트 수신 시 호출)
+     *
+     * 트랜잭션 설계:
+     * ① InventoryDeductProcessor.tryDeduct() [REQUIRES_NEW]
+     *    - inventory UPDATE → 즉시 커밋
+     *    - ObjectOptimisticLockingFailureException 발생 시 호출부로 전파
+     * ② StockSuccessHandler.handle() [REQUIRES_NEW]
+     *    - ProcessedEvent + STOCK_DEDUCTED Outbox 저장
+     *    - ①과 독립 트랜잭션 → ①성공 후 ②실패해도 재처리 시 ①은 유지
+     * ③ StockFailureHandler.handle() [REQUIRES_NEW]
+     *    - FailedEventLog + STOCK_FAILED Outbox 저장
+     *    - ①롤백과 무관하게 독립 커밋
+     */
     public void confirmDeduct(PaymentCompletedEvent event) {
 
         if (processedEventRepository.existsByEventId(event.eventId())) {
@@ -77,31 +82,27 @@ public class InventoryService {
             return;
         }
 
-        Inventory inventory = inventoryRepository.findByProductId(event.productId())
-                .orElseThrow(InventoryNotFoundException::new);
-
         try {
-            UUID outboxEventId = UuidV7Generator.generate();
+            // ① 재고 차감 — REQUIRES_NEW로 즉시 커밋 → 충돌 시 예외 발생
+            UUID inventoryId = inventoryDeductProcessor.tryDeduct(event.productId());
 
-            inventory.confirmDeduct(1);
-
-            saveOutbox(outboxEventId, "INVENTORY", inventory.getInventoryId(),
-                    OutboxEventType.STOCK_DEDUCTED, buildPayload(event, outboxEventId));
-            processedEventRepository.save(
-                    ProcessedEvent.create(event.eventId(), KafkaTopics.PAYMENT_COMPLETED)
-            );
+            // ② 성공 처리 — ProcessedEvent + STOCK_DEDUCTED Outbox 저장
+            stockSuccessHandler.handle(inventoryId, event);
 
             log.info("[InventoryService] 재고 확정 차감 완료. productId={}, orderId={}",
                     event.productId(), event.orderId());
 
         } catch (ObjectOptimisticLockingFailureException e) {
-
             log.error("[InventoryService] 재고 차감 실패 (버전 충돌). productId={}", event.productId());
-            handleStockFailure(inventory, event, e.getMessage()
-            );
+            UUID inventoryId = inventoryRepository.findByProductId(event.productId())
+                    .orElseThrow(InventoryNotFoundException::new).getInventoryId();
+            stockFailureHandler.handle(inventoryId, event, e.getMessage());
+
         } catch (InsufficientStockException e) {
             log.error("[InventoryService] 재고 차감 실패 (재고 부족). productId={}", event.productId());
-            handleStockFailure(inventory, event, e.getMessage());
+            UUID inventoryId = inventoryRepository.findByProductId(event.productId())
+                    .orElseThrow(InventoryNotFoundException::new).getInventoryId();
+            stockFailureHandler.handle(inventoryId, event, e.getMessage());
         }
     }
 
@@ -133,60 +134,5 @@ public class InventoryService {
         eventPublisher.publishEvent(new ProductUpdatedEvent(productId));
 
         return InventoryResponse.from(inventory);
-    }
-
-    private void saveOutbox(UUID eventId, String aggregateType, UUID aggregateId,
-                            OutboxEventType eventType, String payload) {
-        outboxEventRepository.save(
-                OutboxEvent.create(eventId, aggregateType, aggregateId, eventType, payload)
-        );
-    }
-
-    private String buildPayload(PaymentCompletedEvent event, UUID eventId) {
-        return toJson(new StockDeductedEvent(
-                eventId.toString(),
-                event.orderId(),
-                event.productId(),
-                event.userId(),
-                event.dropId()
-        ));
-    }
-
-    private String toJson(Object obj) {
-        try {
-            return objectMapper.writeValueAsString(obj);
-        } catch (JsonProcessingException e) {
-            return "{}";
-        }
-    }
-
-    private String buildFailedPayload(PaymentCompletedEvent event, UUID eventId) {
-        return toJson(new StockFailedEvent(
-                eventId.toString(),
-                event.orderId(),
-                event.productId(),
-                event.dropId(),
-                event.userId()
-        ));
-    }
-
-    private void handleStockFailure(Inventory inventory,
-                                    PaymentCompletedEvent event,
-                                    String errorMessage) {
-        UUID outboxEventId = UuidV7Generator.generate();
-
-        failedEventLogRepository.save(
-                FailedEventLog.create(
-                        KafkaTopics.PAYMENT_COMPLETED,
-                        CONSUMER_GROUP,
-                        "INVENTORY",
-                        inventory.getInventoryId(),
-                        toJson(event),
-                        errorMessage
-                )
-        );
-
-        saveOutbox(outboxEventId, "INVENTORY", inventory.getInventoryId(),
-                OutboxEventType.STOCK_FAILED, buildFailedPayload(event, outboxEventId));
     }
 }

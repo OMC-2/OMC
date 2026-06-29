@@ -47,6 +47,7 @@ public class DropStatusScheduler {
             int updated = dropRepository.updateStatusConditionally(
                     drop.getDropId(), DropStatus.SCHEDULED, DropStatus.OPEN);
             if (updated == 1) {
+                purchaseRedisRepository.addOpenDrop(drop.getDropId());
                 dropEventProducer.publishDropOpened(DropOpenedEvent.from(drop));
                 log.info("드롭 OPEN 전이 완료: dropId={}", drop.getDropId());
             }

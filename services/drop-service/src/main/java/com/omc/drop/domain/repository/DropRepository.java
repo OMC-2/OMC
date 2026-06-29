@@ -24,6 +24,8 @@ public interface DropRepository extends JpaRepository<Drop, UUID> {
 
     List<Drop> findByStatus(DropStatus status);
 
+    List<Drop> findByStatusAndEndAtGreaterThanEqual(DropStatus status, LocalDateTime from);
+
     List<Drop> findByStatusAndEndAtLessThanEqual(DropStatus status, LocalDateTime now);
 
     // 조건부 UPDATE — 멀티 인스턴스 환경에서 정확히 1개 인스턴스만 전이를 처리하도록 보장

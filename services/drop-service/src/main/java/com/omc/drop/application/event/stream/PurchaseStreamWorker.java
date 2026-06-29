@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -27,6 +28,9 @@ public class PurchaseStreamWorker {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final int BATCH_SIZE = 10;
+    // processNew()의 비동기 ACK 소요 시간(수십~수백ms)보다 충분히 긴 값으로 설정.
+    // 이 시간 미만으로 pending된 메시지는 현재 처리 중인 것으로 간주하고 재처리 대상에서 제외한다.
+    private static final Duration PENDING_MIN_AGE = Duration.ofSeconds(5);
 
     private final PurchaseRedisRepository purchaseRedisRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
@@ -90,19 +94,14 @@ public class PurchaseStreamWorker {
         }
     }
 
-    /** "0" 커서부터 내 PEL 전체를 순회해 재처리 — recoverPending·retryOwnPending 공통 */
+    /** PENDING_MIN_AGE 이상 ACK 안 된 자신의 메시지만 재처리 — recoverPending·retryOwnPending 공통
+     *  processNew()가 async ACK 대기 중인 메시지는 제외해 중복 발행을 방지한다. */
     private int drainOwnPending() {
-        String cursor = "0";
-        int count = 0;
-        while (true) {
-            List<MapRecord<String, String, String>> records =
-                    purchaseRedisRepository.readMessages(consumerId, ReadOffset.from(cursor), BATCH_SIZE);
-            if (records == null || records.isEmpty()) break;
-            publishAndAck(records);
-            count += records.size();
-            cursor = records.get(records.size() - 1).getId().getValue();
-        }
-        return count;
+        List<MapRecord<String, String, String>> records =
+                purchaseRedisRepository.getOwnStalePending(consumerId, PENDING_MIN_AGE);
+        if (records.isEmpty()) return 0;
+        publishAndAck(records);
+        return records.size();
     }
 
     private void publishAndAck(List<MapRecord<String, String, String>> records) {

@@ -13,6 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
+
+import java.time.Duration;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -113,12 +115,11 @@ class PurchaseStreamWorkerTest {
     class RetryOwnPending {
 
         @Test
-        @DisplayName("pending 메시지가 있으면 재처리하고 ACK 한다")
-        void retries_own_pending_messages() {
+        @DisplayName("PENDING_MIN_AGE 이상 된 pending 메시지를 재처리하고 ACK 한다")
+        void retries_own_stale_pending_messages() {
             MapRecord<String, String, String> record = sampleRecord();
-            when(purchaseRedisRepository.readMessages(anyString(), any(), anyInt()))
-                    .thenReturn(List.of(record))
-                    .thenReturn(List.of());
+            when(purchaseRedisRepository.getOwnStalePending(anyString(), any(Duration.class)))
+                    .thenReturn(List.of(record));
             when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(successFuture());
 
             worker.retryOwnPending();
@@ -128,9 +129,9 @@ class PurchaseStreamWorkerTest {
         }
 
         @Test
-        @DisplayName("pending 메시지가 없으면 Kafka 발행을 하지 않는다")
-        void does_nothing_when_no_pending() {
-            when(purchaseRedisRepository.readMessages(anyString(), any(), anyInt()))
+        @DisplayName("stale pending 메시지가 없으면 Kafka 발행을 하지 않는다")
+        void does_nothing_when_no_stale_pending() {
+            when(purchaseRedisRepository.getOwnStalePending(anyString(), any(Duration.class)))
                     .thenReturn(List.of());
 
             worker.retryOwnPending();

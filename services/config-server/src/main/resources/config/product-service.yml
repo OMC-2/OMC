@@ -11,10 +11,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: product_db
         jdbc:
@@ -45,3 +45,10 @@ spring:
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
+
+logging:
+  level:
+    com.omc.product: INFO
+    com.omc.product.application.scheduler.OutboxPollerScheduler: INFO
+    org.hibernate.SQL: OFF
+    org.hibernate.orm.jdbc.bind: OFF
