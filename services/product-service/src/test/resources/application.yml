@@ -4,6 +4,14 @@ spring:
   cloud:
     config:
       enabled: false
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        config:
+          drop-service:
+            connect-timeout: 1000
+            read-timeout: 3000
   datasource:
     driver-class-name: org.postgresql.Driver
   jpa:

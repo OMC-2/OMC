@@ -46,7 +46,7 @@ public class OutboxPollerScheduler {
             try {
                 kafkaTemplate.send(topic, event.getAggregateId().toString(), event.getPayload()).get();
                 event.publish();
-                log.debug("[OutboxPoller] 발행 완료. eventId={}, topic={}", event.getEventId(), topic);
+                log.info("[OutboxPoller] 발행 완료. eventId={}, topic={}", event.getEventId(), topic);
             } catch (Exception e) {
                 event.incrementRetry(MAX_RETRY);
                 log.error("[OutboxPoller] 발행 실패. eventId={}, retryCount={}, error={}",

@@ -139,6 +139,26 @@ class RaffleControllerTest {
                     .andExpect(jsonPath("$.data.status").value("WIN"));
         }
     }
+
+    @Nested
+    @DisplayName("래플 실시간 응모자 수 조회 API")
+    class GetParticipantsCount {
+
+        @Test
+        @DisplayName("정상적으로 응모자 수를 조회하면 200 OK를 반환한다")
+        void success() throws Exception {
+            // given
+            UUID raffleId = UUID.randomUUID();
+            when(raffleAppService.getParticipantsCount(raffleId)).thenReturn(150L);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/raffles/{raffleId}/participants-count", raffleId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.status").value(200))
+                    .andExpect(jsonPath("$.data").value(150));
+        }
+    }
 }
 
 

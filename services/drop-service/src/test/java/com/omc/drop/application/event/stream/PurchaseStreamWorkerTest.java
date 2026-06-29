@@ -1,7 +1,7 @@
 package com.omc.drop.application.event.stream;
 
 import com.omc.drop.application.event.producer.PurchaseConfirmedEvent;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.PurchaseStreamStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -13,6 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
+
+import java.time.Duration;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -32,7 +34,7 @@ import static org.mockito.Mockito.*;
 class PurchaseStreamWorkerTest {
 
     @Mock
-    PurchaseRedisRepository purchaseRedisRepository;
+    PurchaseStreamStore purchaseStreamStore;
 
     @Mock
     KafkaTemplate<String, Object> kafkaTemplate;
@@ -48,20 +50,20 @@ class PurchaseStreamWorkerTest {
         @DisplayName("Stream 메시지를 읽어 purchase.confirmed 토픽으로 발행하고 ACK 한다")
         void publishes_and_acks_message() throws Exception {
             MapRecord<String, String, String> record = sampleRecord();
-            when(purchaseRedisRepository.readMessages(anyString(), eq(ReadOffset.lastConsumed()), anyInt()))
+            when(purchaseStreamStore.readMessages(anyString(), eq(ReadOffset.lastConsumed()), anyInt()))
                     .thenReturn(List.of(record));
             when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(successFuture());
 
             worker.processNew();
 
             verify(kafkaTemplate).send(eq("purchase.confirmed"), anyString(), any(PurchaseConfirmedEvent.class));
-            verify(purchaseRedisRepository).acknowledge(record.getId());
+            verify(purchaseStreamStore).acknowledge(record.getId());
         }
 
         @Test
         @DisplayName("Stream이 비어있으면 Kafka 발행을 하지 않는다")
         void does_nothing_when_stream_empty() {
-            when(purchaseRedisRepository.readMessages(anyString(), eq(ReadOffset.lastConsumed()), anyInt()))
+            when(purchaseStreamStore.readMessages(anyString(), eq(ReadOffset.lastConsumed()), anyInt()))
                     .thenReturn(List.of());
 
             worker.processNew();
@@ -78,7 +80,7 @@ class PurchaseStreamWorkerTest {
             UUID productId = UUID.randomUUID();
 
             MapRecord<String, String, String> record = recordWith(orderId, dropId, userId, productId);
-            when(purchaseRedisRepository.readMessages(anyString(), eq(ReadOffset.lastConsumed()), anyInt()))
+            when(purchaseStreamStore.readMessages(anyString(), eq(ReadOffset.lastConsumed()), anyInt()))
                     .thenReturn(List.of(record));
             when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(successFuture());
 
@@ -98,13 +100,13 @@ class PurchaseStreamWorkerTest {
         @DisplayName("Kafka 발행 실패 시 ACK 하지 않아 pending 유지된다")
         void does_not_ack_on_kafka_failure() throws Exception {
             MapRecord<String, String, String> record = sampleRecord();
-            when(purchaseRedisRepository.readMessages(anyString(), eq(ReadOffset.lastConsumed()), anyInt()))
+            when(purchaseStreamStore.readMessages(anyString(), eq(ReadOffset.lastConsumed()), anyInt()))
                     .thenReturn(List.of(record));
             when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(failedFuture());
 
             assertThatCode(() -> worker.processNew()).doesNotThrowAnyException();
 
-            verify(purchaseRedisRepository, never()).acknowledge(any(RecordId.class));
+            verify(purchaseStreamStore, never()).acknowledge(any(RecordId.class));
         }
     }
 
@@ -113,24 +115,23 @@ class PurchaseStreamWorkerTest {
     class RetryOwnPending {
 
         @Test
-        @DisplayName("pending 메시지가 있으면 재처리하고 ACK 한다")
-        void retries_own_pending_messages() {
+        @DisplayName("PENDING_MIN_AGE 이상 된 pending 메시지를 재처리하고 ACK 한다")
+        void retries_own_stale_pending_messages() {
             MapRecord<String, String, String> record = sampleRecord();
-            when(purchaseRedisRepository.readMessages(anyString(), any(), anyInt()))
-                    .thenReturn(List.of(record))
-                    .thenReturn(List.of());
+            when(purchaseStreamStore.getOwnStalePending(anyString(), any(Duration.class)))
+                    .thenReturn(List.of(record));
             when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(successFuture());
 
             worker.retryOwnPending();
 
             verify(kafkaTemplate).send(eq("purchase.confirmed"), anyString(), any(PurchaseConfirmedEvent.class));
-            verify(purchaseRedisRepository).acknowledge(record.getId());
+            verify(purchaseStreamStore).acknowledge(record.getId());
         }
 
         @Test
-        @DisplayName("pending 메시지가 없으면 Kafka 발행을 하지 않는다")
-        void does_nothing_when_no_pending() {
-            when(purchaseRedisRepository.readMessages(anyString(), any(), anyInt()))
+        @DisplayName("stale pending 메시지가 없으면 Kafka 발행을 하지 않는다")
+        void does_nothing_when_no_stale_pending() {
+            when(purchaseStreamStore.getOwnStalePending(anyString(), any(Duration.class)))
                     .thenReturn(List.of());
 
             worker.retryOwnPending();
@@ -147,19 +148,19 @@ class PurchaseStreamWorkerTest {
         @DisplayName("stale 메시지가 있으면 인수 후 발행·ACK 한다")
         void claims_and_publishes_stale_messages() throws Exception {
             MapRecord<String, String, String> record = sampleRecord();
-            when(purchaseRedisRepository.claimStaleMessages(anyString())).thenReturn(List.of(record));
+            when(purchaseStreamStore.claimStaleMessages(anyString())).thenReturn(List.of(record));
             when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(successFuture());
 
             worker.reclaimStalePending();
 
             verify(kafkaTemplate).send(eq("purchase.confirmed"), anyString(), any(PurchaseConfirmedEvent.class));
-            verify(purchaseRedisRepository).acknowledge(record.getId());
+            verify(purchaseStreamStore).acknowledge(record.getId());
         }
 
         @Test
         @DisplayName("stale 메시지가 없으면 Kafka 발행을 하지 않는다")
         void does_nothing_when_no_stale_messages() {
-            when(purchaseRedisRepository.claimStaleMessages(anyString())).thenReturn(List.of());
+            when(purchaseStreamStore.claimStaleMessages(anyString())).thenReturn(List.of());
 
             worker.reclaimStalePending();
 
@@ -183,7 +184,7 @@ class PurchaseStreamWorkerTest {
                 "productId",    productId.toString(),
                 "holdExpiresAt", String.valueOf(epoch)
         );
-        return MapRecord.create(PurchaseRedisRepository.STREAM_KEY, fields)
+        return MapRecord.create(PurchaseStreamStore.STREAM_KEY, fields)
                 .withId(RecordId.of("0-1"));
     }
 

@@ -237,16 +237,16 @@ class PaymentKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("필수값이 없는 주문 생성 이벤트는 결제를 생성하지 않고 DLT로 전송된다")
-    void invalidOrderCreated_consumed_publishesToDlt() throws JsonProcessingException {
+    @DisplayName("보상 필수값이 없는 주문 생성 이벤트는 결제를 생성하지 않고 DLT로 전송된다")
+    void missingCompensationKey_consumed_publishesToDlt() throws JsonProcessingException {
         UUID orderId = UUID.randomUUID();
         OrderCreatedEvent invalidEvent = new OrderCreatedEvent(
                 UUID.randomUUID().toString(),
                 orderId,
                 USER_ID,
                 "DROP",
-                DROP_ID,
                 null,
+                PRODUCT_ID,
                 null,
                 null,
                 10000L,
@@ -279,15 +279,58 @@ class PaymentKafkaIntegrationTest {
             );
 
             assertThat(dltRecord.value()).isEqualTo(payload);
-            assertThat(paymentRepository.findByOrderId(orderId)).isEmpty();
-            assertThat(paymentInboxEventRepository.existsById(invalidEvent.eventId())).isFalse();
-            assertThat(paymentOutboxEventRepository.count()).isZero();
+
+            await().atMost(10, SECONDS).untilAsserted(() -> {
+                assertThat(paymentRepository.findByOrderId(orderId)).isEmpty();
+                assertThat(paymentInboxEventRepository.existsById(invalidEvent.eventId())).isFalse();
+                assertThat(paymentOutboxEventRepository.count()).isZero();
+            });
         }
     }
 
     @Test
-    @DisplayName("금액 검증 실패는 실패 Outbox를 저장하고 재시도 없이 DLT로 전송된다")
-    void amountMismatch_consumed_savesFailedOutboxAndPublishesToDlt() throws JsonProcessingException {
+    @DisplayName("상품 아이디가 없는 주문 생성 이벤트는 실패 Outbox를 저장하고 정상 소비된다")
+    void missingProductId_consumed_savesFailedOutbox() {
+        UUID orderId = UUID.randomUUID();
+        OrderCreatedEvent invalidEvent = new OrderCreatedEvent(
+                UUID.randomUUID().toString(),
+                orderId,
+                USER_ID,
+                "DROP",
+                DROP_ID,
+                null,
+                null,
+                null,
+                10000L,
+                0L,
+                10000L,
+                null,
+                null
+        );
+
+        send(KafkaTopics.ORDER_CREATED, invalidEvent);
+
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
+            assertThat(payment.getFailureCode()).isEqualTo("PAYMENT-002");
+            assertThat(payment.getFailureMessage()).isEqualTo("상품 ID는 필수입니다.");
+            assertThat(paymentInboxEventRepository.existsById(invalidEvent.eventId())).isTrue();
+            assertThat(paymentOutboxEventRepository.findAll())
+                    .singleElement()
+                    .satisfies(event -> {
+                        assertThat(event.getAggregateId()).isEqualTo(payment.getPaymentId());
+                        assertThat(event.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
+                        assertThat(event.getPayload()).contains(orderId.toString());
+                        assertThat(event.getPayload()).contains("상품 ID는 필수입니다.");
+                    });
+            assertSucceededIdempotencyKey(confirmKey(orderId));
+        });
+    }
+
+    @Test
+    @DisplayName("금액 검증 실패는 실패 Outbox를 저장하고 정상 소비된다")
+    void amountMismatch_consumed_savesFailedOutbox() {
         UUID orderId = UUID.randomUUID();
         OrderCreatedEvent invalidEvent = new OrderCreatedEvent(
                 UUID.randomUUID().toString(),
@@ -304,48 +347,69 @@ class PaymentKafkaIntegrationTest {
                 null,
                 null
         );
-        String payload = objectMapper.writeValueAsString(invalidEvent);
 
-        Map<String, Object> consumerProperties = KafkaTestUtils.consumerProps(
-                "결제-금액-검증-DLT-테스트-" + UUID.randomUUID(),
-                "true",
-                embeddedKafkaBroker
+        send(KafkaTopics.ORDER_CREATED, invalidEvent);
+        verify(paymentEventService, timeout(10000).times(1))
+                .handleOrderCreated(any(OrderCreatedEvent.class));
+
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
+            assertThat(payment.getFailureCode()).isEqualTo("PAYMENT-006");
+            assertThat(payment.getFailureMessage()).isEqualTo("결제 금액이 일치하지 않습니다.");
+            assertThat(paymentInboxEventRepository.existsById(invalidEvent.eventId())).isTrue();
+            assertThat(paymentOutboxEventRepository.findAll())
+                    .singleElement()
+                    .satisfies(event -> {
+                        assertThat(event.getAggregateId()).isEqualTo(payment.getPaymentId());
+                        assertThat(event.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
+                        assertThat(event.getPayload()).contains(orderId.toString());
+                        assertThat(event.getPayload()).contains("결제 금액이 일치하지 않습니다.");
+                    });
+            assertSucceededIdempotencyKey(confirmKey(orderId));
+        });
+    }
+
+    @Test
+    @DisplayName("결제 금액이 없는 주문 생성 이벤트는 실패 Outbox를 저장하고 정상 소비된다")
+    void missingAmount_consumed_savesFailedOutbox() {
+        UUID orderId = UUID.randomUUID();
+        OrderCreatedEvent invalidEvent = new OrderCreatedEvent(
+                UUID.randomUUID().toString(),
+                orderId,
+                USER_ID,
+                "DROP",
+                DROP_ID,
+                PRODUCT_ID,
+                null,
+                null,
+                null,
+                0L,
+                null,
+                null,
+                null
         );
-        DefaultKafkaConsumerFactory<String, String> consumerFactory = new DefaultKafkaConsumerFactory<>(
-                consumerProperties,
-                new StringDeserializer(),
-                new StringDeserializer()
-        );
 
-        try (Consumer<String, String> consumer = consumerFactory.createConsumer()) {
-            embeddedKafkaBroker.consumeFromAnEmbeddedTopic(consumer, KafkaTopics.ORDER_CREATED_DLT);
-            consumer.seekToEnd(consumer.assignment());
-            kafkaTemplate.send(KafkaTopics.ORDER_CREATED, payload);
+        send(KafkaTopics.ORDER_CREATED, invalidEvent);
 
-            ConsumerRecord<String, String> dltRecord = KafkaTestUtils.getSingleRecord(
-                    consumer,
-                    KafkaTopics.ORDER_CREATED_DLT,
-                    Duration.ofSeconds(10)
-            );
-
-            assertThat(dltRecord.value()).isEqualTo(payload);
-            verify(paymentEventService, timeout(10000).times(1))
-                    .handleOrderCreated(any(OrderCreatedEvent.class));
-
-            await().atMost(10, SECONDS).untilAsserted(() -> {
-                assertThat(paymentRepository.findByOrderId(orderId)).isEmpty();
-                assertThat(paymentInboxEventRepository.existsById(invalidEvent.eventId())).isFalse();
-                assertThat(paymentOutboxEventRepository.findAll())
-                        .singleElement()
-                        .satisfies(event -> {
-                            assertThat(event.getAggregateId()).isEqualTo(orderId);
-                            assertThat(event.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
-                            assertThat(event.getPayload()).contains(orderId.toString());
-                            assertThat(event.getPayload()).contains("결제 금액이 일치하지 않습니다.");
-                        });
-                assertThat(stringRedisTemplate.opsForValue().get(confirmKey(orderId))).isNull();
-            });
-        }
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
+            assertThat(payment.getFailureCode()).isEqualTo("PAYMENT-006");
+            assertThat(payment.getFailureMessage()).isEqualTo("결제 금액은 필수입니다.");
+            assertThat(payment.getOriginalAmount()).isZero();
+            assertThat(payment.getFinalAmount()).isZero();
+            assertThat(paymentInboxEventRepository.existsById(invalidEvent.eventId())).isTrue();
+            assertThat(paymentOutboxEventRepository.findAll())
+                    .singleElement()
+                    .satisfies(event -> {
+                        assertThat(event.getAggregateId()).isEqualTo(payment.getPaymentId());
+                        assertThat(event.getEventType()).isEqualTo(KafkaTopics.PAYMENT_FAILED);
+                        assertThat(event.getPayload()).contains(orderId.toString());
+                        assertThat(event.getPayload()).contains("결제 금액은 필수입니다.");
+                    });
+            assertSucceededIdempotencyKey(confirmKey(orderId));
+        });
     }
 
     private void createPaidPayment(UUID orderId) {

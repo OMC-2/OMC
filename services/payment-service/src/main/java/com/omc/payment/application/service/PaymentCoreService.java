@@ -3,7 +3,6 @@ package com.omc.payment.application.service;
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.response.ApiResponse;
-import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
@@ -63,24 +62,6 @@ public class PaymentCoreService {
             return existingPayment;
         }
 
-        try {
-            validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
-            reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
-        } catch (NonRetryablePaymentException e) {
-            saveValidationFailedEvent(
-                    orderId,
-                    userId,
-                    SalesType.DROP,
-                    dropId,
-                    null,
-                    null,
-                    productId,
-                    couponId,
-                    e.getMessage()
-            );
-            throw e;
-        }
-
         Payment payment = paymentRepository.save(
                 Payment.create(
                         orderId,
@@ -93,10 +74,21 @@ public class PaymentCoreService {
                         SalesType.DROP,
                         originalAmount,
                         discountAmount,
+                        finalAmount,
                         Provider.TOSS,
                         PaymentMethod.CARD
                 )
         );
+
+        try {
+            validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
+            validateDropPaymentReferences(dropId, productId);
+            reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
+        } catch (NonRetryablePaymentException e) {
+            failValidation(payment, e);
+            return payment;
+        }
+
         payment.startConfirming();
 
         // Mocking을 위한 랜덤 결제 식별자 Fallback
@@ -129,30 +121,6 @@ public class PaymentCoreService {
             return existingPayment;
         }
 
-        try {
-            validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
-            if (billingKeyId == null || billingKeyId.isBlank()) {
-                throw new NonRetryablePaymentException(
-                        PaymentErrorCode.PAYMENT_FAILED,
-                        "자동결제를 위한 billingKey가 없습니다."
-                );
-            }
-            reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
-        } catch (NonRetryablePaymentException e) {
-            saveValidationFailedEvent(
-                    orderId,
-                    userId,
-                    SalesType.RAFFLE,
-                    null,
-                    entryId,
-                    raffleId,
-                    productId,
-                    couponId,
-                    e.getMessage()
-            );
-            throw e;
-        }
-
         String resolvedCustomerKey = customerKey == null || customerKey.isBlank()
                 ? UUID.randomUUID().toString()
                 : customerKey;
@@ -169,10 +137,20 @@ public class PaymentCoreService {
                         SalesType.RAFFLE,
                         originalAmount,
                         discountAmount,
+                        finalAmount,
                         Provider.TOSS,
                         PaymentMethod.CARD
                 )
         );
+
+        try {
+            validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
+            validateRafflePaymentReferences(raffleId, entryId, productId, billingKeyId);
+            reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
+        } catch (NonRetryablePaymentException e) {
+            failValidation(payment, e);
+            return payment;
+        }
 
         payment.startConfirming();
 
@@ -328,20 +306,53 @@ public class PaymentCoreService {
 
     // PG 연동 전 검증
     private void validatePaymentAmounts(Long originalAmount, Long discountAmount, Long finalAmount) {
-        if (originalAmount == null || discountAmount == null || finalAmount == null) {
+        if (originalAmount == null || finalAmount == null) {
             throw new NonRetryablePaymentException(
                     PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
                     "결제 금액은 필수입니다."
             );
         }
-        if (originalAmount < 0 || discountAmount < 0 || finalAmount < 0) {
+        long resolvedDiscountAmount = discountAmount == null ? 0L : discountAmount;
+        if (originalAmount < 0 || resolvedDiscountAmount < 0 || finalAmount < 0) {
             throw new NonRetryablePaymentException(
                     PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH,
                     "결제 금액은 0 이상이어야 합니다."
             );
         }
-        if (discountAmount > originalAmount || originalAmount - discountAmount != finalAmount) {
+        if (resolvedDiscountAmount > originalAmount || originalAmount - resolvedDiscountAmount != finalAmount) {
             throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);
+        }
+    }
+
+    private void validateDropPaymentReferences(UUID dropId, UUID productId) {
+        if (dropId == null) {
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, "드롭 ID는 필수입니다.");
+        }
+        if (productId == null) {
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, "상품 ID는 필수입니다.");
+        }
+    }
+
+    private void validateRafflePaymentReferences(
+            UUID raffleId,
+            UUID entryId,
+            UUID productId,
+            String billingKeyId
+    ) {
+        if (raffleId == null) {
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, "래플 ID는 필수입니다.");
+        }
+        if (entryId == null) {
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, "래플 응모 ID는 필수입니다.");
+        }
+        if (productId == null) {
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, "상품 ID는 필수입니다.");
+        }
+        if (billingKeyId == null || billingKeyId.isBlank()) {
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_FAILED,
+                    "자동결제를 위한 billingKey가 없습니다."
+            );
         }
     }
 
@@ -382,30 +393,9 @@ public class PaymentCoreService {
         }
     }
 
-    private void saveValidationFailedEvent(
-            UUID orderId,
-            UUID userId,
-            SalesType salesType,
-            UUID dropId,
-            UUID entryId,
-            UUID raffleId,
-            UUID productId,
-            UUID couponId,
-            String failureReason
-    ) {
-        paymentOutboxService.savePaymentFailed(
-                new PaymentCommand.Failure(
-                        orderId,
-                        userId,
-                        salesType,
-                        dropId,
-                        entryId,
-                        raffleId,
-                        productId,
-                        couponId,
-                        failureReason
-                )
-        );
+    private void failValidation(Payment payment, NonRetryablePaymentException exception) {
+        payment.fail(exception.getErrorCode().getCode(), exception.getMessage());
+        paymentOutboxService.savePaymentFailed(payment);
     }
 
     // coupon-service에서 쿠폰을 선점하고 응답을 결제 검증에 사용

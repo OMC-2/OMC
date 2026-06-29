@@ -9,7 +9,7 @@ import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.domain.exception.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
-import com.omc.raffle.infrastructure.client.PaymentClient;
+import com.omc.raffle.infrastructure.client.PaymentFeignClient;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
 import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import org.junit.jupiter.api.DisplayName;
@@ -46,7 +46,7 @@ class RaffleAppServiceTest {
     private RaffleEntryRedisRepository redisRepository;
 
     @Mock
-    private PaymentClient paymentClient;
+    private PaymentFeignClient paymentFeignClient;
 
     @Nested
     @DisplayName("래플 응모 로직 (apply)")
@@ -62,12 +62,12 @@ class RaffleAppServiceTest {
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
-            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
             raffle.updateStatus(RaffleStatus.OPEN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(true);
-            doNothing().when(paymentClient).preAuthCard(any(PreAuthRequest.class));
+            doNothing().when(paymentFeignClient).preAuthCard(any(PreAuthRequest.class));
 
             RaffleEntry savedEntry = RaffleEntry.create(raffleId, request.userId(), request.billingKeyId(), null, BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000));
             when(raffleEntryRepository.save(any(RaffleEntry.class))).thenReturn(savedEntry);
@@ -78,7 +78,7 @@ class RaffleAppServiceTest {
             // then
             assertNotNull(response);
             assertEquals(request.userId(), response.userId());
-            verify(paymentClient, times(1)).preAuthCard(any(PreAuthRequest.class));
+            verify(paymentFeignClient, times(1)).preAuthCard(any(PreAuthRequest.class));
             verify(raffleEntryRepository, times(1)).save(any(RaffleEntry.class));
         }
 
@@ -92,7 +92,7 @@ class RaffleAppServiceTest {
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
-            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
             // default status is SCHEDULED
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
@@ -112,7 +112,7 @@ class RaffleAppServiceTest {
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
-            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
             raffle.updateStatus(RaffleStatus.OPEN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
@@ -121,7 +121,7 @@ class RaffleAppServiceTest {
             // when & then
             BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
             assertEquals(RaffleErrorCode.RAFFLE_002.getCode(), exception.getErrorCode().getCode());
-            verify(paymentClient, never()).preAuthCard(any());
+            verify(paymentFeignClient, never()).preAuthCard(any());
         }
 
         @Test
@@ -134,12 +134,12 @@ class RaffleAppServiceTest {
                     BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
             );
 
-            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
             raffle.updateStatus(RaffleStatus.OPEN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(true);
-            doThrow(new RuntimeException("Payment Error")).when(paymentClient).preAuthCard(any());
+            doThrow(new RuntimeException("Payment Error")).when(paymentFeignClient).preAuthCard(any());
 
             // when & then
             BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
@@ -148,6 +148,37 @@ class RaffleAppServiceTest {
             // Redis remove가 호출되었는지 검증
             verify(redisRepository, times(1)).removeEntry(raffleId, request.userId());
             verify(raffleEntryRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("실시간 응모자 수 조회 로직 (getParticipantsCount)")
+    class GetParticipantsCount {
+        @Test
+        @DisplayName("존재하는 래플일 경우 정상적으로 응모자 수를 반환한다")
+        void success() {
+            // given
+            UUID raffleId = UUID.randomUUID();
+            when(raffleRepository.existsById(raffleId)).thenReturn(true);
+            when(redisRepository.getEntryCount(raffleId)).thenReturn(150L);
+
+            // when
+            long count = raffleAppService.getParticipantsCount(raffleId);
+
+            // then
+            assertEquals(150L, count);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 래플일 경우 예외가 발생한다")
+        void failWhenRaffleNotExists() {
+            // given
+            UUID raffleId = UUID.randomUUID();
+            when(raffleRepository.existsById(raffleId)).thenReturn(false);
+
+            // when & then
+            BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.getParticipantsCount(raffleId));
+            assertEquals(RaffleErrorCode.RAFFLE_001.getCode(), exception.getErrorCode().getCode());
         }
     }
 }

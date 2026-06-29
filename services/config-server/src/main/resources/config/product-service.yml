@@ -11,10 +11,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: product_db
         jdbc:
@@ -43,5 +43,34 @@ spring:
       properties:
         spring.json.trusted.packages: "*"
 
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        config:
+          drop-service:
+            connect-timeout: 1000
+            read-timeout: 3000
+
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      drop-service:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        minimum-number-of-calls: 5
+        record-exceptions:
+          - java.lang.Exception
+
+logging:
+  level:
+    com.omc.product: INFO
+    com.omc.product.application.scheduler.OutboxPollerScheduler: INFO
+    org.hibernate.SQL: OFF
+    org.hibernate.orm.jdbc.bind: OFF

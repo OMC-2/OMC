@@ -3,7 +3,7 @@ package com.omc.drop.application.scheduler;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -27,7 +27,7 @@ class DropRedisCleanupSchedulerTest {
     private DropRepository dropRepository;
 
     @Mock
-    private PurchaseRedisRepository purchaseRedisRepository;
+    private DropRedisStore dropRedisStore;
 
     @InjectMocks
     private DropRedisCleanupScheduler dropRedisCleanupScheduler;
@@ -40,60 +40,60 @@ class DropRedisCleanupSchedulerTest {
         @DisplayName("시간 버퍼 경과 + holds 비었으면 키를 삭제하고 로그를 찍는다")
         void deletesKeysWhenReadyForCleanup() {
             Drop drop = createClosedDrop(LocalDateTime.now().minusHours(2));
-            when(dropRepository.findByStatus(DropStatus.CLOSED)).thenReturn(List.of(drop));
-            when(purchaseRedisRepository.isHoldsEmpty(drop.getDropId())).thenReturn(true);
-            when(purchaseRedisRepository.deleteDropKeys(drop.getDropId())).thenReturn(6L);
+            when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(DropStatus.CLOSED), any(LocalDateTime.class))).thenReturn(List.of(drop));
+            when(dropRedisStore.isHoldsEmpty(drop.getDropId())).thenReturn(true);
+            when(dropRedisStore.deleteDropKeys(drop.getDropId())).thenReturn(6L);
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository).deleteDropKeys(drop.getDropId());
+            verify(dropRedisStore).deleteDropKeys(drop.getDropId());
         }
 
         @Test
         @DisplayName("시간 버퍼가 아직 안 지났으면 삭제하지 않는다")
         void skipsWhenBufferNotElapsed() {
             Drop drop = createClosedDrop(LocalDateTime.now().minusMinutes(30));
-            when(dropRepository.findByStatus(DropStatus.CLOSED)).thenReturn(List.of(drop));
+            when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(DropStatus.CLOSED), any(LocalDateTime.class))).thenReturn(List.of(drop));
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository, never()).deleteDropKeys(any());
+            verify(dropRedisStore, never()).deleteDropKeys(any());
         }
 
         @Test
         @DisplayName("holds가 남아있으면 삭제하지 않는다")
         void skipsWhenHoldsNotEmpty() {
             Drop drop = createClosedDrop(LocalDateTime.now().minusHours(2));
-            when(dropRepository.findByStatus(DropStatus.CLOSED)).thenReturn(List.of(drop));
-            when(purchaseRedisRepository.isHoldsEmpty(drop.getDropId())).thenReturn(false);
+            when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(DropStatus.CLOSED), any(LocalDateTime.class))).thenReturn(List.of(drop));
+            when(dropRedisStore.isHoldsEmpty(drop.getDropId())).thenReturn(false);
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository, never()).deleteDropKeys(any());
+            verify(dropRedisStore, never()).deleteDropKeys(any());
         }
 
         @Test
         @DisplayName("이미 키가 삭제된 경우 deleteDropKeys 반환값이 0이면 로그를 찍지 않는다")
         void doesNotLogWhenAlreadyCleaned() {
             Drop drop = createClosedDrop(LocalDateTime.now().minusHours(2));
-            when(dropRepository.findByStatus(DropStatus.CLOSED)).thenReturn(List.of(drop));
-            when(purchaseRedisRepository.isHoldsEmpty(drop.getDropId())).thenReturn(true);
-            when(purchaseRedisRepository.deleteDropKeys(drop.getDropId())).thenReturn(0L);
+            when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(DropStatus.CLOSED), any(LocalDateTime.class))).thenReturn(List.of(drop));
+            when(dropRedisStore.isHoldsEmpty(drop.getDropId())).thenReturn(true);
+            when(dropRedisStore.deleteDropKeys(drop.getDropId())).thenReturn(0L);
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository).deleteDropKeys(drop.getDropId());
+            verify(dropRedisStore).deleteDropKeys(drop.getDropId());
         }
 
         @Test
         @DisplayName("CLOSED 드롭이 없으면 아무 처리도 하지 않는다")
         void doesNothingWhenNoClosedDrops() {
-            when(dropRepository.findByStatus(DropStatus.CLOSED)).thenReturn(List.of());
+            when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(DropStatus.CLOSED), any(LocalDateTime.class))).thenReturn(List.of());
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
-            verify(purchaseRedisRepository, never()).isHoldsEmpty(any());
-            verify(purchaseRedisRepository, never()).deleteDropKeys(any());
+            verify(dropRedisStore, never()).isHoldsEmpty(any());
+            verify(dropRedisStore, never()).deleteDropKeys(any());
         }
     }
 

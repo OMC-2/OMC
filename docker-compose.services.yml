@@ -255,7 +255,9 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
-      PAYMENT_PG_MODE: test
+      PAYMENT_PG_MODE: ${PAYMENT_PG_MODE:-test}
+      TOSS_BASE_URL: ${TOSS_BASE_URL:-http://toss-wiremock:8080}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-test-secret-key}
     depends_on:
       config-server:
         condition: service_healthy
@@ -265,6 +267,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      toss-wiremock:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1"]
       interval: 10s

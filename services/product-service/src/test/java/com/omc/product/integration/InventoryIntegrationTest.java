@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.entity.Product;
 import com.omc.product.domain.enums.OutboxEventType;
+import com.omc.product.domain.enums.OutboxStatus;
 import com.omc.product.domain.repository.InventoryRepository;
 import com.omc.product.domain.repository.OutboxEventRepository;
 import com.omc.product.domain.repository.ProcessedEventRepository;
@@ -18,6 +19,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -153,13 +156,18 @@ class InventoryIntegrationTest extends AbstractIntegrationTest{
 
                     assertThat(outboxEventRepository.findAll())
                             .anyMatch(outbox ->
-                                    outbox.getEventType() == OutboxEventType.STOCK_DEDUCTED);
+                                    outbox.getEventType() == OutboxEventType.STOCK_DEDUCTED
+                                    && outbox.getStatus() == OutboxStatus.PUBLISHED);
                 });
     }
 
     @Test
-    void payment_completed_중복_수신_시_멱등성_보장() throws Exception {
-        // given — 동일한 eventId로 두 번 발행
+    void payment_completed_재고_부족_시_STOCK_FAILED_발행() throws Exception {
+        Inventory inventory = inventoryRepository
+                .findByProductId(savedProduct.getProductId()).orElseThrow();
+        ReflectionTestUtils.setField(inventory, "soldQuantity", 10);
+        inventoryRepository.saveAndFlush(inventory);
+
         String eventId = UUID.randomUUID().toString();
         String payload = """
             {
@@ -178,11 +186,46 @@ class InventoryIntegrationTest extends AbstractIntegrationTest{
                 UUID.randomUUID()
         );
 
-        // when — 동일 eventId 두 번 발행
+        kafkaTemplate.send("payment.completed", eventId, payload);
+
+        Awaitility.await()
+                .atMost(10, TimeUnit.SECONDS)
+                .pollInterval(500, TimeUnit.MILLISECONDS)
+                .untilAsserted(() -> {
+                    assertThat(outboxEventRepository.findAll())
+                            .anyMatch(outbox ->
+                                    outbox.getEventType() == OutboxEventType.STOCK_FAILED
+                                    && outbox.getStatus() == OutboxStatus.PUBLISHED);
+
+                    Inventory updated = inventoryRepository
+                            .findByProductId(savedProduct.getProductId()).orElseThrow();
+                    assertThat(updated.getSoldQuantity()).isEqualTo(10);
+                });
+    }
+
+    @Test
+    void payment_completed_중복_수신_시_멱등성_보장() throws Exception {
+        String eventId = UUID.randomUUID().toString();
+        String payload = """
+            {
+                "eventId": "%s",
+                "orderId": "%s",
+                "productId": "%s",
+                "userId": "%s",
+                "dropId": "%s",
+                "finalAmount": 189000
+            }
+            """.formatted(
+                eventId,
+                UUID.randomUUID(),
+                savedProduct.getProductId(),
+                UUID.randomUUID(),
+                UUID.randomUUID()
+        );
+
         kafkaTemplate.send("payment.completed", eventId, payload);
         kafkaTemplate.send("payment.completed", eventId, payload);
 
-        // then — 재고는 1만 차감 (중복 처리 방지)
         Awaitility.await()
                 .atMost(10, TimeUnit.SECONDS)
                 .pollInterval(500, TimeUnit.MILLISECONDS)

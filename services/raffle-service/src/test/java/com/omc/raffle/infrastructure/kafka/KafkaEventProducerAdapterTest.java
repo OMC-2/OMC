@@ -43,10 +43,10 @@ class KafkaEventProducerAdapterTest {
         when(kafkaTemplate.send(eq(topic), eq(aggregateId.toString()), eq(payload))).thenReturn(future);
 
         // when
-        CompletableFuture<Boolean> result = adapter.send(topic, aggregateId.toString(), payload);
+        boolean result = adapter.send(topic, aggregateId.toString(), payload);
 
         // then
-        assertTrue(result.join());
+        assertTrue(result);
         verify(kafkaTemplate, times(1)).send(topic, aggregateId.toString(), payload);
     }
 
@@ -64,9 +64,9 @@ class KafkaEventProducerAdapterTest {
         when(kafkaTemplate.send(anyString(), anyString(), anyString())).thenReturn(future);
 
         // when
-        CompletableFuture<Boolean> result = adapter.send(topic, aggregateId.toString(), payload);
+        boolean result = adapter.send(topic, aggregateId.toString(), payload);
 
         // then
-        assertFalse(result.join());
+        assertFalse(result);
     }
 }

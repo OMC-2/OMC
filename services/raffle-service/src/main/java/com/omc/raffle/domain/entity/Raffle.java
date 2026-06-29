@@ -7,18 +7,19 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
+import org.springframework.util.Assert;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
-import com.omc.common.util.UuidV7Generator;
-import org.springframework.util.Assert;
 
 @Entity
 @Table(name = "p_raffles")
+@SQLRestriction("deleted_at IS NULL")
+@SQLDelete(sql = "UPDATE p_raffles SET deleted_at = CURRENT_TIMESTAMP WHERE raffle_id = ?")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@SQLRestriction("deleted_at IS NULL")
 public class Raffle extends BaseTimeEntity {
 
     @Id
@@ -28,6 +29,9 @@ public class Raffle extends BaseTimeEntity {
     @Column(name = "product_id", nullable = false, columnDefinition = "uuid")
     private UUID productId;
 
+    @Column(name = "draw_seed")
+    private String drawSeed;
+
     @Column(name = "name", nullable = false)
     private String name;
 
@@ -35,7 +39,7 @@ public class Raffle extends BaseTimeEntity {
     private int winnerCount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
+    @Column(name = "status", nullable = false)
     private RaffleStatus status;
 
     @Column(name = "started_at", nullable = false)
@@ -45,50 +49,54 @@ public class Raffle extends BaseTimeEntity {
     private LocalDateTime endedAt;
 
     @Builder(access = AccessLevel.PRIVATE)
-    private Raffle(UUID productId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
-        // [핵심 컨벤션] UUIDv7 사용
-        // 식별자(PK)로 UUID를 사용할 경우, 순차적인 정렬과 DB 인덱스 단편화 방지를 위해
-        // 버전 4(랜덤) 대신 시간 기반의 버전 7(UuidV7Generator)을 강제합니다.
-        this.id = UuidV7Generator.generate();
+    private Raffle(UUID productId, String name, int winnerCount, RaffleStatus status, LocalDateTime startedAt, LocalDateTime endedAt) {
+        Assert.notNull(productId, "Product ID must not be null");
+        Assert.hasText(name, "Raffle name must not be empty");
+        Assert.isTrue(winnerCount > 0, "Winner count must be greater than 0");
+        Assert.notNull(status, "Raffle status must not be null");
+        Assert.notNull(startedAt, "Started at must not be null");
+        Assert.notNull(endedAt, "Ended at must not be null");
+        Assert.isTrue(startedAt.isBefore(endedAt), "Started at must be before ended at");
+
+        this.id = com.omc.common.util.UuidV7Generator.generate();
         this.productId = productId;
         this.name = name;
         this.winnerCount = winnerCount;
-        this.status = RaffleStatus.SCHEDULED;
+        this.status = status;
         this.startedAt = startedAt;
         this.endedAt = endedAt;
     }
 
-    public static Raffle create(UUID productId, String name, int winnerCount, LocalDateTime startedAt, LocalDateTime endedAt) {
-        Assert.notNull(productId, "productId must not be null");
-        Assert.hasText(name, "name must not be empty");
-        Assert.isTrue(winnerCount > 0, "winnerCount must be greater than 0");
-        Assert.notNull(startedAt, "startedAt must not be null");
-        Assert.notNull(endedAt, "endedAt must not be null");
-        Assert.isTrue(startedAt.isBefore(endedAt), "startedAt must be before endedAt");
-
+    public static Raffle create(UUID productId, String name, int winnerCount, RaffleStatus status, LocalDateTime startedAt, LocalDateTime endedAt) {
         return Raffle.builder()
-                .productId(productId)
-                .name(name)
-                .winnerCount(winnerCount)
-                .startedAt(startedAt)
-                .endedAt(endedAt)
-                .build();
+            .productId(productId)
+            .name(name)
+            .winnerCount(winnerCount)
+            .status(status)
+            .startedAt(startedAt)
+            .endedAt(endedAt)
+            .build();
     }
 
     public void update(String name, int winnerCount) {
-        Assert.isTrue(this.status == RaffleStatus.SCHEDULED, "Only SCHEDULED raffles can be updated");
-        Assert.hasText(name, "name must not be empty");
-        Assert.isTrue(winnerCount > 0, "winnerCount must be greater than 0");
+        Assert.hasText(name, "Raffle name must not be empty");
+        Assert.isTrue(winnerCount > 0, "Winner count must be greater than 0");
+
         this.name = name;
         this.winnerCount = winnerCount;
     }
 
+    public void delete() {
+        // 소프트 딜리트는 SQLDelete 어노테이션으로 처리됩니다.
+    }
+
     public void updateStatus(RaffleStatus status) {
-        Assert.notNull(status, "status must not be null");
+        Assert.notNull(status, "Raffle status must not be null");
         this.status = status;
     }
 
-
-
-
+    public void assignDrawSeed(String drawSeed) {
+        Assert.notNull(drawSeed, "Draw seed must not be null");
+        this.drawSeed = drawSeed;
+    }
 }

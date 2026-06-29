@@ -38,21 +38,18 @@ public class OutboxPollerScheduler {
         for (OutboxEvent event : pendingEvents) {
             try {
                 // 키는 aggregateId (raffleId) 로 설정하여 파티션 순서 보장
-                eventProducerPort.send(event.getEventType(), event.getAggregateId(), event.getPayload())
-                        .thenAccept(success -> {
-                            if (Boolean.TRUE.equals(success)) {
-                                event.markAsPublished();
-                                log.info("OutboxEvent {} published successfully", event.getId());
-                            } else {
-                                event.markAsFailed();
-                                if (event.getStatus() == OutboxStatus.DEAD) {
-                                    log.error("OutboxEvent {} reached DEAD status after max retries", event.getId());
-                                } else {
-                                    log.warn("OutboxEvent {} failed to publish, will retry", event.getId());
-                                }
-                            }
-                        }).join(); 
-                
+                boolean success = eventProducerPort.send(event.getEventType(), event.getAggregateId(), event.getPayload());
+                if (success) {
+                    event.markAsPublished();
+                    log.info("OutboxEvent {} published successfully", event.getId());
+                } else {
+                    event.markAsFailed();
+                    if (event.getStatus() == OutboxStatus.DEAD) {
+                        log.error("OutboxEvent {} reached DEAD status after max retries", event.getId());
+                    } else {
+                        log.warn("OutboxEvent {} failed to publish, will retry", event.getId());
+                    }
+                }
             } catch (Exception e) {
                 log.error("Exception occurred while publishing outbox event {}", event.getId(), e);
                 event.markAsFailed();

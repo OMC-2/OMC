@@ -115,6 +115,20 @@ services:
       retries: 10
       start_period: 90s
 
+  toss-wiremock:
+    image: wiremock/wiremock:3.9.1
+    container_name: omc-toss-wiremock
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./docker/toss-wiremock/mappings:/home/wiremock/mappings
+      - ./docker/toss-wiremock/__files:/home/wiremock/__files
+    command:
+      - "--global-response-templating"
+      - "--verbose"
+    networks:
+      - omc-network
+
   prometheus:
     image: prom/prometheus:latest
     container_name: omc-prometheus

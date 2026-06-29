@@ -22,7 +22,10 @@ public enum ProductErrorCode implements ErrorCode {
     ALREADY_CONFIRMED(HttpStatus.CONFLICT, "PRODUCT-012", "이미 처리된 주문입니다."),
     ACTIVE_DROP_EXISTS(HttpStatus.CONFLICT, "PRODUCT-013", "진행 중인 드롭이 있어 수동 수정할 수 없습니다."),
     QUANTITY_BELOW_SOLD(HttpStatus.BAD_REQUEST, "PRODUCT-014", "총 재고는 판매 수량보다 적을 수 없습니다."),
-    INSUFFICIENT_STOCK(HttpStatus.CONFLICT, "PRODUCT-015", "재고가 부족합니다.");
+    INSUFFICIENT_STOCK(HttpStatus.CONFLICT, "PRODUCT-015", "재고가 부족합니다."),
+
+    // 외부 서비스
+    DROP_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "PRODUCT-020", "Drop Service가 응답하지 않습니다. 잠시 후 다시 시도해 주세요.");
 
 
     private final HttpStatus status;
