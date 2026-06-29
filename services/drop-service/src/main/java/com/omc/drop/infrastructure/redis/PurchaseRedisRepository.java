@@ -28,8 +28,9 @@ public class PurchaseRedisRepository {
 
     private final RedisTemplate<String, String> redisTemplate;
 
-    public static final String STREAM_KEY = "stream:purchase:confirmed";
-    public static final String GROUP_NAME  = "purchase-workers";
+    public static final String STREAM_KEY    = "stream:purchase:confirmed";
+    public static final String GROUP_NAME    = "purchase-workers";
+    private static final String OPEN_DROPS_KEY = "open_drops";
 
     private static final RedisScript<Long> PURCHASE_SCRIPT =
             RedisScript.of(new ClassPathResource("scripts/purchase.lua"), Long.class);
@@ -191,6 +192,19 @@ public class PurchaseRedisRepository {
         List<String> keys = List.of(holdsKey(dropId), stockKey(dropId), purchasedKey(dropId));
         Long result = redisTemplate.execute(RECOVERY_SCRIPT, keys, orderId.toString(), userId.toString());
         return result != null ? result : 0L;
+    }
+
+    public void addOpenDrop(UUID dropId) {
+        redisTemplate.opsForSet().add(OPEN_DROPS_KEY, dropId.toString());
+    }
+
+    public void removeOpenDrop(UUID dropId) {
+        redisTemplate.opsForSet().remove(OPEN_DROPS_KEY, dropId.toString());
+    }
+
+    public Set<String> getOpenDropIds() {
+        Set<String> ids = redisTemplate.opsForSet().members(OPEN_DROPS_KEY);
+        return ids != null ? ids : Set.of();
     }
 
     public boolean isHoldsEmpty(UUID dropId) {

@@ -12,9 +12,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -27,12 +30,46 @@ public class HoldExpireScheduler {
 
     @Scheduled(fixedDelay = 10000)
     public void expireHolds() {
-        List<Drop> openDrops = dropRepository.findByStatus(DropStatus.OPEN);
-        long nowEpoch = Instant.now().getEpochSecond();
+        Set<String> openDropIds = purchaseRedisRepository.getOpenDropIds();
 
-        for (Drop drop : openDrops) {
-            processExpiredHolds(drop.getDropId(), nowEpoch);
+        if (openDropIds == null || openDropIds.isEmpty()) {
+            openDropIds = recoverFromDb();
         }
+
+        long nowEpoch = Instant.now().getEpochSecond();
+        for (String dropIdStr : openDropIds) {
+            UUID dropId = UUID.fromString(dropIdStr);
+            processExpiredHolds(dropId, nowEpoch);
+            if (!purchaseRedisRepository.isOpen(dropId) && purchaseRedisRepository.isHoldsEmpty(dropId)) {
+                purchaseRedisRepository.removeOpenDrop(dropId);
+                log.info("CLOSED 드롭 open_drops 제거 완료. dropId={}", dropId);
+            }
+        }
+    }
+
+    private static final int RECOVERY_LOOKBACK_DAYS = 2;
+
+    private Set<String> recoverFromDb() {
+        log.warn("open_drops Set이 비었습니다. DB에서 복구합니다.");
+        Set<String> recovered = new HashSet<>();
+
+        List<Drop> openDrops = dropRepository.findByStatus(DropStatus.OPEN);
+        openDrops.forEach(drop -> {
+            purchaseRedisRepository.addOpenDrop(drop.getDropId());
+            recovered.add(drop.getDropId().toString());
+        });
+
+        // CLOSED이지만 holds가 남은 드롭도 복구 (재시작 시 누락 방지)
+        LocalDateTime lookback = LocalDateTime.now().minusDays(RECOVERY_LOOKBACK_DAYS);
+        List<Drop> recentClosed = dropRepository.findByStatusAndEndAtGreaterThanEqual(DropStatus.CLOSED, lookback);
+        recentClosed.stream()
+                .filter(drop -> !purchaseRedisRepository.isHoldsEmpty(drop.getDropId()))
+                .forEach(drop -> {
+                    purchaseRedisRepository.addOpenDrop(drop.getDropId());
+                    recovered.add(drop.getDropId().toString());
+                });
+
+        return recovered;
     }
 
     private void processExpiredHolds(UUID dropId, long nowEpoch) {
