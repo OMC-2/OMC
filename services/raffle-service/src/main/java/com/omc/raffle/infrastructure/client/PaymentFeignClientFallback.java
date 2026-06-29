@@ -2,7 +2,7 @@ package com.omc.raffle.infrastructure.client;
 
 import com.omc.raffle.domain.exception.PaymentPreAuthFailedException;
 import com.omc.raffle.domain.enums.RaffleErrorCode;
-import com.omc.raffle.presentation.dto.request.PreAuthRequest;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

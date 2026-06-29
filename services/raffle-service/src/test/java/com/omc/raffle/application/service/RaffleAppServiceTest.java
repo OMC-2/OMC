@@ -11,7 +11,7 @@ import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.infrastructure.client.PaymentFeignClient;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
-import com.omc.raffle.presentation.dto.request.PreAuthRequest;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

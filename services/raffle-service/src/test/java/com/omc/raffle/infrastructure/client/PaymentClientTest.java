@@ -9,7 +9,7 @@ import org.springframework.cloud.contract.wiremock.AutoConfigureWireMock;
 
 import java.math.BigDecimal;
 import java.util.UUID;
-import com.omc.raffle.presentation.dto.request.PreAuthRequest;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;

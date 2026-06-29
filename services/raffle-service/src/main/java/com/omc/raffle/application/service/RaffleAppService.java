@@ -26,7 +26,7 @@ import com.omc.raffle.presentation.dto.response.RaffleResponse;
 import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
 
 import com.omc.raffle.infrastructure.client.PaymentFeignClient;
-import com.omc.raffle.presentation.dto.request.PreAuthRequest;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
 
 /**
