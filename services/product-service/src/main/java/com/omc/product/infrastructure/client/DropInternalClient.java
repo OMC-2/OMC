@@ -9,7 +9,8 @@ import java.util.UUID;
 
 @FeignClient(
         name = "drop-service",
-        url = "${feign.drop-service.url:}"
+        url = "${feign.drop-service.url:}",
+        fallbackFactory = DropInternalClientFallbackFactory.class
 )
 public interface DropInternalClient {
 
