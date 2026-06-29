@@ -130,6 +130,25 @@ public class PurchaseRedisRepository {
         redisTemplate.opsForStream().acknowledge(STREAM_KEY, GROUP_NAME, recordIds);
     }
 
+    /** minAge 이상 ACK 안 된 자신의 pending 메시지를 반환 */
+    @SuppressWarnings("unchecked")
+    public List<MapRecord<String, String, String>> getOwnStalePending(String consumerId, Duration minAge) {
+        PendingMessages pending = redisTemplate.opsForStream()
+                .pending(STREAM_KEY, GROUP_NAME, Range.unbounded(), 500L);
+
+        List<RecordId> staleIds = pending.stream()
+                .filter(msg -> msg.getConsumerName().equals(consumerId))
+                .filter(msg -> msg.getElapsedTimeSinceLastDelivery().compareTo(minAge) > 0)
+                .map(msg -> RecordId.of(msg.getId().getValue()))
+                .toList();
+
+        if (staleIds.isEmpty()) return List.of();
+
+        return (List<MapRecord<String, String, String>>) (List<?>) redisTemplate.opsForStream()
+                .claim(STREAM_KEY, GROUP_NAME, consumerId, minAge,
+                       staleIds.toArray(RecordId[]::new));
+    }
+
     /** 5분 이상 ACK 안 된 다른 consumer의 메시지를 인수해서 반환 */
     @SuppressWarnings("unchecked")
     public List<MapRecord<String, String, String>> claimStaleMessages(String consumerId) {
