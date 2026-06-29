@@ -1,17 +1,15 @@
 package com.omc.common.config;
 
-import io.lettuce.core.metrics.MicrometerCommandLatencyRecorder;
-import io.lettuce.core.metrics.MicrometerOptions;
-import io.lettuce.core.resource.DefaultClientResources;
-import io.micrometer.core.instrument.MeterRegistry;
+import io.lettuce.core.tracing.MicrometerTracing;
 import io.micrometer.observation.ObservationPredicate;
+import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.data.redis.ClientResourcesBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -30,7 +28,8 @@ public class TracingAutoConfiguration {
                     }
                 } catch (Exception ignored) {}
             }
-            if (name.startsWith("spring.security") || name.startsWith("jdbc.") || name.equals("http.client.requests")) {
+            if (name.startsWith("spring.security") || name.startsWith("jdbc.")
+                    || name.equals("http.client.requests") || name.equals("lettuce")) {
                 Tracer tracer = tracerProvider.getIfAvailable();
                 return tracer != null && tracer.currentSpan() != null;
             }
@@ -42,17 +41,15 @@ public class TracingAutoConfiguration {
     }
 
     @Configuration(proxyBeanMethods = false)
-    @ConditionalOnClass(name = "io.lettuce.core.resource.DefaultClientResources")
+    @ConditionalOnClass(name = {
+        "io.lettuce.core.resource.DefaultClientResources",
+        "io.lettuce.core.tracing.MicrometerTracing"
+    })
     static class LettuceTracingConfig {
 
         @Bean
-        @ConditionalOnMissingBean
-        DefaultClientResources lettuceClientResources(MeterRegistry meterRegistry) {
-            return DefaultClientResources.builder()
-                .commandLatencyRecorder(
-                    new MicrometerCommandLatencyRecorder(meterRegistry, MicrometerOptions.create())
-                )
-                .build();
+        ClientResourcesBuilderCustomizer lettuceTracingCustomizer(ObservationRegistry observationRegistry) {
+            return builder -> builder.tracing(new MicrometerTracing(observationRegistry, "redis"));
         }
     }
 }
