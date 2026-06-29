@@ -47,3 +47,7 @@ scrape_configs:
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['gateway:8081']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']

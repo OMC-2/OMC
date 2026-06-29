@@ -24,6 +24,11 @@ spring:
         default_schema: coupon_db
         jdbc:
           time_zone: Asia/Seoul
+        generate_statistics: true
+
+logging:
+  level:
+    org.hibernate.stat: DEBUG
 
   data:
     redis:
