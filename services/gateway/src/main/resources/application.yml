@@ -5,6 +5,8 @@ spring:
     import: optional:configserver:${CONFIG_SERVER_URI:http://localhost:8888}
 
 management:
+  server:
+    port: 8081
   endpoints:
     web:
       exposure:
