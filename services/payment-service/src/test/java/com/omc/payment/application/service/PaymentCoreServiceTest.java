@@ -3,7 +3,6 @@ package com.omc.payment.application.service;
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.response.ApiResponse;
-import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
@@ -39,6 +38,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -150,12 +152,19 @@ class PaymentCoreServiceTest {
                     .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
                             .isEqualTo(PaymentErrorCode.PAYMENT_INVALID_COUPON));
 
-            ArgumentCaptor<PaymentCommand.Failure> failureCaptor =
-                    ArgumentCaptor.forClass(PaymentCommand.Failure.class);
-            verify(paymentOutboxService).savePaymentFailed(failureCaptor.capture());
-            assertThat(failureCaptor.getValue().orderId()).isEqualTo(ORDER_ID);
-            assertThat(failureCaptor.getValue().salesType()).isEqualTo(SalesType.DROP);
-            assertThat(failureCaptor.getValue().failureReason())
+            ArgumentCaptor<String> failureReasonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(paymentOutboxService).savePaymentFailed(
+                    eq(ORDER_ID),
+                    eq(USER_ID),
+                    eq(SalesType.DROP),
+                    eq(DROP_ID),
+                    isNull(),
+                    isNull(),
+                    eq(PRODUCT_ID),
+                    isNull(),
+                    failureReasonCaptor.capture()
+            );
+            assertThat(failureReasonCaptor.getValue())
                     .isEqualTo("쿠폰 없이 할인 금액을 적용할 수 없습니다.");
         }
 
@@ -179,7 +188,17 @@ class PaymentCoreServiceTest {
                     .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
                             .isEqualTo(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH));
 
-            verify(paymentOutboxService).savePaymentFailed(any(PaymentCommand.Failure.class));
+            verify(paymentOutboxService).savePaymentFailed(
+                    eq(ORDER_ID),
+                    eq(USER_ID),
+                    eq(SalesType.DROP),
+                    eq(DROP_ID),
+                    isNull(),
+                    isNull(),
+                    eq(PRODUCT_ID),
+                    isNull(),
+                    anyString()
+            );
             verify(paymentRepository, never()).save(any(Payment.class));
             verifyNoInteractions(paymentGatewayPort, couponServiceClient);
         }

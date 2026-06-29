@@ -2,7 +2,6 @@ package com.omc.payment.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.application.event.dto.outbound.PaymentCompletedEvent;
 import com.omc.payment.application.event.dto.outbound.PaymentFailedEvent;
 import com.omc.payment.application.event.dto.outbound.RefundDoneEvent;
@@ -10,6 +9,7 @@ import com.omc.common.util.UuidV7Generator;
 import com.omc.payment.domain.entity.Payment;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.OutboxAggregateType;
+import com.omc.payment.domain.enums.SalesType;
 import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
 import com.omc.payment.infrastructure.config.KafkaTopics;
 import lombok.RequiredArgsConstructor;
@@ -65,21 +65,31 @@ public class PaymentOutboxService {
         save(eventId, payment.getPaymentId(), KafkaTopics.PAYMENT_FAILED, event);
     }
 
-    public void savePaymentFailed(PaymentCommand.Failure command) {
+    public void savePaymentFailed(
+            UUID orderId,
+            UUID userId,
+            SalesType salesType,
+            UUID dropId,
+            UUID entryId,
+            UUID raffleId,
+            UUID productId,
+            UUID couponId,
+            String failureReason
+    ) {
         UUID eventId = UuidV7Generator.generate();
         PaymentFailedEvent event = new PaymentFailedEvent(
                 eventId.toString(),
-                command.salesType(),
-                command.dropId(),
-                command.orderId(),
-                command.raffleId(),
-                command.entryId(),
-                command.productId(),
-                command.userId(),
-                command.couponId(),
-                command.failureReason()
+                salesType,
+                dropId,
+                orderId,
+                raffleId,
+                entryId,
+                productId,
+                userId,
+                couponId,
+                failureReason
         );
-        save(eventId, command.orderId(), KafkaTopics.PAYMENT_FAILED, event);
+        save(eventId, orderId, KafkaTopics.PAYMENT_FAILED, event);
     }
 
     public void saveRefundDone(Payment payment) {

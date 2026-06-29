@@ -3,7 +3,6 @@ package com.omc.payment.application.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.domain.entity.Payment;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.CancellationCode;
@@ -102,7 +101,7 @@ class PaymentOutboxServiceTest {
         void savePaymentFailedBeforeCreation() throws IOException {
             ObjectMapper realObjectMapper = new ObjectMapper();
             PaymentOutboxService service = new PaymentOutboxService(paymentOutboxEventRepository, realObjectMapper);
-            PaymentCommand.Failure failure = new PaymentCommand.Failure(
+            service.savePaymentFailed(
                     ORDER_ID,
                     USER_ID,
                     SalesType.DROP,
@@ -113,8 +112,6 @@ class PaymentOutboxServiceTest {
                     COUPON_ID,
                     "결제 금액이 일치하지 않습니다."
             );
-
-            service.savePaymentFailed(failure);
 
             ArgumentCaptor<PaymentOutboxEvent> outboxCaptor = ArgumentCaptor.forClass(PaymentOutboxEvent.class);
             verify(paymentOutboxEventRepository).save(outboxCaptor.capture());

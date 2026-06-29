@@ -3,7 +3,6 @@ package com.omc.payment.application.service;
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.response.ApiResponse;
-import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
@@ -394,17 +393,15 @@ public class PaymentCoreService {
             String failureReason
     ) {
         paymentOutboxService.savePaymentFailed(
-                new PaymentCommand.Failure(
-                        orderId,
-                        userId,
-                        salesType,
-                        dropId,
-                        entryId,
-                        raffleId,
-                        productId,
-                        couponId,
-                        failureReason
-                )
+                orderId,
+                userId,
+                salesType,
+                dropId,
+                entryId,
+                raffleId,
+                productId,
+                couponId,
+                failureReason
         );
     }
 
