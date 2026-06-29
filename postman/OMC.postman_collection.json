@@ -371,6 +371,7 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/admin/products/{{productId}}/inventories",
+                  "host": ["{{baseUrl}}"],
                   "path": ["api","v1","admin","products","{{productId}}","inventories"]
                 }
               }
@@ -385,10 +386,12 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"totalQuantity\": 150,\n  \"reason\": \"입고 추가\"\n}"
+                  "raw": "{\n  \"totalQuantity\": 150,\n  \"reason\": \"입고 추가\"\n}",
+                  "options": { "raw": { "language": "json" } }
                 },
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/admin/products/{{productId}}/inventories",
+                  "host": ["{{baseUrl}}"],
                   "path": ["api","v1","admin","products","{{productId}}","inventories"]
                 }
               }
