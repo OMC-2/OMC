@@ -106,6 +106,17 @@ public class RaffleController {
                 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    /**
+     * 래플 실시간 응모자 수 조회 API
+     * GET /api/v1/raffles/{raffleId}/participants-count
+     */
+    @GetMapping("/{raffleId}/participants-count")
+    public ResponseEntity<ApiResponse<Long>> getParticipantsCount(
+            @PathVariable UUID raffleId) {
+        long count = raffleAppService.getParticipantsCount(raffleId);
+        return ResponseEntity.ok(ApiResponse.success(count));
+    }
 }
 
 
