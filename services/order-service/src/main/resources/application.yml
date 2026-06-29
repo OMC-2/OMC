@@ -10,6 +10,15 @@ spring:
     deserialization:
       adjust-dates-to-context-time-zone: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
 
