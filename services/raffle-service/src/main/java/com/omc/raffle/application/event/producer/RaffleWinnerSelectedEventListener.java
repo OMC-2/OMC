@@ -36,7 +36,7 @@ public class RaffleWinnerSelectedEventListener {
             log.info("Successfully saved OutboxEvent. Event ID: {}", outboxEvent.getId());
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize RaffleWinnerSelectedEvent", e);
-            throw new RuntimeException("Failed to serialize Outbox payload", e);
+            throw new com.omc.raffle.domain.exception.EventProcessingException(com.omc.raffle.domain.exception.RaffleErrorCode.RAFFLE_009, "Failed to serialize Outbox payload");
         }
     }
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
@@ -57,7 +57,7 @@ public class RaffleWinnerSelectedEventListener {
             log.info("Successfully saved OutboxEvent for loser. Event ID: {}", outboxEvent.getId());
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize RaffleLoserNotifiedEvent", e);
-            throw new RuntimeException("Failed to serialize Outbox payload", e);
+            throw new com.omc.raffle.domain.exception.EventProcessingException(com.omc.raffle.domain.exception.RaffleErrorCode.RAFFLE_009, "Failed to serialize Outbox payload");
         }
     }
 }

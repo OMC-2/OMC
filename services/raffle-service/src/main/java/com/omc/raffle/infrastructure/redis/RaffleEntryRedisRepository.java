@@ -16,7 +16,10 @@ import java.util.UUID;
 public class RaffleEntryRedisRepository {
 
     private final StringRedisTemplate redisTemplate;
-    private static final String RAFFLE_ENTRY_KEY_PREFIX = "raffle:entry:";
+
+    private String buildKey(UUID raffleId) {
+        return "raffle:" + raffleId.toString() + ":entries";
+    }
 
     /**
      * Redis의 SADD 명령어를 활용하여 원자적으로 중복 응모를 검증합니다.
@@ -25,23 +28,22 @@ public class RaffleEntryRedisRepository {
      * @return 성공적으로 SADD 된 경우 true, 이미 존재하여 삽입되지 않은 경우 false
      */
     public boolean addEntry(UUID raffleId, UUID userId) {
-        String key = RAFFLE_ENTRY_KEY_PREFIX + raffleId.toString();
+        String key = buildKey(raffleId);
         try {
             Long result = redisTemplate.opsForSet().add(key, userId.toString());
             boolean isAdded = result != null && result > 0L;
             if (isAdded) {
                 Long expire = redisTemplate.getExpire(key);
                 if (expire == null || expire < 0) {
-                    // 래플 중복 방지 데이터가 영구적으로 쌓이는 것을 방지하기 위해 30일 TTL 설정 (최초 생성 시에만)
-                    redisTemplate.expire(key, 30, java.util.concurrent.TimeUnit.DAYS);
+                    // 래플 중복 방지 데이터가 영구적으로 쌓이는 것을 방지하기 위해 7일 TTL 설정 (최초 생성 시에만)
+                    redisTemplate.expire(key, 7, java.util.concurrent.TimeUnit.DAYS);
                 }
             }
             return isAdded;
         } catch (Exception e) {
             log.error("[Redis Error] 중복 검증 중 오류 발생: {}", e.getMessage());
             // Redis 장애 시 안전하게 실패하도록 하거나, DB 조회로 Fallback 할 수 있습니다.
-            // 여기서는 보수적으로 진행하기 위해 false를 리턴하거나 예외를 던집니다.
-            throw new RuntimeException("Redis 서버 연동 오류", e);
+            throw new com.omc.raffle.domain.exception.RedisOperationException(com.omc.raffle.domain.exception.RaffleErrorCode.RAFFLE_008, "Redis 서버 연동 오류");
         }
     }
 
@@ -51,7 +53,7 @@ public class RaffleEntryRedisRepository {
      * @param userId 사용자 ID
      */
     public void removeEntry(UUID raffleId, UUID userId) {
-        String key = RAFFLE_ENTRY_KEY_PREFIX + raffleId.toString();
+        String key = buildKey(raffleId);
         try {
             redisTemplate.opsForSet().remove(key, userId.toString());
         } catch (Exception e) {
@@ -65,7 +67,7 @@ public class RaffleEntryRedisRepository {
      * @return 응모자 수
      */
     public long getEntryCount(UUID raffleId) {
-        String key = RAFFLE_ENTRY_KEY_PREFIX + raffleId.toString();
+        String key = buildKey(raffleId);
         try {
             Long count = redisTemplate.opsForSet().size(key);
             return count != null ? count : 0L;

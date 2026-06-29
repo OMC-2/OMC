@@ -22,10 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @AutoConfigureWireMock(port = 0)
 @DisplayName("Payment Feign Client 통합 테스트")
-class PaymentClientTest {
+class PaymentFeignClientTest {
 
     @Autowired
-    private PaymentClient paymentClient;
+    private PaymentFeignClient paymentFeignClient;
 
     @Test
     @DisplayName("결제 가승인 요청을 정상적으로 처리할 수 있다.")
@@ -42,7 +42,7 @@ class PaymentClientTest {
                         .withStatus(200)));
 
         // when & then (no exception thrown)
-        paymentClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
+        paymentFeignClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
     }
 
     @Test
@@ -58,7 +58,7 @@ class PaymentClientTest {
 
         // when & then
         org.junit.jupiter.api.Assertions.assertThrows(feign.FeignException.InternalServerError.class, () -> {
-            paymentClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
+            paymentFeignClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
         });
     }
 
@@ -78,7 +78,7 @@ class PaymentClientTest {
 
         // when & then
         org.junit.jupiter.api.Assertions.assertThrows(feign.FeignException.NotFound.class, () -> {
-            paymentClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
+            paymentFeignClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
         });
     }
 }

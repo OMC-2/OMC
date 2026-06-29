@@ -17,18 +17,16 @@ public class KafkaEventProducerAdapter implements EventProducerPort {
     private final KafkaTemplate<String, String> kafkaTemplate;
 
     @Override
-    public CompletableFuture<Boolean> send(String topic, String key, String payload) {
+    public boolean send(String topic, String key, String payload) {
         log.info("Sending message to Kafka topic: {}, key: {}", topic, key);
         
-        CompletableFuture<SendResult<String, String>> future = kafkaTemplate.send(topic, key, payload);
-        
-        return future.handle((result, ex) -> {
-            if (ex != null) {
-                log.error("Failed to send message to Kafka topic: {}", topic, ex);
-                return false;
-            }
+        try {
+            kafkaTemplate.send(topic, key, payload).join();
             log.info("Successfully sent message to Kafka topic: {}", topic);
             return true;
-        });
+        } catch (Exception ex) {
+            log.error("Failed to send message to Kafka topic: {}", topic, ex);
+            return false;
+        }
     }
 }

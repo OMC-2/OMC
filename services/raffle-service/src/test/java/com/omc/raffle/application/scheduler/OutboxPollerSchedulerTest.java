@@ -67,7 +67,7 @@ class OutboxPollerSchedulerTest {
         outboxEventRepository.save(event);
 
         when(eventProducerPort.send(anyString(), anyString(), anyString()))
-                .thenReturn(CompletableFuture.completedFuture(true));
+                .thenReturn(true);
 
         // when
         scheduler.pollAndPublishOutboxEvents();
@@ -87,7 +87,7 @@ class OutboxPollerSchedulerTest {
         outboxEventRepository.save(event);
 
         when(eventProducerPort.send(anyString(), anyString(), anyString()))
-                .thenReturn(CompletableFuture.completedFuture(false));
+                .thenReturn(false);
 
         // when - 3번 실행
         scheduler.pollAndPublishOutboxEvents();
