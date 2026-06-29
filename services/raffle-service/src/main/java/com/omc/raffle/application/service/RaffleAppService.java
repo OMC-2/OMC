@@ -122,5 +122,16 @@ public class RaffleAppService {
                 .map(RaffleEntryResponse::from);
         return new PageResponse<>(page);
     }
+
+    /**
+     * 특정 래플의 실시간 응모자 수를 반환합니다.
+     */
+    public long getParticipantsCount(UUID raffleId) {
+        // 래플 존재 여부 검증 (옵션 - 부하 방지를 위해 생략 가능하나 무결성을 위해 추가)
+        if (!raffleRepository.existsById(raffleId)) {
+            throw new BusinessException(RaffleErrorCode.RAFFLE_001);
+        }
+        return redisRepository.getEntryCount(raffleId);
+    }
 }
 

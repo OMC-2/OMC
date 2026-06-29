@@ -150,6 +150,37 @@ class RaffleAppServiceTest {
             verify(raffleEntryRepository, never()).save(any());
         }
     }
+
+    @Nested
+    @DisplayName("실시간 응모자 수 조회 로직 (getParticipantsCount)")
+    class GetParticipantsCount {
+        @Test
+        @DisplayName("존재하는 래플일 경우 정상적으로 응모자 수를 반환한다")
+        void success() {
+            // given
+            UUID raffleId = UUID.randomUUID();
+            when(raffleRepository.existsById(raffleId)).thenReturn(true);
+            when(redisRepository.getEntryCount(raffleId)).thenReturn(150L);
+
+            // when
+            long count = raffleAppService.getParticipantsCount(raffleId);
+
+            // then
+            assertEquals(150L, count);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 래플일 경우 예외가 발생한다")
+        void failWhenRaffleNotExists() {
+            // given
+            UUID raffleId = UUID.randomUUID();
+            when(raffleRepository.existsById(raffleId)).thenReturn(false);
+
+            // when & then
+            BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.getParticipantsCount(raffleId));
+            assertEquals(RaffleErrorCode.RAFFLE_001.getCode(), exception.getErrorCode().getCode());
+        }
+    }
 }
 
 

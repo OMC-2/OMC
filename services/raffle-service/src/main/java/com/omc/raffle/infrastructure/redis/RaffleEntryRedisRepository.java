@@ -58,4 +58,20 @@ public class RaffleEntryRedisRepository {
             log.error("[Redis Error] 응모 내역 삭제 중 오류 발생: {}", e.getMessage());
         }
     }
+
+    /**
+     * 특정 래플의 실시간 응모자 수를 조회합니다 (SCARD).
+     * @param raffleId 래플 ID
+     * @return 응모자 수
+     */
+    public long getEntryCount(UUID raffleId) {
+        String key = RAFFLE_ENTRY_KEY_PREFIX + raffleId.toString();
+        try {
+            Long count = redisTemplate.opsForSet().size(key);
+            return count != null ? count : 0L;
+        } catch (Exception e) {
+            log.error("[Redis Error] 응모자 수 조회 중 오류 발생: {}", e.getMessage());
+            return 0L;
+        }
+    }
 }

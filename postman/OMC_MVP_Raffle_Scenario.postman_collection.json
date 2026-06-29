@@ -16,7 +16,6 @@
     { "key": "couponId",      "value": "" },
     { "key": "userCouponId",  "value": "" },
     { "key": "productId",     "value": "" },
-    { "key": "dropId",        "value": "" },
     { "key": "raffleId",      "value": "" },
     { "key": "billingKeyId",  "value": "" },
     { "key": "entryId",       "value": "" }
@@ -95,34 +94,7 @@
           }
         },
         {
-          "name": "1-5. 드롭 생성 (ADMIN) → dropId  [래플 연결용 — startAt 자동]",
-          "event": [
-            { "listen": "prerequest", "script": { "exec": [
-              "const pad = n => String(n).padStart(2,'0');",
-              "const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;",
-              "pm.collectionVariables.set('dropStartAt', fmt(new Date(Date.now()+10000)));",
-              "pm.collectionVariables.set('dropEndAt',   fmt(new Date(Date.now()+86400000)));"
-            ], "type": "text/javascript" }},
-            { "listen": "test", "script": { "exec": [
-              "if ([200,201].includes(pm.response.code)) {",
-              "  pm.collectionVariables.set('dropId', pm.response.json().data.dropId);",
-              "  console.log('✅ dropId:', pm.response.json().data.dropId);",
-              "}"
-            ], "type": "text/javascript" }}
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
-              { "key": "Authorization",    "value": "Bearer {{adminToken}}" },
-              { "key": "Content-Type",     "value": "application/json" }
-            ],
-            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"startAt\": \"{{dropStartAt}}\",\n  \"endAt\": \"{{dropEndAt}}\",\n  \"totalQty\": 10,\n  \"holdTtlSec\": 300\n}" },
-            "url": { "raw": "{{baseUrl}}/api/v1/admin/drops", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","drops"] }
-          }
-        },
-        {
-          "name": "1-6. 래플 생성 (ADMIN) → raffleId  [startedAt 자동 = 현재+10초]",
+          "name": "1-5. 래플 생성 (ADMIN) → raffleId  [startedAt 자동 = 현재+10초]",
           "event": [
             { "listen": "prerequest", "script": { "exec": [
               "const pad = n => String(n).padStart(2,'0');",
@@ -145,7 +117,7 @@
               { "key": "Authorization",    "value": "Bearer {{adminToken}}" },
               { "key": "Content-Type",     "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"dropId\": \"{{dropId}}\",\n  \"productId\": \"{{productId}}\",\n  \"name\": \"Nike 한정판 래플\",\n  \"winnerCount\": 1,\n  \"startedAt\": \"{{raffleStartedAt}}\",\n  \"endedAt\": \"{{raffleEndedAt}}\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"name\": \"Nike 한정판 래플\",\n  \"winnerCount\": 1,\n  \"startedAt\": \"{{raffleStartedAt}}\",\n  \"endedAt\": \"{{raffleEndedAt}}\"\n}" },
             "url": { "raw": "{{baseUrl}}/api/v1/admin/raffles", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","raffles"] }
           }
         }
@@ -276,7 +248,7 @@
             "method": "POST",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
-              { "key": "X-User-Id",        "value": "{{userId}}" },
+              { "key": "Authorization",    "value": "Bearer {{accessToken}}" },
               { "key": "Content-Type",     "value": "application/json" }
             ],
             "body": { "mode": "raw", "raw": "{\n  \"billingKeyId\": \"{{billingKeyId}}\",\n  \"couponId\": \"{{userCouponId}}\",\n  \"originalAmount\": 150000,\n  \"discountAmount\": 1000,\n  \"finalAmount\": 149000\n}" },
@@ -319,7 +291,7 @@
             "method": "GET",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
-              { "key": "X-User-Id",        "value": "{{userId}}" }
+              { "key": "Authorization",    "value": "Bearer {{accessToken}}" }
             ],
             "url": { "raw": "{{baseUrl}}/api/v1/raffles/{{raffleId}}/winners/me", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","{{raffleId}}","winners","me"] }
           }
@@ -330,7 +302,7 @@
             "method": "GET",
             "header": [
               { "key": "X-Gateway-Secret", "value": "{{gwSecret}}" },
-              { "key": "X-User-Id",        "value": "{{userId}}" }
+              { "key": "Authorization",    "value": "Bearer {{accessToken}}" }
             ],
             "url": { "raw": "{{baseUrl}}/api/v1/raffles/entries/me?page=0&size=10", "host": ["{{baseUrl}}"], "path": ["api","v1","raffles","entries","me"], "query": [{"key":"page","value":"0"},{"key":"size","value":"10"}] }
           }
