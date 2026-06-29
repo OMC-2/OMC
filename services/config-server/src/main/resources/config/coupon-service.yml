@@ -26,10 +26,6 @@ spring:
           time_zone: Asia/Seoul
         generate_statistics: true
 
-logging:
-  level:
-    org.hibernate.stat: DEBUG
-
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -52,6 +48,10 @@ logging:
     listener:
       ack-mode: manual_immediate
       missing-topics-fatal: false
+
+logging:
+  level:
+    org.hibernate.stat: DEBUG
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
