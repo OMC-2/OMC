@@ -3,6 +3,9 @@ package com.omc.product.integration;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.junit.jupiter.api.Tag;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +16,9 @@ import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+
+import java.util.List;
+import java.util.Map;
 
 @Tag("integration")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -41,6 +47,18 @@ abstract class AbstractIntegrationTest {
         kafka.start();
         redis.start();
         wireMock.start();
+
+        // payment.completed 토픽 파티션 3개로 생성
+        // → concurrency 3 스레드가 각각 파티션을 담당해 동시 처리 가능
+        try (AdminClient admin = AdminClient.create(Map.of(
+                AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers()
+        ))) {
+            admin.createTopics(List.of(
+                    new NewTopic("payment.completed", 3, (short) 1)
+            )).all().get();
+        } catch (Exception e) {
+            throw new RuntimeException("Kafka 토픽 생성 실패", e);
+        }
     }
 
     @DynamicPropertySource
@@ -54,6 +72,7 @@ abstract class AbstractIntegrationTest {
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
         registry.add("feign.drop-service.url",
                 () -> "http://localhost:" + wireMock.port());
+        registry.add("spring.kafka.listener.concurrency", () -> "3");
     }
 
     protected void resetWireMock() {
