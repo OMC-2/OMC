@@ -1,4 +1,4 @@
-package com.omc.drop.application.event;
+package com.omc.drop.infrastructure.kafka;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.context.annotation.Bean;
