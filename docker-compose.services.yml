@@ -14,7 +14,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -39,7 +39,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -73,7 +73,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -113,7 +113,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -152,7 +152,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -191,7 +191,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -230,7 +230,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -270,7 +270,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -309,7 +309,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -348,7 +348,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
@@ -385,7 +385,7 @@ services:
       interval: 10s
       timeout: 30s
       retries: 10
-      start_period: 180s
+      start_period: 360s
     networks:
       - omc-network
     deploy:
