@@ -3,7 +3,6 @@ package com.omc.payment.application.service;
 import com.omc.common.exception.BusinessException;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.response.ApiResponse;
-import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
@@ -133,9 +132,12 @@ class PaymentCoreServiceTest {
         }
 
         @Test
-        @DisplayName("쿠폰 없이 할인 금액이 있으면 예외가 발생한다")
+        @DisplayName("쿠폰 없이 할인 금액이 있으면 결제를 실패 처리한다")
         void confirmPayment_invalidCouponWithoutCouponId() {
-            assertThatThrownBy(() -> paymentCoreService.confirmPayment(
+            given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
+            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+            Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
                     DROP_ID,
                     PRODUCT_ID,
@@ -145,26 +147,26 @@ class PaymentCoreServiceTest {
                     1000L,
                     9000L,
                     "결제 승인 아이디"
-            ))
-                    .isInstanceOf(NonRetryablePaymentException.class)
-                    .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
-                            .isEqualTo(PaymentErrorCode.PAYMENT_INVALID_COUPON));
+            );
 
-            ArgumentCaptor<PaymentCommand.Failure> failureCaptor =
-                    ArgumentCaptor.forClass(PaymentCommand.Failure.class);
-            verify(paymentOutboxService).savePaymentFailed(failureCaptor.capture());
-            assertThat(failureCaptor.getValue().orderId()).isEqualTo(ORDER_ID);
-            assertThat(failureCaptor.getValue().salesType()).isEqualTo(SalesType.DROP);
-            assertThat(failureCaptor.getValue().failureReason())
+            ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
+            verify(paymentOutboxService).savePaymentFailed(paymentCaptor.capture());
+            assertThat(payment).isSameAs(paymentCaptor.getValue());
+            assertThat(paymentCaptor.getValue().getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
+            assertThat(paymentCaptor.getValue().getFailureCode())
+                    .isEqualTo(PaymentErrorCode.PAYMENT_INVALID_COUPON.getCode());
+            assertThat(paymentCaptor.getValue().getFailureMessage())
                     .isEqualTo("쿠폰 없이 할인 금액을 적용할 수 없습니다.");
+            verifyNoInteractions(paymentGatewayPort, couponServiceClient);
         }
 
         @Test
         @DisplayName("결제 금액이 일치하지 않으면 실패 아웃박스를 적재한다")
         void confirmPayment_amountMismatch() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
+            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-            assertThatThrownBy(() -> paymentCoreService.confirmPayment(
+            Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
                     DROP_ID,
                     PRODUCT_ID,
@@ -174,13 +176,16 @@ class PaymentCoreServiceTest {
                     0L,
                     9000L,
                     "결제 승인 아이디"
-            ))
-                    .isInstanceOf(NonRetryablePaymentException.class)
-                    .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
-                            .isEqualTo(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH));
+            );
 
-            verify(paymentOutboxService).savePaymentFailed(any(PaymentCommand.Failure.class));
-            verify(paymentRepository, never()).save(any(Payment.class));
+            ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
+            verify(paymentOutboxService).savePaymentFailed(paymentCaptor.capture());
+            assertThat(payment).isSameAs(paymentCaptor.getValue());
+            assertThat(paymentCaptor.getValue().getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
+            assertThat(paymentCaptor.getValue().getFailureCode())
+                    .isEqualTo(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH.getCode());
+            assertThat(paymentCaptor.getValue().getFailureMessage())
+                    .isEqualTo(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH.getMessage());
             verifyNoInteractions(paymentGatewayPort, couponServiceClient);
         }
 
@@ -371,6 +376,7 @@ class PaymentCoreServiceTest {
                 salesType,
                 originalAmount,
                 discountAmount,
+                originalAmount - discountAmount,
                 Provider.TOSS,
                 PaymentMethod.CARD
         );

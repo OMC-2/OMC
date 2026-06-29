@@ -2,7 +2,6 @@ package com.omc.payment.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omc.payment.application.command.PaymentCommand;
 import com.omc.payment.application.event.dto.outbound.PaymentCompletedEvent;
 import com.omc.payment.application.event.dto.outbound.PaymentFailedEvent;
 import com.omc.payment.application.event.dto.outbound.RefundDoneEvent;
@@ -63,23 +62,6 @@ public class PaymentOutboxService {
                 failureReason
         );
         save(eventId, payment.getPaymentId(), KafkaTopics.PAYMENT_FAILED, event);
-    }
-
-    public void savePaymentFailed(PaymentCommand.Failure command) {
-        UUID eventId = UuidV7Generator.generate();
-        PaymentFailedEvent event = new PaymentFailedEvent(
-                eventId.toString(),
-                command.salesType(),
-                command.dropId(),
-                command.orderId(),
-                command.raffleId(),
-                command.entryId(),
-                command.productId(),
-                command.userId(),
-                command.couponId(),
-                command.failureReason()
-        );
-        save(eventId, command.orderId(), KafkaTopics.PAYMENT_FAILED, event);
     }
 
     public void saveRefundDone(Payment payment) {

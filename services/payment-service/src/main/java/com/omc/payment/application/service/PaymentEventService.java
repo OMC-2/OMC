@@ -37,6 +37,7 @@ public class PaymentEventService {
         paymentIdempotencyService.execute(
                 paymentIdempotencyService.confirmKey(event.orderId()),
                 () -> {
+                    // RAFFLE일 경우 빌링 키 결제, DROP일 경우 일반 결제
                     if ("RAFFLE".equalsIgnoreCase(event.orderType())) {
                         paymentCoreService.confirmBillingPayment(
                                 event.orderId(),
@@ -63,7 +64,7 @@ public class PaymentEventService {
                             event.originalAmount(),
                             event.discountAmount(),
                             event.finalAmount(),
-                            UUID.randomUUID().toString()
+                            null
                     );
                 }
         );

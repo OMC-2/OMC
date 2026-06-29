@@ -16,10 +16,6 @@ public class PaymentEventValidator {
         requireNonNull(event.orderId(), "주문 ID는 필수입니다");
         requireNonNull(event.userId(), "사용자 ID는 필수입니다");
         requireNotBlank(event.orderType(), "주문 유형은 필수입니다");
-        requireNonNull(event.productId(), "상품 ID는 필수입니다");
-        requireNonNull(event.originalAmount(), "원래 금액은 필수입니다");
-        requireNonNull(event.discountAmount(), "할인 금액은 필수입니다");
-        requireNonNull(event.finalAmount(), "최종 금액은 필수입니다");
 
         if ("DROP".equalsIgnoreCase(event.orderType())) {
             requireNonNull(event.dropId(), "드롭 ID는 필수입니다");
@@ -28,8 +24,6 @@ public class PaymentEventValidator {
 
         if ("RAFFLE".equalsIgnoreCase(event.orderType())) {
             requireNonNull(event.raffleId(), "래플 ID는 필수입니다");
-            requireNonNull(event.entryId(), "래플 응모 ID는 필수입니다");
-            requireNotBlank(event.billingKeyId(), "빌링키 ID는 필수입니다");
             return;
         }
 
