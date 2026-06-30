@@ -26,7 +26,12 @@ import java.util.UUID;
  * - Kafka 발행 성공: PUBLISHED + published_at 업데이트
  * - 실패: retry_count 증가 → max 초과 시 FAILED 처리
  *
- * retry_count: 재시도 횟수 제한 관리
+ * retry_count:
+ * - 재시도 횟수 제한 관리
+ *
+ * resetToInit:
+ * - FAILED 상태 이벤트를 INIT으로 초기화하여 Poller 재발행 대상으로 복구
+ * - 멱등성은 Consumer 쪽 ProcessedEvent로 보장되므로 중복 발행 걱정 없음
  */
 @Getter
 @Entity
@@ -98,5 +103,10 @@ public class OutboxEvent {
         if (this.retryCount >= maxRetry) {
             this.status = OutboxStatus.FAILED;
         }
+    }
+
+    public void resetToInit() {
+        this.status = OutboxStatus.INIT;
+        this.retryCount = 0;
     }
 }
