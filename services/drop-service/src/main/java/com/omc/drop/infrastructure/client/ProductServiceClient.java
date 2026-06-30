@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
-@FeignClient(name = "product-service")
+@FeignClient(name = "product-service", fallbackFactory = ProductServiceClientFallbackFactory.class)
 public interface ProductServiceClient {
 
     @GetMapping("/internal/v1/products/{productId}/inventories/snapshot")
