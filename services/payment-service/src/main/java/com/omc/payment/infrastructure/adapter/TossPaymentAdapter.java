@@ -33,7 +33,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
                 PaymentResponse.class,
                 command.idempotencyKey()
         );
-        return new PaymentGatewayResult.Confirm(response.PaymentKey());
+        return new PaymentGatewayResult.Confirm(response.paymentKey());
     }
 
     // Toss 빌링키 발급
@@ -63,7 +63,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
                 command.idempotencyKey(),
                 command.billingKeyId()
         );
-        return new PaymentGatewayResult.Confirm(response.PaymentKey());
+        return new PaymentGatewayResult.Confirm(response.paymentKey());
     }
 
     // Toss 결제 취소
@@ -162,7 +162,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
 
     // 승인, 취소 응답
     private record PaymentResponse(
-            String PaymentKey, // 결제 식별키
+            String paymentKey, // 결제 식별키
             String lastTransactionKey // 마지막 거래의 키값
     ) {}
 

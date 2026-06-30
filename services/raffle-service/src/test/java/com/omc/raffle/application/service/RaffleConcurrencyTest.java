@@ -7,8 +7,8 @@ import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.EmbeddedRedisConfig;
-import com.omc.raffle.infrastructure.client.PaymentClient;
-import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
+import com.omc.raffle.infrastructure.client.PaymentFeignClient;
+import com.omc.raffle.presentation.dto.request.PreAuthRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,23 +49,20 @@ class RaffleConcurrencyTest {
     private StringRedisTemplate redisTemplate;
 
     @MockBean
-    private PaymentClient paymentClient;
+    private PaymentFeignClient paymentFeignClient;
 
     private UUID raffleId;
 
     @BeforeEach
     void setUp() {
         Raffle raffle = Raffle.create(UUID.randomUUID(), "테스트 한정판 스니커즈",
-                10,
-                LocalDateTime.now().minusDays(1),
-                LocalDateTime.now().plusDays(1)
-        );
+                5, com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
         raffle.updateStatus(RaffleStatus.OPEN);
         raffle = raffleRepository.save(raffle);
         raffleId = raffle.getId();
 
         // 결제 가승인 항상 성공
-        doNothing().when(paymentClient).preAuthCard(any(PreAuthRequest.class));
+        doNothing().when(paymentFeignClient).preAuthCard(any(PreAuthRequest.class));
     }
 
     @AfterEach

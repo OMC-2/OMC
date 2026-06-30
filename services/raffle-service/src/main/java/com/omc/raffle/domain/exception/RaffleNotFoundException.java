@@ -1,8 +1,15 @@
 package com.omc.raffle.domain.exception;
 
-public class RaffleNotFoundException extends RaffleException {
+import com.omc.common.exception.BusinessException;
+import com.omc.common.exception.ErrorCode;
 
-    public RaffleNotFoundException() {
-        super(RaffleErrorCode.RAFFLE_001);
+public class RaffleNotFoundException extends BusinessException {
+
+    public RaffleNotFoundException(ErrorCode errorCode) {
+        super(errorCode);
+    }
+    
+    public RaffleNotFoundException(ErrorCode errorCode, String message) {
+        super(errorCode, message);
     }
 }

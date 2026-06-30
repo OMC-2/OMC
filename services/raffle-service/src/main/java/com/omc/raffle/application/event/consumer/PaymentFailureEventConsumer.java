@@ -32,7 +32,7 @@ public class PaymentFailureEventConsumer {
             }
         } catch (Exception e) {
             log.error("Error processing payment.failed event", e);
-            // 재처리 방지 또는 DLQ 처리를 위해 정책에 따라 throw 하거나 스킵
+            throw new com.omc.raffle.domain.exception.EventProcessingException(com.omc.raffle.domain.enums.RaffleErrorCode.RAFFLE_009, e.getMessage());
         }
     }
 }

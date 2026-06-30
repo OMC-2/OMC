@@ -1,5 +1,6 @@
 package com.omc.product.application.event.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.product.application.event.PaymentCompletedEvent;
 import com.omc.product.application.service.InventoryService;
@@ -30,14 +31,19 @@ public class PaymentCompletedConsumer {
     ) {
         log.info("[PaymentCompletedConsumer] 수신. topic={}, offset={}", topic, offset);
 
+        PaymentCompletedEvent event;
         try {
-            PaymentCompletedEvent event = objectMapper.readValue(message, PaymentCompletedEvent.class);
+            event = objectMapper.readValue(message, PaymentCompletedEvent.class);
             log.info("[PaymentCompletedConsumer] 역직렬화 완료. eventId={}", event.eventId());
-            inventoryService.confirmDeduct(event);
-        } catch (Exception e) {
-            log.error("[PaymentCompletedConsumer] 처리 중 예외 발생. message={}, error={}",
-                    message, e.getMessage(), e);
-            throw new RuntimeException(e);
+        } catch (JsonProcessingException e) {
+            log.error("[PaymentCompletedConsumer] 역직렬화 실패. message={}, error={}",
+                    message, e.getMessage());
+            throw new RuntimeException("역직렬화 실패: " + e.getMessage(), e);
         }
+
+        // 비즈니스 처리: REQUIRES_NEW 트랜잭션 내에서 예외를 잡아 처리
+        // ObjectOptimisticLockingFailureException, InsufficientStockException 모두
+        // InventoryService 내부에서 처리 후 정상 return → offset 커밋
+        inventoryService.confirmDeduct(event);
     }
 }

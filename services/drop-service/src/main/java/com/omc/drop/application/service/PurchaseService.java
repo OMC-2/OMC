@@ -4,7 +4,7 @@ import com.omc.drop.domain.exception.DuplicatePurchaseException;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.DropNotOpenException;
 import com.omc.drop.domain.exception.SoldOutException;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import com.omc.drop.presentation.dto.response.PurchaseResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,17 +18,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PurchaseService {
 
-    private final PurchaseRedisRepository purchaseRedisRepository;
+    private final DropRedisStore dropRedisStore;
 
     public PurchaseResponse purchase(UUID dropId, UUID userId) {
         // ① Redis OPEN 플래그 확인 — fail-fast
-        if (!purchaseRedisRepository.isOpen(dropId)) {
+        if (!dropRedisStore.isOpen(dropId)) {
             throw new DropNotOpenException();
         }
 
         // ② holdTtlSec·productId를 Redis에서 조회 (워밍 시 캐싱된 값) — DB 무접촉 유지
-        int holdTtlSec = purchaseRedisRepository.getHoldTtlSec(dropId);
-        UUID productId = purchaseRedisRepository.getProductId(dropId);
+        int holdTtlSec = dropRedisStore.getHoldTtlSec(dropId);
+        UUID productId = dropRedisStore.getProductId(dropId);
         if (productId == null) {
             throw new DropNotFoundException();
         }
@@ -38,7 +38,7 @@ public class PurchaseService {
         String eventId = UuidV7Generator.generate().toString();
 
         // ④ Lua 원자 실행: 중복 체크 → 재고 체크 → 선점 → Stream XADD → 순번 발급
-        Long result = purchaseRedisRepository.executePurchase(dropId, userId, orderId, holdTtlSec, productId, eventId);
+        Long result = dropRedisStore.executePurchase(dropId, userId, orderId, holdTtlSec, productId, eventId);
 
         if (result == null || result == -2L) {
             throw new DuplicatePurchaseException();

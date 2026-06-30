@@ -8,7 +8,8 @@ import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.application.event.consumer.PaymentCompletedEvent;
 import com.omc.drop.application.event.consumer.PaymentFailedEvent;
 import com.omc.drop.application.event.consumer.StockFailedEvent;
-import com.omc.drop.infrastructure.redis.PurchaseRedisRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
+import com.omc.drop.infrastructure.redis.PurchaseStreamStore;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -89,7 +90,8 @@ class DropServiceIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @Autowired DropRepository dropRepository;
-    @Autowired PurchaseRedisRepository purchaseRedisRepository;
+    @Autowired DropRedisStore dropRedisStore;
+    @Autowired PurchaseStreamStore purchaseStreamStore;
     @Autowired DropProcessedEventRepository processedEventRepository;
     @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     @Autowired EmbeddedKafkaBroker embeddedKafkaBroker;
@@ -397,13 +399,13 @@ class DropServiceIntegrationTest {
         @AfterEach
         void tearDown() {
             // warmup이 만든 Redis 키 정리 (컨테이너 공유 기간 동안 누적 방지)
-            purchaseRedisRepository.deleteDropKeys(dropId);
+            dropRedisStore.deleteDropKeys(dropId);
         }
 
         @Test
         @DisplayName("OPEN 드롭에 구매 선점 시 202와 orderId, queueNumber를 반환하고 Redis 상태가 변경된다")
         void purchase_openDrop_returns202_and_redisStateUpdated() throws Exception {
-            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
             MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
@@ -419,15 +421,15 @@ class DropServiceIntegrationTest {
                             .at("/data/orderId").asText()
             );
 
-            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(99);
-            assertThat(purchaseRedisRepository.hasPurchased(dropId, UUID.fromString(USER_ID))).isTrue();
-            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isTrue();
+            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(99);
+            assertThat(dropRedisStore.hasPurchased(dropId, UUID.fromString(USER_ID))).isTrue();
+            assertThat(dropRedisStore.hasHold(dropId, orderId)).isTrue();
         }
 
         @Test
         @DisplayName("같은 사용자가 중복 구매 시 409와 DROP-005를 반환한다")
         void purchase_duplicate_returns409() throws Exception {
-            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
             // 첫 번째 구매
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
@@ -448,7 +450,7 @@ class DropServiceIntegrationTest {
         @Test
         @DisplayName("재고 소진 시 409와 DROP-004를 반환한다")
         void purchase_soldOut_returns409() throws Exception {
-            purchaseRedisRepository.warmup(dropId, 1, 300, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(dropId, 1, 300, UUID.fromString(PRODUCT_ID));
 
             String otherUserId = UUID.randomUUID().toString();
 
@@ -483,7 +485,7 @@ class DropServiceIntegrationTest {
         @Test
         @DisplayName("인증 없이 구매 시 403을 반환한다")
         void purchase_noAuth_returns403() throws Exception {
-            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
             // X-Gateway-Secret 없이 호출
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId))
@@ -494,7 +496,7 @@ class DropServiceIntegrationTest {
         @DisplayName("warmup을 두 번 호출해도 재고가 초기화되지 않는다 (Lua 멱등성)")
         void warmup_calledTwice_doesNotResetStock() throws Exception {
             // 첫 번째 warmup
-            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
             // 구매 1건으로 재고 감소
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
@@ -503,21 +505,21 @@ class DropServiceIntegrationTest {
                             .header("X-User-Role", "USER"))
                     .andExpect(status().isAccepted());
 
-            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(99);
+            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(99);
 
             // 두 번째 warmup — status 키가 이미 존재하므로 Lua가 0 반환하고 값을 건드리지 않는다
-            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
-            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(99);  // 100으로 리셋되면 안 됨
+            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(99);  // 100으로 리셋되면 안 됨
         }
 
         @Test
         @DisplayName("구매 선점 성공 시 Stream에 이벤트가 기록된다")
         void purchase_openDrop_writesEventToStream() throws Exception {
-            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
-            long beforeSize = purchaseRedisRepository.getStreamSize() != null
-                    ? purchaseRedisRepository.getStreamSize() : 0L;
+            long beforeSize = purchaseStreamStore.getStreamSize() != null
+                    ? purchaseStreamStore.getStreamSize() : 0L;
 
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
@@ -526,7 +528,7 @@ class DropServiceIntegrationTest {
                     .andExpect(status().isAccepted());
 
             // XADD는 XACK 이후에도 스트림 본체에 남음 → 즉시 검증 가능
-            assertThat(purchaseRedisRepository.getStreamSize()).isGreaterThan(beforeSize);
+            assertThat(purchaseStreamStore.getStreamSize()).isGreaterThan(beforeSize);
         }
     }
 
@@ -555,7 +557,7 @@ class DropServiceIntegrationTest {
             userId = UUID.randomUUID();
 
             // Redis warmup 후 실제 구매 선점으로 hold 생성
-            purchaseRedisRepository.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
             MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
@@ -572,7 +574,7 @@ class DropServiceIntegrationTest {
 
         @AfterEach
         void tearDown() {
-            purchaseRedisRepository.deleteDropKeys(dropId);
+            dropRedisStore.deleteDropKeys(dropId);
             processedEventRepository.deleteAll();
         }
 
@@ -589,12 +591,12 @@ class DropServiceIntegrationTest {
 
             // hold 제거 대기
             await().atMost(5, TimeUnit.SECONDS)
-                    .until(() -> !purchaseRedisRepository.hasHold(dropId, orderId));
+                    .until(() -> !dropRedisStore.hasHold(dropId, orderId));
 
             // confirmHold는 hold만 제거 — 재고·구매자는 그대로
-            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isFalse();
-            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(99);
-            assertThat(purchaseRedisRepository.hasPurchased(dropId, userId)).isTrue();
+            assertThat(dropRedisStore.hasHold(dropId, orderId)).isFalse();
+            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(99);
+            assertThat(dropRedisStore.hasPurchased(dropId, userId)).isTrue();
             assertThat(processedEventRepository.existsById(eventId)).isTrue();
         }
 
@@ -613,7 +615,7 @@ class DropServiceIntegrationTest {
             Thread.sleep(2000);
 
             // RAFFLE은 스킵 → hold 유지, processedEvent 미저장
-            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isTrue();
+            assertThat(dropRedisStore.hasHold(dropId, orderId)).isTrue();
             assertThat(processedEventRepository.existsById(eventId)).isFalse();
         }
 
@@ -629,12 +631,12 @@ class DropServiceIntegrationTest {
 
             // 재고 복구 대기
             await().atMost(5, TimeUnit.SECONDS)
-                    .until(() -> purchaseRedisRepository.getStock(dropId) == 100);
+                    .until(() -> dropRedisStore.getStock(dropId) == 100);
 
             // recoverHold: 재고 복구 + 구매자 취소 + hold 제거
-            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(100);
-            assertThat(purchaseRedisRepository.hasPurchased(dropId, userId)).isFalse();
-            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isFalse();
+            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(100);
+            assertThat(dropRedisStore.hasPurchased(dropId, userId)).isFalse();
+            assertThat(dropRedisStore.hasHold(dropId, orderId)).isFalse();
             assertThat(processedEventRepository.existsById(eventId)).isTrue();
         }
 
@@ -649,11 +651,11 @@ class DropServiceIntegrationTest {
             stringKafkaTemplate.send("stock.failed", objectMapper.writeValueAsString(event));
 
             await().atMost(5, TimeUnit.SECONDS)
-                    .until(() -> purchaseRedisRepository.getStock(dropId) == 100);
+                    .until(() -> dropRedisStore.getStock(dropId) == 100);
 
-            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(100);
-            assertThat(purchaseRedisRepository.hasPurchased(dropId, userId)).isFalse();
-            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isFalse();
+            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(100);
+            assertThat(dropRedisStore.hasPurchased(dropId, userId)).isFalse();
+            assertThat(dropRedisStore.hasHold(dropId, orderId)).isFalse();
             assertThat(processedEventRepository.existsById(eventId)).isTrue();
         }
 
@@ -703,7 +705,7 @@ class DropServiceIntegrationTest {
             dropId = savedDrop.getDropId();
 
             // holdTtlSec=1 — 1초 후 만료되는 hold 생성
-            purchaseRedisRepository.warmup(dropId, 100, 1, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(dropId, 100, 1, UUID.fromString(PRODUCT_ID));
 
             MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
@@ -721,7 +723,7 @@ class DropServiceIntegrationTest {
         @AfterEach
         void tearDown() {
             dropRepository.deleteAll();
-            purchaseRedisRepository.deleteDropKeys(dropId);
+            dropRedisStore.deleteDropKeys(dropId);
         }
 
         @Test
@@ -733,9 +735,9 @@ class DropServiceIntegrationTest {
             holdExpireScheduler.expireHolds();
 
             // expire.lua: ZREM holds + INCR stock (purchased Set은 제거하지 않음)
-            assertThat(purchaseRedisRepository.getStock(dropId)).isEqualTo(100);
-            assertThat(purchaseRedisRepository.hasHold(dropId, orderId)).isFalse();
-            assertThat(purchaseRedisRepository.hasPurchased(dropId, userId)).isTrue();
+            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(100);
+            assertThat(dropRedisStore.hasHold(dropId, orderId)).isFalse();
+            assertThat(dropRedisStore.hasPurchased(dropId, userId)).isTrue();
         }
 
         @Test
@@ -747,7 +749,7 @@ class DropServiceIntegrationTest {
             Drop validDrop = dropRepository.save(openDrop());
             validDropId = validDrop.getDropId();
 
-            purchaseRedisRepository.warmup(validDropId, 100, 300, UUID.fromString(PRODUCT_ID));
+            dropRedisStore.warmup(validDropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
             MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", validDropId)
                             .header("X-Gateway-Secret", GW_SECRET)
@@ -764,10 +766,10 @@ class DropServiceIntegrationTest {
             holdExpireScheduler.expireHolds();
 
             // 300초 TTL → 만료 아님 → hold 유지
-            assertThat(purchaseRedisRepository.hasHold(validDropId, validOrderId)).isTrue();
-            assertThat(purchaseRedisRepository.getStock(validDropId)).isEqualTo(99);
+            assertThat(dropRedisStore.hasHold(validDropId, validOrderId)).isTrue();
+            assertThat(dropRedisStore.getStock(validDropId)).isEqualTo(99);
 
-            purchaseRedisRepository.deleteDropKeys(validDropId);
+            dropRedisStore.deleteDropKeys(validDropId);
         }
     }
 

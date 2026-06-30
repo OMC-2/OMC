@@ -12,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.UUID;
 
@@ -43,21 +44,18 @@ class DropEventConsumerTest {
     class OnPaymentCompleted {
 
         @Test
-        @DisplayName("중복 eventId면 confirmHold를 호출하지 않는다")
+        @DisplayName("save에서 PK 충돌이 나면 confirmHold를 호출하지 않는다")
         void skipsDuplicate() {
-            when(processedEventRepository.existsById("evt-dup")).thenReturn(true);
+            doThrow(DataIntegrityViolationException.class).when(processedEventRepository).save(any());
 
             dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-dup", "DROP"));
 
             verify(holdService, never()).confirmHold(any(), any(), any());
-            verify(processedEventRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("salesType이 RAFFLE이면 confirmHold를 호출하지 않는다")
+        @DisplayName("salesType이 RAFFLE이면 save와 confirmHold를 호출하지 않는다")
         void skipsRaffle() {
-            when(processedEventRepository.existsById("evt-raffle")).thenReturn(false);
-
             dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-raffle", "RAFFLE"));
 
             verify(holdService, never()).confirmHold(any(), any(), any());
@@ -65,14 +63,12 @@ class DropEventConsumerTest {
         }
 
         @Test
-        @DisplayName("정상 DROP 이벤트면 confirmHold를 호출하고 processed를 저장한다")
+        @DisplayName("정상 DROP 이벤트면 save 후 confirmHold를 호출한다")
         void processesInstant() {
-            when(processedEventRepository.existsById("evt-ok")).thenReturn(false);
-
             dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-ok", "DROP"));
 
-            verify(holdService).confirmHold(DROP_ID, ORDER_ID, USER_ID);
             verify(processedEventRepository).save(any(DropProcessedEvent.class));
+            verify(holdService).confirmHold(DROP_ID, ORDER_ID, USER_ID);
         }
     }
 
@@ -81,21 +77,18 @@ class DropEventConsumerTest {
     class OnPaymentFailed {
 
         @Test
-        @DisplayName("중복 eventId면 recoverHold를 호출하지 않는다")
+        @DisplayName("save에서 PK 충돌이 나면 recoverHold를 호출하지 않는다")
         void skipsDuplicate() {
-            when(processedEventRepository.existsById("evt-dup")).thenReturn(true);
+            doThrow(DataIntegrityViolationException.class).when(processedEventRepository).save(any());
 
             dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-dup", "DROP"));
 
             verify(holdService, never()).recoverHold(any(), any(), any());
-            verify(processedEventRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("salesType이 RAFFLE이면 recoverHold를 호출하지 않는다")
+        @DisplayName("salesType이 RAFFLE이면 save와 recoverHold를 호출하지 않는다")
         void skipsRaffle() {
-            when(processedEventRepository.existsById("evt-raffle")).thenReturn(false);
-
             dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-raffle", "RAFFLE"));
 
             verify(holdService, never()).recoverHold(any(), any(), any());
@@ -103,14 +96,12 @@ class DropEventConsumerTest {
         }
 
         @Test
-        @DisplayName("정상 DROP 이벤트면 recoverHold를 호출하고 processed를 저장한다")
+        @DisplayName("정상 DROP 이벤트면 save 후 recoverHold를 호출한다")
         void processesInstant() {
-            when(processedEventRepository.existsById("evt-ok")).thenReturn(false);
-
             dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-ok", "DROP"));
 
-            verify(holdService).recoverHold(DROP_ID, ORDER_ID, USER_ID);
             verify(processedEventRepository).save(any(DropProcessedEvent.class));
+            verify(holdService).recoverHold(DROP_ID, ORDER_ID, USER_ID);
         }
     }
 
@@ -119,25 +110,22 @@ class DropEventConsumerTest {
     class OnStockFailed {
 
         @Test
-        @DisplayName("중복 eventId면 recoverHold를 호출하지 않는다")
+        @DisplayName("save에서 PK 충돌이 나면 recoverHold를 호출하지 않는다")
         void skipsDuplicate() {
-            when(processedEventRepository.existsById("evt-dup")).thenReturn(true);
+            doThrow(DataIntegrityViolationException.class).when(processedEventRepository).save(any());
 
             dropEventConsumer.onStockFailed(stockFailedJson("evt-dup"));
 
             verify(holdService, never()).recoverHold(any(), any(), any());
-            verify(processedEventRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("정상 이벤트면 recoverHold를 호출하고 processed를 저장한다")
+        @DisplayName("정상 이벤트면 save 후 recoverHold를 호출한다")
         void processes() {
-            when(processedEventRepository.existsById("evt-ok")).thenReturn(false);
-
             dropEventConsumer.onStockFailed(stockFailedJson("evt-ok"));
 
-            verify(holdService).recoverHold(DROP_ID, ORDER_ID, USER_ID);
             verify(processedEventRepository).save(any(DropProcessedEvent.class));
+            verify(holdService).recoverHold(DROP_ID, ORDER_ID, USER_ID);
         }
     }
 

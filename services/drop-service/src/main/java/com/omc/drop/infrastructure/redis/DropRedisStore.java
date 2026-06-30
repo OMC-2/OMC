@@ -1,35 +1,24 @@
 package com.omc.drop.infrastructure.redis;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.domain.Range;
-import org.springframework.data.redis.connection.stream.Consumer;
-import org.springframework.data.redis.connection.stream.MapRecord;
-import org.springframework.data.redis.connection.stream.PendingMessages;
-import org.springframework.data.redis.connection.stream.ReadOffset;
-import org.springframework.data.redis.connection.stream.RecordId;
-import org.springframework.data.redis.connection.stream.StreamOffset;
-import org.springframework.data.redis.connection.stream.StreamReadOptions;
-import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
-public class PurchaseRedisRepository {
+public class DropRedisStore {
 
     private final RedisTemplate<String, String> redisTemplate;
 
-    public static final String STREAM_KEY = "stream:purchase:confirmed";
-    public static final String GROUP_NAME  = "purchase-workers";
+    private static final String OPEN_DROPS_KEY = "open_drops";
+
+    private static final int DEFAULT_HOLD_TTL_SEC = 600;
 
     private static final RedisScript<Long> PURCHASE_SCRIPT =
             RedisScript.of(new ClassPathResource("scripts/purchase.lua"), Long.class);
@@ -42,8 +31,6 @@ public class PurchaseRedisRepository {
 
     private static final RedisScript<Long> EXPIRE_SCRIPT =
             RedisScript.of(new ClassPathResource("scripts/expire.lua"), Long.class);
-
-    private static final int DEFAULT_HOLD_TTL_SEC = 600;
 
     /** 4개 키를 Lua로 원자적 초기화 — 이미 OPEN 상태면 멱등 처리 */
     public void warmup(UUID dropId, int totalQty, int holdTtlSec, UUID productId) {
@@ -83,70 +70,11 @@ public class PurchaseRedisRepository {
                 stockKey(dropId),
                 holdsKey(dropId),
                 queueKey(dropId),
-                STREAM_KEY
+                PurchaseStreamStore.STREAM_KEY
         );
         return redisTemplate.execute(PURCHASE_SCRIPT, keys,
                 userId.toString(), orderId.toString(), String.valueOf(holdTtlSec),
                 productId.toString(), dropId.toString(), eventId);
-    }
-
-    // ── Stream 연산 ───────────────────────────────────────────────────────────
-
-    /**
-     * MKSTREAM=true: stream이 없으면 stream과 group을 함께 생성.
-     * 앱 최초 기동 시 아직 XADD가 한 번도 없어도 group 생성이 성공한다.
-     */
-    public void createConsumerGroupIfAbsent() {
-        try {
-            redisTemplate.execute((RedisCallback<Object>) conn ->
-                    conn.xGroupCreate(
-                            STREAM_KEY.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                            GROUP_NAME,
-                            ReadOffset.latest(),
-                            true   // MKSTREAM
-                    )
-            );
-        } catch (Exception e) {
-            if (e.getMessage() == null || !e.getMessage().contains("BUSYGROUP")) {
-                log.warn("[PurchaseStream] Consumer group 생성 실패: {}", e.getMessage());
-            }
-        }
-    }
-
-    public Long getStreamSize() {
-        return redisTemplate.opsForStream().size(STREAM_KEY);
-    }
-
-    /** ReadOffset.lastConsumed() = ">" (새 메시지), ReadOffset.from("0") = pending 재처리 */
-    @SuppressWarnings("unchecked")
-    public List<MapRecord<String, String, String>> readMessages(String consumerId, ReadOffset offset, int count) {
-        return (List<MapRecord<String, String, String>>) (List<?>) redisTemplate.opsForStream()
-                .read(Consumer.from(GROUP_NAME, consumerId),
-                      StreamReadOptions.empty().count(count),
-                      StreamOffset.create(STREAM_KEY, offset));
-    }
-
-    public void acknowledge(RecordId... recordIds) {
-        redisTemplate.opsForStream().acknowledge(STREAM_KEY, GROUP_NAME, recordIds);
-    }
-
-    /** 5분 이상 ACK 안 된 다른 consumer의 메시지를 인수해서 반환 */
-    @SuppressWarnings("unchecked")
-    public List<MapRecord<String, String, String>> claimStaleMessages(String consumerId) {
-        PendingMessages pending = redisTemplate.opsForStream()
-                .pending(STREAM_KEY, GROUP_NAME, Range.unbounded(), 100L);
-
-        List<RecordId> staleIds = pending.stream()
-                .filter(msg -> msg.getElapsedTimeSinceLastDelivery().compareTo(Duration.ofMinutes(5)) > 0)
-                .filter(msg -> !msg.getConsumerName().equals(consumerId))
-                .map(msg -> RecordId.of(msg.getId().getValue()))
-                .toList();
-
-        if (staleIds.isEmpty()) return List.of();
-
-        return (List<MapRecord<String, String, String>>) (List<?>) redisTemplate.opsForStream()
-                .claim(STREAM_KEY, GROUP_NAME, consumerId, Duration.ofMinutes(5),
-                       staleIds.toArray(RecordId[]::new));
     }
 
     // 만료 epoch 이하인 orderId 목록 조회
@@ -172,6 +100,19 @@ public class PurchaseRedisRepository {
         List<String> keys = List.of(holdsKey(dropId), stockKey(dropId), purchasedKey(dropId));
         Long result = redisTemplate.execute(RECOVERY_SCRIPT, keys, orderId.toString(), userId.toString());
         return result != null ? result : 0L;
+    }
+
+    public void addOpenDrop(UUID dropId) {
+        redisTemplate.opsForSet().add(OPEN_DROPS_KEY, dropId.toString());
+    }
+
+    public void removeOpenDrop(UUID dropId) {
+        redisTemplate.opsForSet().remove(OPEN_DROPS_KEY, dropId.toString());
+    }
+
+    public Set<String> getOpenDropIds() {
+        Set<String> ids = redisTemplate.opsForSet().members(OPEN_DROPS_KEY);
+        return ids != null ? ids : Set.of();
     }
 
     public boolean isHoldsEmpty(UUID dropId) {

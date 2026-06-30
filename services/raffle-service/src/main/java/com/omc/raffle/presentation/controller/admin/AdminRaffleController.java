@@ -37,22 +37,23 @@ public class AdminRaffleController {
      * POST /api/v1/admin/raffles/{raffleId}/draw
      */
     @PostMapping("/{raffleId}/draw")
-    public ResponseEntity<ApiResponse<Void>> drawRaffle(
+    public ApiResponse<Void> drawRaffle(
             @PathVariable UUID raffleId) {
         
         raffleDrawService.drawRaffle(raffleId);
-        return ResponseEntity.ok(ApiResponse.ok());
+        return ApiResponse.ok();
     }
 
     /**
      * 래플 생성 API
      * POST /api/v1/admin/raffles
      */
+    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @PostMapping
-    public ResponseEntity<ApiResponse<RaffleResponse>> createRaffle(
+    public ApiResponse<RaffleResponse> createRaffle(
             @RequestBody @Valid AdminRaffleCreateRequest request) {
         RaffleResponse response = adminRaffleAppService.createRaffle(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(response));
+        return ApiResponse.created(response);
     }
 
     /**
@@ -60,11 +61,11 @@ public class AdminRaffleController {
      * PUT /api/v1/admin/raffles/{raffleId}
      */
     @PutMapping("/{raffleId}")
-    public ResponseEntity<ApiResponse<Void>> updateRaffle(
+    public ApiResponse<Void> updateRaffle(
             @PathVariable UUID raffleId,
             @RequestBody @Valid AdminRaffleUpdateRequest request) {
         adminRaffleAppService.updateRaffle(raffleId, request);
-        return ResponseEntity.ok(ApiResponse.ok());
+        return ApiResponse.ok();
     }
 
     /**
@@ -72,10 +73,10 @@ public class AdminRaffleController {
      * DELETE /api/v1/admin/raffles/{raffleId}
      */
     @DeleteMapping("/{raffleId}")
-    public ResponseEntity<ApiResponse<Void>> deleteRaffle(
+    public ApiResponse<Void> deleteRaffle(
             @PathVariable UUID raffleId) {
         adminRaffleAppService.deleteRaffle(raffleId);
-        return ResponseEntity.ok(ApiResponse.ok());
+        return ApiResponse.ok();
     }
 
     /**
@@ -83,11 +84,11 @@ public class AdminRaffleController {
      * POST /api/v1/admin/raffles/{raffleId}/status
      */
     @PostMapping("/{raffleId}/status")
-    public ResponseEntity<ApiResponse<Void>> updateRaffleStatus(
+    public ApiResponse<Void> updateRaffleStatus(
             @PathVariable UUID raffleId,
             @RequestBody @Valid AdminRaffleStatusUpdateRequest request) {
         adminRaffleAppService.updateRaffleStatus(raffleId, request);
-        return ResponseEntity.ok(ApiResponse.ok());
+        return ApiResponse.ok();
     }
 
     /**
@@ -95,10 +96,10 @@ public class AdminRaffleController {
      * GET /api/v1/admin/raffles/{raffleId}/entries
      */
     @GetMapping("/{raffleId}/entries")
-    public ResponseEntity<ApiResponse<PageResponse<RaffleEntryResponse>>> getRaffleEntries(
+    public ApiResponse<PageResponse<RaffleEntryResponse>> getRaffleEntries(
             @PathVariable UUID raffleId,
             @PageableDefault(sort = "enteredAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<RaffleEntryResponse> response = adminRaffleAppService.getRaffleEntries(raffleId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ApiResponse.success(response);
     }
 }

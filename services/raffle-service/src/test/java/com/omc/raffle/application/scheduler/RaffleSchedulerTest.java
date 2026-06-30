@@ -58,7 +58,7 @@ class RaffleSchedulerTest {
     void scheduleRaffleOpen() {
         // given
         Raffle raffle = Raffle.create(UUID.randomUUID(), "오픈 테스트", 5,
-                LocalDateTime.now().minusMinutes(5),
+                com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED, LocalDateTime.now().minusMinutes(5),
                 LocalDateTime.now().plusDays(1)
         );
         raffleRepository.save(raffle);
@@ -76,7 +76,7 @@ class RaffleSchedulerTest {
     void scheduleRaffleDraw() {
         // given
         Raffle raffle = Raffle.create(UUID.randomUUID(), "마감 테스트", 5,
-                LocalDateTime.now().minusDays(1),
+                com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED, LocalDateTime.now().minusDays(1),
                 LocalDateTime.now().minusMinutes(5)
         );
         raffle.updateStatus(RaffleStatus.OPEN);

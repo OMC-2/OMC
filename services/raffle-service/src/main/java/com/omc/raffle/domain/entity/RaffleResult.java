@@ -12,11 +12,16 @@ import java.util.UUID;
 import com.omc.common.util.UuidV7Generator;
 import org.springframework.util.Assert;
 
+import org.hibernate.annotations.SQLRestriction;
+import org.hibernate.annotations.SQLDelete;
+
 @Entity
 @Table(name = "p_raffle_results")
+@SQLRestriction("deleted_at IS NULL")
+@SQLDelete(sql = "UPDATE p_raffle_results SET deleted_at = CURRENT_TIMESTAMP WHERE result_id = ?")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class RaffleResult {
+public class RaffleResult extends com.omc.raffle.domain.entity.common.BaseTimeEntity {
 
     @Id
     @Column(name = "result_id", columnDefinition = "uuid")
@@ -38,8 +43,7 @@ public class RaffleResult {
     @Column(name = "decided_at", nullable = false)
     private LocalDateTime decidedAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    // createdAt 필드는 BaseTimeEntity에서 상속받으므로 제거
 
     @Builder(access = AccessLevel.PRIVATE)
     private RaffleResult(UUID entryId, UUID raffleId, UUID userId, RaffleResultStatus result) {
@@ -50,7 +54,6 @@ public class RaffleResult {
         this.userId = userId;
         this.result = result;
         this.decidedAt = LocalDateTime.now();
-        this.createdAt = LocalDateTime.now();
     }
 
     public static RaffleResult create(UUID entryId, UUID raffleId, UUID userId, RaffleResultStatus result) {

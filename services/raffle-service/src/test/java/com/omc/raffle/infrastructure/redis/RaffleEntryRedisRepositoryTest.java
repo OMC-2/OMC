@@ -36,7 +36,7 @@ class RaffleEntryRedisRepositoryTest {
         // given
         UUID raffleId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        String key = "raffle:entry:" + raffleId;
+        String key = "raffle:" + raffleId + ":entries";
 
         // when
         boolean isAdded = redisRepository.addEntry(raffleId, userId);
@@ -45,7 +45,7 @@ class RaffleEntryRedisRepositoryTest {
         assertTrue(isAdded);
         Long expire = redisTemplate.getExpire(key, TimeUnit.DAYS);
         assertNotNull(expire);
-        assertTrue(expire > 0 && expire <= 30, "TTL은 30일 이내로 설정되어야 합니다.");
+        assertTrue(expire > 0 && expire <= 7, "TTL은 7일 이내로 설정되어야 합니다.");
     }
 
     @Test

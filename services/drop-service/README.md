@@ -44,7 +44,8 @@ OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으�
    hold_ttl:{dropId}   = holdTtlSec   ← 진입 경로 DB 무접촉을 위한 캐싱
    product_id:{dropId} = productId    ← purchase.confirmed 이벤트 조립용 캐싱
 ③ 조건부 UPDATE (WHERE status='SCHEDULED')  ← 인스턴스가 여러 대여도 전이는 1회
-④ drop.opened 발행
+④ open_drops SADD {dropId}  ← HoldExpireScheduler가 DB 조회 없이 참조
+⑤ drop.opened 발행
 ```
 
 ### 2-2. 선착순 진입 (`POST /drops/{id}/purchase`)
@@ -80,10 +81,11 @@ CLOSE 직후 바로 삭제하지 않는다. hold TTL(10분) + 늦은 결제 이�
 ```
 조건 (AND):
 ① status == CLOSED
-② endAt + 1시간 < now    ← hold TTL 10분 + 여유 버퍼
-③ ZCARD holds:{dropId} == 0  ← 대기 중인 hold 없음
+② endAt >= now - 2일  ← 2일 이내 종료된 드롭만 조회 (무제한 증가 방지)
+③ endAt + 1시간 < now ← hold TTL 10분 + 여유 버퍼
+④ ZCARD holds:{dropId} == 0  ← 대기 중인 hold 없음
 
-→ 셋 다 만족하면 DEL:
+→ 모두 만족하면 DEL:
    stock, purchased, holds, queue, hold_ttl, product_id (6개)
    (status는 CLOSE 시 이미 삭제)
 ```
@@ -111,8 +113,11 @@ CLOSE 직후 바로 삭제하지 않는다. hold TTL(10분) + 늦은 결제 이�
 
 | Method | Path | 권한 | 설명 | 응답 |
 | --- | --- | --- | --- | --- |
+| GET | `/admin/drops` | ADMIN | 전체 목록 조회 — 소프트딜리트 포함, 최신순 20개 | 200 |
+| GET | `/admin/drops/{dropId}` | ADMIN | 단건 조회 — 소프트딜리트 포함 | 200 |
 | POST | `/admin/drops` | ADMIN | 드롭 생성 (선착순 DROP 전용) | 201 |
 | PUT | `/admin/drops/{dropId}` | ADMIN | 수정 — `SCHEDULED` 상태에서만 | 200 |
+| POST | `/admin/drops/{dropId}/close` | ADMIN | 강제 종료 — `OPEN` 상태에서만 | 204 |
 | DELETE | `/admin/drops/{dropId}` | ADMIN | 삭제 — `SCHEDULED` 상태에서만 (소프트딜리트) | 204 |
 | GET | `/drops?status=&page=` | GUEST | 목록 (Look-aside 캐싱) | 200 |
 | GET | `/drops/{dropId}` | GUEST | 상세 — 잔여 수량은 Redis 카운터로 응답 | 200 |
@@ -178,6 +183,7 @@ processed_events (
 | `drop:{dropId}:status` | String | OPEN 플래그 (fail-fast) | 전이 시 SETNX / 종료 시 즉시 DEL |
 | `hold_ttl:{dropId}` | String | 선점 유지 시간(초) 캐시 | 워밍 SETNX / 정산 후 DEL |
 | `product_id:{dropId}` | String | productId 캐시 (이벤트 조립용) | 워밍 SETNX / 정산 후 DEL |
+| `open_drops` | Set | OPEN 드롭 ID 목록 (HoldExpireScheduler DB 조회 대체) | OPEN 전이 시 SADD / holds 소진 후 SREM |
 
 ---
 
@@ -244,6 +250,7 @@ processed_events (
 | 6 | `payment.failed` 수신 시 **TTL 대기 없이 즉시 복구** | TTL(600초) 대기 시 그 시간 동안 재고 불필요하게 차단. 즉시 ZREM+INCR+SREM으로 재고 반환 → 다음 사용자 선점 가능 시간 최소화 |
 | 7 | order-service에 **no-op 처리 협의** | 인메모리 아웃박스 사용으로 극히 드문 경우 purchase.confirmed 유실 가능. order-service가 ① purchase.confirmed 멱등 처리 ② hold.expired 수신 시 주문 없으면 no-op 처리하도록 협의 완료 |
 | 8 | **DROP / RAFFLE 테이블 분리** | drop_type 컬럼으로 통합 시 RAFFLE 전용 컬럼(winner_count 등)이 DROP 행에 NULL로 쌓이고, 래플 담당자(raffle-service)와 스키마 소유권이 충돌. 드롭서비스는 DROP 전용 `drops` 테이블만 소유하고, 래플은 raffle-service의 `raffles` 테이블로 완전 분리 |
+| 9 | **product-service 호출에 Feign + Resilience4j + FallbackFactory** 적용 | 드롭 오픈 스케줄러가 재고 스냅샷 조회 시 product-service 장애가 드롭 오픈을 막지 않도록 설계. 서킷 오픈 시 FallbackFactory가 예외 throw → 스케줄러 catch → totalQty 폴백으로 드롭 오픈 유지 |
 
 ---
 
@@ -348,10 +355,8 @@ drop-service
     │   ├── repository       # DropRepository, DropProcessedEventRepository (JPA 인터페이스)
     │   └── exception        # 도메인 예외, DropErrorCode
     └── infrastructure
-        ├── redis            # PurchaseRedisRepository (Lua 스크립트 기반 원자적 처리)
-        ├── kafka
-        │   ├── event        # Kafka 이벤트 record (PaymentCompletedEvent 등)
-        │   └── exception    # EventProcessingException
+        ├── redis            # DropRedisStore (상태·hold·warmup), PurchaseStreamStore (Redis Stream)
+        ├── kafka            # KafkaConfig (DLT 에러 핸들러)
         ├── client           # ProductServiceClient (Feign), dto/
         └── config           # SecurityConfig, JpaConfig, RedisConfig
 ```
