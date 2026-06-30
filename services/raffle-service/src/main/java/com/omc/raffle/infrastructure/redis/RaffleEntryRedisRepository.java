@@ -43,7 +43,7 @@ public class RaffleEntryRedisRepository {
         } catch (Exception e) {
             log.error("[Redis Error] 중복 검증 중 오류 발생: {}", e.getMessage());
             // Redis 장애 시 안전하게 실패하도록 하거나, DB 조회로 Fallback 할 수 있습니다.
-            throw new com.omc.raffle.domain.exception.RedisOperationException(com.omc.raffle.domain.exception.RaffleErrorCode.RAFFLE_008, "Redis 서버 연동 오류");
+            throw new com.omc.raffle.domain.exception.RedisOperationException(com.omc.raffle.domain.enums.RaffleErrorCode.RAFFLE_008, "Redis 서버 연동 오류");
         }
     }
 

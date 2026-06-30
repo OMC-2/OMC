@@ -4,7 +4,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
+import com.omc.raffle.presentation.dto.request.PreAuthRequest;
 
 import java.math.BigDecimal;
 
@@ -13,7 +13,7 @@ import java.util.UUID;
 /**
  * 결제 서비스(payment-service)와 통신하여 카드 가승인 및 검증을 수행하는 Feign Client입니다.
  */
-@FeignClient(name = "payment-service", url = "${payment.service.url:http://payment-service:8080}", configuration = com.omc.raffle.infrastructure.config.FeignConfig.class)
+@FeignClient(name = "payment-service", url = "${payment.service.url:http://payment-service:8080}", configuration = com.omc.raffle.infrastructure.config.FeignConfig.class, fallback = PaymentFeignClientFallback.class)
 public interface PaymentFeignClient {
 
     /**

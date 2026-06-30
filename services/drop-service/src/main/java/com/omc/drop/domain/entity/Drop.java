@@ -123,4 +123,10 @@ public class Drop extends BaseEntity {
     public boolean isOpen() {
         return this.status == DropStatus.OPEN;
     }
+
+    public void validateOpen() {
+        if (this.status != DropStatus.OPEN) {
+            throw new InvalidDropStatusException();
+        }
+    }
 }

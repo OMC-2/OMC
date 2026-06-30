@@ -3,7 +3,7 @@ package com.omc.raffle.application.service;
 import com.omc.common.exception.BusinessException;
 import com.omc.raffle.domain.entity.RaffleResult;
 import com.omc.raffle.domain.enums.RaffleResultStatus;
-import com.omc.raffle.domain.exception.RaffleErrorCode;
+import com.omc.raffle.domain.enums.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleResultRepository;
 import com.omc.raffle.presentation.dto.response.RaffleResultResponse;
 import org.junit.jupiter.api.DisplayName;

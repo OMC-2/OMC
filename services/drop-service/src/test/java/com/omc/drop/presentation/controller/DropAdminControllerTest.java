@@ -27,12 +27,18 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+
+import java.util.List;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -62,6 +68,82 @@ class DropAdminControllerTest {
     private static final String USER_ID = UUID.randomUUID().toString();
 
     @Nested
+    @DisplayName("GET /api/v1/admin/drops")
+    class GetAll {
+
+        @Test
+        @DisplayName("ADMIN 역할로 전체 목록을 조회하면 200을 반환한다")
+        void returns200WhenAdmin() throws Exception {
+            UUID dropId = UUID.randomUUID();
+            UUID productId = UUID.randomUUID();
+            LocalDateTime startAt = LocalDateTime.now().plusDays(1);
+            LocalDateTime endAt = startAt.plusDays(2);
+            DropAdminResponse response = new DropAdminResponse(
+                    dropId, productId, DropStatus.SCHEDULED, startAt, endAt, 100, 600, LocalDateTime.now(), null);
+
+            when(dropAdminService.getAll(any())).thenReturn(new PageImpl<>(List.of(response), PageRequest.of(0, 20), 1));
+
+            mockMvc.perform(get("/api/v1/admin/drops")
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", ADMIN_ID)
+                            .header("X-User-Role", "ADMIN"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.content[0].dropId").value(dropId.toString()));
+        }
+
+        @Test
+        @DisplayName("ADMIN 역할이 아니면 403을 반환한다")
+        void returns403WhenNotAdmin() throws Exception {
+            mockMvc.perform(get("/api/v1/admin/drops")
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", USER_ID)
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/v1/admin/drops/{dropId}")
+    class GetOne {
+
+        @Test
+        @DisplayName("ADMIN 역할로 단건 조회하면 200을 반환한다")
+        void returns200WhenAdmin() throws Exception {
+            UUID dropId = UUID.randomUUID();
+            UUID productId = UUID.randomUUID();
+            LocalDateTime startAt = LocalDateTime.now().plusDays(1);
+            LocalDateTime endAt = startAt.plusDays(2);
+            LocalDateTime deletedAt = LocalDateTime.now();
+            DropAdminResponse response = new DropAdminResponse(
+                    dropId, productId, DropStatus.SCHEDULED, startAt, endAt, 100, 600, LocalDateTime.now(), deletedAt);
+
+            when(dropAdminService.getOne(dropId)).thenReturn(response);
+
+            mockMvc.perform(get("/api/v1/admin/drops/{dropId}", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", ADMIN_ID)
+                            .header("X-User-Role", "ADMIN"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.dropId").value(dropId.toString()))
+                    .andExpect(jsonPath("$.data.deletedAt").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 dropId이면 404와 에러코드 DROP-001을 반환한다")
+        void returns404WhenDropNotFound() throws Exception {
+            UUID dropId = UUID.randomUUID();
+            when(dropAdminService.getOne(dropId)).thenThrow(new DropNotFoundException());
+
+            mockMvc.perform(get("/api/v1/admin/drops/{dropId}", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", ADMIN_ID)
+                            .header("X-User-Role", "ADMIN"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.errorCode").value("DROP-001"));
+        }
+    }
+
+    @Nested
     @DisplayName("POST /api/v1/admin/drops")
     class Create {
 
@@ -74,7 +156,7 @@ class DropAdminControllerTest {
             LocalDateTime endAt = startAt.plusDays(2);
             DropCreateRequest request = new DropCreateRequest(productId, startAt, endAt, 100, 600);
             DropAdminResponse response = new DropAdminResponse(
-                    dropId, productId, DropStatus.SCHEDULED, startAt, endAt, 100, 600, LocalDateTime.now());
+                    dropId, productId, DropStatus.SCHEDULED, startAt, endAt, 100, 600, LocalDateTime.now(), null);
 
             when(dropAdminService.create(any())).thenReturn(response);
 
@@ -137,7 +219,7 @@ class DropAdminControllerTest {
             LocalDateTime endAt = startAt.plusDays(2);
             DropUpdateRequest request = new DropUpdateRequest(startAt, endAt, 200, 300);
             DropAdminResponse response = new DropAdminResponse(
-                    dropId, productId, DropStatus.SCHEDULED, startAt, endAt, 200, 300, LocalDateTime.now());
+                    dropId, productId, DropStatus.SCHEDULED, startAt, endAt, 200, 300, LocalDateTime.now(), null);
 
             when(dropAdminService.update(eq(dropId), any())).thenReturn(response);
 
@@ -185,6 +267,64 @@ class DropAdminControllerTest {
                             .header("X-User-Role", "ADMIN")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("DROP-003"));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/v1/admin/drops/{dropId}/close")
+    class Close {
+
+        @Test
+        @DisplayName("ADMIN 역할로 드롭을 강제 종료하면 204를 반환한다")
+        void returns204WhenAdmin() throws Exception {
+            UUID dropId = UUID.randomUUID();
+            doNothing().when(dropAdminService).close(dropId);
+
+            mockMvc.perform(post("/api/v1/admin/drops/{dropId}/close", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", ADMIN_ID)
+                            .header("X-User-Role", "ADMIN"))
+                    .andExpect(status().isNoContent());
+        }
+
+        @Test
+        @DisplayName("ADMIN 역할이 아니면 403을 반환한다")
+        void returns403WhenNotAdmin() throws Exception {
+            UUID dropId = UUID.randomUUID();
+
+            mockMvc.perform(post("/api/v1/admin/drops/{dropId}/close", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", USER_ID)
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 dropId이면 404와 에러코드 DROP-001을 반환한다")
+        void returns404WhenDropNotFound() throws Exception {
+            UUID dropId = UUID.randomUUID();
+            doThrow(new DropNotFoundException()).when(dropAdminService).close(dropId);
+
+            mockMvc.perform(post("/api/v1/admin/drops/{dropId}/close", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", ADMIN_ID)
+                            .header("X-User-Role", "ADMIN"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.errorCode").value("DROP-001"));
+        }
+
+        @Test
+        @DisplayName("OPEN 상태가 아닌 드롭이면 400과 에러코드 DROP-003을 반환한다")
+        void returns400WhenNotOpen() throws Exception {
+            UUID dropId = UUID.randomUUID();
+            doThrow(new InvalidDropStatusException()).when(dropAdminService).close(dropId);
+
+            mockMvc.perform(post("/api/v1/admin/drops/{dropId}/close", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", ADMIN_ID)
+                            .header("X-User-Role", "ADMIN"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errorCode").value("DROP-003"));
         }

@@ -1,5 +1,7 @@
 package com.omc.raffle.domain.exception;
 
+import com.omc.raffle.domain.enums.RaffleErrorCode;
+
 import lombok.Getter;
 
 @Getter
