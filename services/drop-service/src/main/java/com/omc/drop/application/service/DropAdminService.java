@@ -9,6 +9,8 @@ import com.omc.drop.presentation.dto.request.DropUpdateRequest;
 import com.omc.drop.presentation.dto.response.DropAdminResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,9 +19,18 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class DropAdminService {
 
     private final DropRepository dropRepository;
+
+    public Page<DropAdminResponse> getAll(Pageable pageable) {
+        return dropRepository.findAllIncludingDeleted(pageable).map(DropAdminResponse::from);
+    }
+
+    public DropAdminResponse getOne(UUID dropId) {
+        return DropAdminResponse.from(dropRepository.getByIdIncludingDeletedOrThrow(dropId));
+    }
 
     @Transactional
     public DropAdminResponse create(DropCreateRequest request) {

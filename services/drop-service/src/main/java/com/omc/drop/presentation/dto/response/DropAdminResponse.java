@@ -14,7 +14,8 @@ public record DropAdminResponse(
         LocalDateTime endAt,
         int totalQty,
         int holdTtlSec,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime deletedAt
 ) {
     public static DropAdminResponse from(Drop drop) {
         return new DropAdminResponse(
@@ -25,7 +26,8 @@ public record DropAdminResponse(
                 drop.getEndAt(),
                 drop.getTotalQty(),
                 drop.getHoldTtlSec(),
-                drop.getCreatedAt()
+                drop.getCreatedAt(),
+                drop.getDeletedAt()
         );
     }
 }

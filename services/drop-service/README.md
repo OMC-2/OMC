@@ -113,6 +113,8 @@ CLOSE 직후 바로 삭제하지 않는다. hold TTL(10분) + 늦은 결제 이�
 
 | Method | Path | 권한 | 설명 | 응답 |
 | --- | --- | --- | --- | --- |
+| GET | `/admin/drops` | ADMIN | 전체 목록 조회 — 소프트딜리트 포함, 최신순 20개 | 200 |
+| GET | `/admin/drops/{dropId}` | ADMIN | 단건 조회 — 소프트딜리트 포함 | 200 |
 | POST | `/admin/drops` | ADMIN | 드롭 생성 (선착순 DROP 전용) | 201 |
 | PUT | `/admin/drops/{dropId}` | ADMIN | 수정 — `SCHEDULED` 상태에서만 | 200 |
 | DELETE | `/admin/drops/{dropId}` | ADMIN | 삭제 — `SCHEDULED` 상태에서만 (소프트딜리트) | 204 |
@@ -352,9 +354,7 @@ drop-service
     │   └── exception        # 도메인 예외, DropErrorCode
     └── infrastructure
         ├── redis            # DropRedisStore (상태·hold·warmup), PurchaseStreamStore (Redis Stream)
-        ├── kafka
-        │   ├── event        # Kafka 이벤트 record (PaymentCompletedEvent 등)
-        │   └── exception    # EventProcessingException
+        ├── kafka            # KafkaConfig (DLT 에러 핸들러)
         ├── client           # ProductServiceClient (Feign), dto/
         └── config           # SecurityConfig, JpaConfig, RedisConfig
 ```
