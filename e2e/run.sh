@@ -41,11 +41,12 @@
 #   user/profile_update      → 프로필 수정 (정상 200 / 탈퇴 200 / 미인증 401)
 #   user/address             → 주소 CRUD + 기본 주소 설정
 #   user/security            → 인증·인가·경로 보안 검증
-#   coupon/coupon_create     → 쿠폰 생성 (정상 201 / 필드누락 400 / 권한오류 403·401)
-#   coupon/coupon_issue      → 쿠폰 발급 (정상 201 / 중복 409 / 품절 409 / 권한오류 403·401)
-#   coupon/coupon_my         → 내 쿠폰 목록·단건 조회 (정상 200 / 없는ID 404 / 미인증 401)
-#   coupon/coupon_security   → 쿠폰 인증·인가 보안 검증
-#   coupon/coupon_rate_limit → 쿠폰 발급 Rate Limiting 검증 (Gateway burstCapacity=10)
+#   coupon/coupon_create      → 쿠폰 생성 (정상 201 / 필드누락 400 / 권한오류 403·401)
+#   coupon/coupon_issue       → 쿠폰 발급 (정상 201 / 중복 409 / 품절 409 / 권한오류 403·401)
+#   coupon/coupon_my          → 내 쿠폰 목록·단건 조회 (정상 200 / 없는ID 404 / 미인증 401)
+#   coupon/coupon_security    → 쿠폰 인증·인가 보안 검증
+#   coupon/coupon_rate_limit  → 쿠폰 발급 Rate Limiting 검증 (Gateway burstCapacity=10)
+#   coupon/coupon_cold_start  → 쿠폰 발급 Cold Start 검증 (첫 호출·두 번째 호출 연속 201)
 #   notification/notification_list     → 알림 목록 조회 (빈 목록 / 쿠폰발급 후 조회 / 인증오류)
 #   notification/notification_read     → 읽음 처리 (본인/타인/미존재 / 인증오류)
 #   notification/notification_security → 알림 인증·인가 보안 검증
@@ -96,6 +97,7 @@
 #   bash e2e/run.sh coupon/coupon_my          # 내 쿠폰 조회 시나리오만
 #   bash e2e/run.sh coupon/coupon_security    # coupon 보안 시나리오만
 #   bash e2e/run.sh coupon/coupon_rate_limit  # 쿠폰 발급 Rate Limiting 검증
+#   bash e2e/run.sh coupon/coupon_cold_start  # 쿠폰 발급 Cold Start 검증
 #   bash e2e/run.sh notification/notification_list     # 알림 목록 조회 시나리오만
 #   bash e2e/run.sh notification/notification_read     # 읽음 처리 시나리오만
 #   bash e2e/run.sh notification/notification_security # 알림 보안 시나리오만
@@ -156,7 +158,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user coupon notification drop payment saga scenario user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_issue_happy coupon/coupon_my coupon/coupon_security coupon/coupon_rate_limit notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security scenario/01_drop_purchase scenario/01_drop_purchase/01_normal scenario/03_coupon_concurrency scenario/03_coupon_concurrency/01_concurrent_issue scenario/03_coupon_concurrency/02_duplicate_issue scenario/04_payment_saga scenario/04_payment_saga/01_payment_failure scenario/04_payment_saga/02_stock_failure scenario/04_payment_saga/03_hold_expire scenario/04_payment_saga/04_idempotency scenario/05_admin scenario/05_admin/01_drop_modify scenario/05_admin/02_raffle_modify scenario/05_admin/03_raffle_status scenario/05_admin/04_raffle_draw scenario/06_auth_errors scenario/06_auth_errors/00_signup_happy scenario/06_auth_errors/01_unauthenticated scenario/06_auth_errors/02_unauthorized scenario/06_auth_errors/03_token_refresh"
+VALID_TARGETS="user coupon notification drop payment saga scenario user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_issue_happy coupon/coupon_cold_start coupon/coupon_my coupon/coupon_security coupon/coupon_rate_limit notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security scenario/01_drop_purchase scenario/01_drop_purchase/01_normal scenario/03_coupon_concurrency scenario/03_coupon_concurrency/01_concurrent_issue scenario/03_coupon_concurrency/02_duplicate_issue scenario/04_payment_saga scenario/04_payment_saga/01_payment_failure scenario/04_payment_saga/02_stock_failure scenario/04_payment_saga/03_hold_expire scenario/04_payment_saga/04_idempotency scenario/05_admin scenario/05_admin/01_drop_modify scenario/05_admin/02_raffle_modify scenario/05_admin/03_raffle_status scenario/05_admin/04_raffle_draw scenario/06_auth_errors scenario/06_auth_errors/00_signup_happy scenario/06_auth_errors/01_unauthenticated scenario/06_auth_errors/02_unauthorized scenario/06_auth_errors/03_token_refresh"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do
@@ -193,6 +195,7 @@ if [ -n "$TARGET" ]; then
     echo "  coupon/coupon_my          → 내 쿠폰 조회"
     echo "  coupon/coupon_security    → 쿠폰 인증·인가 보안 검증"
     echo "  coupon/coupon_rate_limit  → 쿠폰 발급 Rate Limiting 검증"
+    echo "  coupon/coupon_cold_start  → 쿠폰 발급 Cold Start 검증"
     echo ""
     echo "  [개별 시나리오 — notification]"
     echo "  notification/notification_list     → 알림 목록 조회"
