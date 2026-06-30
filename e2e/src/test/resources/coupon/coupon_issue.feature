@@ -90,6 +90,9 @@ Feature: 쿠폰 발급
     Then status 200
     * def userAccessToken = response.data.accessToken
 
+    # Redis initStock SET 전파 대기 (연속 테스트 실행 시 DECR가 SET보다 먼저 도달하는 타이밍 이슈 방지)
+    * java.lang.Thread.sleep(200)
+
   # ----------------------------------------------------------------
   # 시나리오 1: USER가 쿠폰을 발급하면 201과 함께 userCouponId를 반환한다
   # ----------------------------------------------------------------
