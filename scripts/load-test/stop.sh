@@ -1,6 +1,9 @@
 #!/bin/bash
 # 대량 트래픽 테스트 종료 후 실행
 # Zipkin 샘플링을 기본값(100%)으로 복원
+#
+# 실행:
+#   bash scripts/load-test/stop.sh
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
