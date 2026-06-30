@@ -41,6 +41,15 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        config:
+          product-service:
+            connectTimeout: 1000
+            readTimeout: 2000
 
 management:
   endpoints:
@@ -51,9 +60,29 @@ management:
     prometheus:
     health:
       show-details: when_authorized
+  health:
+    circuitbreakers:
+      enabled: true          # circuit breaker 상태를 actuator health에 노출
   metrics:
     tags:
       application: order-service   # Grafana에서 서비스 구분용
     distribution:
       percentiles-histogram:
         http.server.requests: true # API 응답시간 히스토그램 자동 수집
+        # circuit breaker 상태를 actuator health/metrics에 노출
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      product-service:
+        register-health-indicator: true
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 2s
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+
