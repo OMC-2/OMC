@@ -73,8 +73,8 @@ management:
 
 resilience4j:
   circuitbreaker:
-    instances:
-      product-service:
+    configs:
+      default:
         register-health-indicator: true
         failure-rate-threshold: 50
         slow-call-rate-threshold: 50
@@ -85,4 +85,7 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+    instances:
+      product-service:
+        base-config: default
 
