@@ -61,6 +61,7 @@ services:
       KEYCLOAK_JWKS_URI: http://keycloak:8180/realms/omc/protocol/openid-connect/certs
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -101,6 +102,7 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
       ADMIN_SECRET: local-admin-secret
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -138,6 +140,7 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -177,6 +180,7 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -216,6 +220,7 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -256,6 +261,7 @@ services:
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
       PAYMENT_PG_MODE: test
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -295,6 +301,7 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -334,6 +341,7 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       config-server:
         condition: service_healthy
@@ -373,6 +381,7 @@ services:
       GATEWAY_SECRET: local-secret
       USER_SERVICE_URL: http://user-service:8081
       SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       config-server:
         condition: service_healthy

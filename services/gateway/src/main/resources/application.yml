@@ -20,3 +20,8 @@ management:
   zipkin:
     tracing:
       endpoint: http://zipkin:9411/api/v2/spans
+
+sentry:
+  dsn: ${SENTRY_DSN:}
+  traces-sample-rate: 1.0
+  environment: development

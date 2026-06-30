@@ -108,6 +108,7 @@ configure(subprojects.findAll { it.name in jpaServiceModules }) {
         implementation 'io.micrometer:micrometer-tracing-bridge-brave'
         implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
         implementation 'net.ttddyy.observation:datasource-micrometer-spring-boot:1.0.5'
+        implementation 'io.sentry:sentry-spring-boot-starter-jakarta:8.13.2'
         implementation project(':common')
         implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
         implementation 'org.springframework.cloud:spring-cloud-starter-config'
@@ -146,6 +147,7 @@ project(':services:gateway') {
         implementation 'io.micrometer:micrometer-registry-prometheus'
         implementation 'io.micrometer:micrometer-tracing-bridge-brave'
         implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+        implementation 'io.sentry:sentry-spring-boot-starter-jakarta:8.13.2'
         implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
         implementation(project(':common')) {
             exclude group: 'org.springframework.boot', module: 'spring-boot-starter-web'

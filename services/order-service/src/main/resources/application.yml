@@ -28,6 +28,11 @@ management:
     redis:
       enabled: false
 
+sentry:
+  dsn: ${SENTRY_DSN:}
+  traces-sample-rate: 1.0
+  environment: development
+
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
 
