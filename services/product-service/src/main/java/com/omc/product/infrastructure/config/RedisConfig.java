@@ -16,6 +16,11 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
 
+/**
+ * DefaultTyping.NON_FINAL → EVERYTHING 변경
+ * - record는 자동으로 final class라 NON_FINAL 옵션에서 @class가 누락되어
+ *   캐시 역직렬화가 실패 → EVERYTHING으로 모든 타입에 타입 정보 부여
+ */
 @Configuration
 @EnableCaching
 public class RedisConfig {
@@ -28,7 +33,7 @@ public class RedisConfig {
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         objectMapper.activateDefaultTyping(
                 objectMapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.NON_FINAL,
+                ObjectMapper.DefaultTyping.EVERYTHING,
                 JsonTypeInfo.As.PROPERTY
         );
 
