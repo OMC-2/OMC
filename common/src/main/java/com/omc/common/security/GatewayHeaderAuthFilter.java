@@ -3,6 +3,10 @@ package com.omc.common.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.response.ErrorResponse;
+import io.sentry.Sentry;
+import io.sentry.SentryEvent;
+import io.sentry.SentryLevel;
+import io.sentry.protocol.Message;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,6 +49,14 @@ public class GatewayHeaderAuthFilter extends OncePerRequestFilter {
         String requestSecret = request.getHeader("X-Gateway-Secret");
 
         if (!gatewaySecret.equals(requestSecret)) {
+            // 게이트웨이 우회 시도 → 보안 이슈로 Sentry에 기록
+            SentryEvent event = new SentryEvent();
+            event.setLevel(SentryLevel.WARNING);
+            Message msg = new Message();
+            msg.setMessage("게이트웨이 우회 감지: X-Gateway-Secret 불일치 [" + request.getMethod() + " " + request.getRequestURI() + "]");
+            event.setMessage(msg);
+            Sentry.captureEvent(event);
+
             ErrorResponse<Void> errorResponse = ErrorResponse.of(
                     HttpStatus.FORBIDDEN,
                     CommonErrorCode.ACCESS_DENIED.getCode(),
