@@ -15,6 +15,7 @@ import com.omc.product.presentation.dto.request.ProductCreateRequest;
 import com.omc.product.presentation.dto.request.ProductUpdateRequest;
 import com.omc.product.presentation.dto.response.ProductResponse;
 import com.omc.product.presentation.dto.response.ProductSummaryResponse;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
@@ -52,6 +53,7 @@ public class ProductService {
     private final InventoryRepository inventoryRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final DropInternalClient dropInternalClient;
+    private final EntityManager entityManager;
 
     @Transactional
     public ProductResponse createProduct(ProductCreateRequest request) {
@@ -59,10 +61,15 @@ public class ProductService {
                 request.name(), request.description(), request.price(),
                 request.brand(), request.category(), request.imageUrl()
         );
-        productRepository.save(product);
+        product = productRepository.save(product);
 
         Inventory inventory = Inventory.create(product.getProductId(), request.initialQuantity());
-        inventoryRepository.save(inventory);
+        inventory = inventoryRepository.save(inventory);
+
+        // available_quantity는 DB Generated Column이라 INSERT 시점에
+        // 자바 객체에 즉시 반영되지 않으므로 flush 후 refresh로 다시 읽어온다.
+        entityManager.flush();
+        entityManager.refresh(inventory);
 
         return ProductResponse.of(product, inventory);
     }
