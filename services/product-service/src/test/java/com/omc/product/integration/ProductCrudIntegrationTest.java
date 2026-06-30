@@ -62,7 +62,9 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.name").value("Switch 2"))
-                .andExpect(jsonPath("$.data.availableQuantity").value(0));
+                .andExpect(jsonPath("$.data.availableQuantity").value(10))
+                .andExpect(jsonPath("$.data.createdAt").exists())
+                .andExpect(jsonPath("$.data.createdAt").isNotEmpty());
 
         assertThat(productRepository.findAll()).hasSize(1);
         assertThat(inventoryRepository.findAll()).hasSize(1);
