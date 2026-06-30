@@ -7,7 +7,7 @@ import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
 import com.omc.raffle.presentation.dto.response.RaffleResponse;
 import com.omc.raffle.domain.entity.Raffle;
 import com.omc.raffle.domain.entity.RaffleEntry;
-import com.omc.raffle.domain.exception.RaffleErrorCode;
+import com.omc.raffle.domain.enums.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.presentation.dto.request.admin.AdminRaffleCreateRequest;
