@@ -1,11 +1,13 @@
 package com.omc.drop.application.service;
 
+import com.omc.drop.application.event.producer.DropEventProducer;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.InvalidDropDateRangeException;
 import com.omc.drop.domain.exception.InvalidDropStatusException;
 import com.omc.drop.domain.repository.DropRepository;
+import com.omc.drop.infrastructure.redis.DropRedisStore;
 import com.omc.drop.presentation.dto.request.DropCreateRequest;
 import com.omc.drop.presentation.dto.request.DropUpdateRequest;
 import com.omc.drop.presentation.dto.response.DropAdminResponse;
@@ -28,9 +30,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static com.omc.drop.domain.enums.DropStatus.CLOSED;
+import static com.omc.drop.domain.enums.DropStatus.OPEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,6 +46,12 @@ class DropAdminServiceTest {
 
     @Mock
     private DropRepository dropRepository;
+
+    @Mock
+    private DropRedisStore dropRedisStore;
+
+    @Mock
+    private DropEventProducer dropEventProducer;
 
     @InjectMocks
     private DropAdminService dropAdminService;
@@ -63,6 +74,53 @@ class DropAdminServiceTest {
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Nested
+    @DisplayName("드롭 강제 종료")
+    class Close {
+
+        @Test
+        @DisplayName("OPEN 상태의 드롭을 강제 종료한다")
+        void closesOpenDrop() {
+            UUID dropId = UUID.randomUUID();
+            Drop drop = createScheduledDrop(dropId);
+            drop.open();
+            when(dropRepository.getByIdOrThrow(dropId)).thenReturn(drop);
+            when(dropRepository.updateStatusConditionally(dropId, OPEN, CLOSED)).thenReturn(1);
+
+            dropAdminService.close(dropId);
+
+            verify(dropRedisStore).deleteStatus(dropId);
+            verify(dropEventProducer).publishDropClosed(any());
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 dropId이면 예외가 발생한다")
+        void throwsWhenDropNotFound() {
+            UUID dropId = UUID.randomUUID();
+            when(dropRepository.getByIdOrThrow(dropId)).thenThrow(new DropNotFoundException());
+
+            assertThatThrownBy(() -> dropAdminService.close(dropId))
+                    .isInstanceOf(DropNotFoundException.class);
+
+            verify(dropRedisStore, never()).deleteStatus(any());
+            verify(dropEventProducer, never()).publishDropClosed(any());
+        }
+
+        @Test
+        @DisplayName("OPEN 상태가 아닌 드롭은 강제 종료할 수 없다")
+        void throwsWhenDropIsNotOpen() {
+            UUID dropId = UUID.randomUUID();
+            Drop scheduledDrop = createScheduledDrop(dropId);
+            when(dropRepository.getByIdOrThrow(dropId)).thenReturn(scheduledDrop);
+
+            assertThatThrownBy(() -> dropAdminService.close(dropId))
+                    .isInstanceOf(InvalidDropStatusException.class);
+
+            verify(dropRedisStore, never()).deleteStatus(any());
+            verify(dropEventProducer, never()).publishDropClosed(any());
+        }
     }
 
     @Nested
