@@ -4,5 +4,6 @@ public enum OutboxEventStatus {
     INIT,
     PUBLISHING,
     PUBLISHED,
-    FAILED
+    FAILED,
+    DEAD
 }

@@ -36,7 +36,7 @@ class PaymentOutboxPublisherTest {
     void publishPendingEvents_success() {
         PaymentOutboxEvent initEvent = createOutboxEvent();
         PaymentOutboxEvent failedEvent = createOutboxEvent();
-        failedEvent.markFailed();
+        failedEvent.markFailed(3);
         ReflectionTestUtils.setField(paymentOutboxPublisher, "maxRetryCount", 3);
 
         when(paymentOutboxEventRepository.findTop100ByStatusInAndRetryCountLessThanOrderByCreatedAtAsc(

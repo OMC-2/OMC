@@ -57,10 +57,10 @@ public class PaymentOutboxPublishService {
 
             outboxEvent.markPublished();
         } catch (InterruptedException e) { // Future.get() 과정에서 스레드 인터럽트 예외
-            outboxEvent.markFailed();
+            outboxEvent.markFailed(maxRetryCount);
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            outboxEvent.markFailed();
+            outboxEvent.markFailed(maxRetryCount);
             log.warn("결제 아웃박스 이벤트 payload 역직렬화 또는 발행에 실패했습니다. eventId={}", eventId, e);
         }
     }
