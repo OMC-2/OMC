@@ -11,4 +11,7 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> 
 
     // Poller: INIT 상태 레코드를 생성 시간 순으로 조회
     List<OutboxEvent> findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus status);
+
+    // Admin: FAILED 상태 전체 조회
+    List<OutboxEvent> findByStatus(OutboxStatus status);
 }

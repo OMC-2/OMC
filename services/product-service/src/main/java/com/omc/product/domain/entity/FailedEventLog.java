@@ -26,6 +26,8 @@ import java.util.UUID;
  * payment.completed 수신 → Inventory 처리 실패 시
  * → 로그 저장 (UNRESOLVED)
  * → stock.failed 발행 → Payment Service 환불 트리거
+ *
+ * [ADR-001] 재처리 없이 모니터링/감사 목적으로만 사용 (2026-06-29, SA 문서 16.1 참고)
  */
 @Getter
 @Entity
