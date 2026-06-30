@@ -273,6 +273,64 @@ class DropAdminControllerTest {
     }
 
     @Nested
+    @DisplayName("POST /api/v1/admin/drops/{dropId}/close")
+    class Close {
+
+        @Test
+        @DisplayName("ADMIN 역할로 드롭을 강제 종료하면 204를 반환한다")
+        void returns204WhenAdmin() throws Exception {
+            UUID dropId = UUID.randomUUID();
+            doNothing().when(dropAdminService).close(dropId);
+
+            mockMvc.perform(post("/api/v1/admin/drops/{dropId}/close", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", ADMIN_ID)
+                            .header("X-User-Role", "ADMIN"))
+                    .andExpect(status().isNoContent());
+        }
+
+        @Test
+        @DisplayName("ADMIN 역할이 아니면 403을 반환한다")
+        void returns403WhenNotAdmin() throws Exception {
+            UUID dropId = UUID.randomUUID();
+
+            mockMvc.perform(post("/api/v1/admin/drops/{dropId}/close", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", USER_ID)
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 dropId이면 404와 에러코드 DROP-001을 반환한다")
+        void returns404WhenDropNotFound() throws Exception {
+            UUID dropId = UUID.randomUUID();
+            doThrow(new DropNotFoundException()).when(dropAdminService).close(dropId);
+
+            mockMvc.perform(post("/api/v1/admin/drops/{dropId}/close", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", ADMIN_ID)
+                            .header("X-User-Role", "ADMIN"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.errorCode").value("DROP-001"));
+        }
+
+        @Test
+        @DisplayName("OPEN 상태가 아닌 드롭이면 400과 에러코드 DROP-003을 반환한다")
+        void returns400WhenNotOpen() throws Exception {
+            UUID dropId = UUID.randomUUID();
+            doThrow(new InvalidDropStatusException()).when(dropAdminService).close(dropId);
+
+            mockMvc.perform(post("/api/v1/admin/drops/{dropId}/close", dropId)
+                            .header("X-Gateway-Secret", GATEWAY_SECRET)
+                            .header("X-User-Id", ADMIN_ID)
+                            .header("X-User-Role", "ADMIN"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("DROP-003"));
+        }
+    }
+
+    @Nested
     @DisplayName("DELETE /api/v1/admin/drops/{dropId}")
     class Delete {
 

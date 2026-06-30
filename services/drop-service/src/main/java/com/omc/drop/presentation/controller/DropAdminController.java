@@ -60,6 +60,13 @@ public class DropAdminController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @Operation(summary = "드롭 강제 종료", description = "OPEN 상태의 드롭을 즉시 강제 종료합니다.")
+    @PostMapping("/{dropId}/close")
+    public ResponseEntity<Void> close(@PathVariable UUID dropId) {
+        dropAdminService.close(dropId);
+        return ResponseEntity.noContent().build();
+    }
+
     @Operation(summary = "드롭 삭제", description = "SCHEDULED 상태의 드롭을 소프트딜리트합니다.")
     @DeleteMapping("/{dropId}")
     public ResponseEntity<Void> delete(@PathVariable UUID dropId) {

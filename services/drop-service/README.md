@@ -117,6 +117,7 @@ CLOSE 직후 바로 삭제하지 않는다. hold TTL(10분) + 늦은 결제 이�
 | GET | `/admin/drops/{dropId}` | ADMIN | 단건 조회 — 소프트딜리트 포함 | 200 |
 | POST | `/admin/drops` | ADMIN | 드롭 생성 (선착순 DROP 전용) | 201 |
 | PUT | `/admin/drops/{dropId}` | ADMIN | 수정 — `SCHEDULED` 상태에서만 | 200 |
+| POST | `/admin/drops/{dropId}/close` | ADMIN | 강제 종료 — `OPEN` 상태에서만 | 204 |
 | DELETE | `/admin/drops/{dropId}` | ADMIN | 삭제 — `SCHEDULED` 상태에서만 (소프트딜리트) | 204 |
 | GET | `/drops?status=&page=` | GUEST | 목록 (Look-aside 캐싱) | 200 |
 | GET | `/drops/{dropId}` | GUEST | 상세 — 잔여 수량은 Redis 카운터로 응답 | 200 |
