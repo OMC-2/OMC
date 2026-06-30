@@ -46,8 +46,8 @@ class PaymentOutboxPublisherTest {
 
         paymentOutboxPublisher.publishPendingEvents();
 
-        verify(paymentOutboxPublishService).publish(initEvent.getEventId());
-        verify(paymentOutboxPublishService).publish(failedEvent.getEventId());
+        verify(paymentOutboxPublishService).publish(initEvent.getEventId(), 3);
+        verify(paymentOutboxPublishService).publish(failedEvent.getEventId(), 3);
     }
 
     @Test
@@ -61,7 +61,10 @@ class PaymentOutboxPublisherTest {
 
         paymentOutboxPublisher.publishPendingEvents();
 
-        verify(paymentOutboxPublishService, never()).publish(org.mockito.ArgumentMatchers.any());
+        verify(paymentOutboxPublishService, never()).publish(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyInt()
+        );
     }
 
     private PaymentOutboxEvent createOutboxEvent() {

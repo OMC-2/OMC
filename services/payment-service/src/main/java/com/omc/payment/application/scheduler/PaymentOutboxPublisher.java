@@ -38,7 +38,7 @@ public class PaymentOutboxPublisher {
         }
         log.debug("결제 아웃박스 이벤트 {}건 발행을 시작합니다.", pendingEvents.size());
         for (PaymentOutboxEvent pendingEvent : pendingEvents) {
-            paymentOutboxPublishService.publish(pendingEvent.getEventId());
+            paymentOutboxPublishService.publish(pendingEvent.getEventId(), maxRetryCount);
         }
     }
 }
