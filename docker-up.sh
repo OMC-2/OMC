@@ -195,16 +195,23 @@ start_services() {
     eureka-server config-server gateway user-service drop-service product-service payment-service coupon-service notification-service order-service raffle-service
 
   echo ""
-  echo "▶ [6단계] 서비스 healthy 대기 (최대 500초)"
-  wait_healthy omc-gateway 500
-  wait_healthy omc-user-service 500
-  wait_healthy omc-drop-service 500
-  wait_healthy omc-product-service 500
-  wait_healthy omc-payment-service 500
-  wait_healthy omc-coupon-service 500
-  wait_healthy omc-notification-service 500
-  wait_healthy omc-order-service 500
-  wait_healthy omc-raffle-service 500
+  echo "▶ [6단계] 서비스 healthy 대기 (최대 500초, 병렬)"
+  _pids=()
+  wait_healthy omc-gateway 500 & _pids+=($!)
+  wait_healthy omc-user-service 500 & _pids+=($!)
+  wait_healthy omc-drop-service 500 & _pids+=($!)
+  wait_healthy omc-product-service 500 & _pids+=($!)
+  wait_healthy omc-payment-service 500 & _pids+=($!)
+  wait_healthy omc-coupon-service 500 & _pids+=($!)
+  wait_healthy omc-notification-service 500 & _pids+=($!)
+  wait_healthy omc-order-service 500 & _pids+=($!)
+  wait_healthy omc-raffle-service 500 & _pids+=($!)
+
+  _failed=0
+  for _pid in "${_pids[@]}"; do
+    wait "$_pid" || _failed=1
+  done
+  [ "$_failed" -eq 0 ] || exit 1
 
   echo ""
   echo "▶ [7단계] Gateway 라우팅 확인 (Eureka 전파 대기, 최대 90초)"
