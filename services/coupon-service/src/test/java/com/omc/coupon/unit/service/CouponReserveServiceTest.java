@@ -9,6 +9,7 @@ import com.omc.coupon.domain.enums.UserCouponStatus;
 import com.omc.coupon.domain.exception.CouponErrorCode;
 import com.omc.coupon.domain.exception.UserCouponNotFoundException;
 import com.omc.coupon.domain.repository.UserCouponRepository;
+import com.omc.coupon.infrastructure.metrics.CouponMetrics;
 import com.omc.coupon.presentation.dto.request.CouponReserveRequest;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.verify;
 class CouponReserveServiceTest {
 
     @Mock private UserCouponRepository userCouponRepository;
+    @Mock private CouponMetrics couponMetrics;
 
     @InjectMocks private CouponReserveService couponReserveService;
 
