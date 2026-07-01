@@ -99,6 +99,7 @@ services:
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
       KC_HTTP_PORT: 8180
       KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_APPEND: "-Xms256m -Xmx512m"
     ports:
       - "8180:8180"
     volumes:
@@ -108,6 +109,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 768m
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8180'"]
       interval: 15s
