@@ -16,6 +16,23 @@ public final class PaymentGatewayResult {
             String billingKeyID
     ) {}
 
+    public record Payment(
+            String providerPaymentId,
+            String orderId,
+            PaymentStatus status,
+            Long totalAmount,
+            Long cancelableAmount, // 취소 가능 금액
+            String providerTransactionId // 결제 한 건에 해당하는 마지막 트랜잭션 식별자
+    ) {}
+
+    public enum PaymentStatus {
+        PENDING,
+        PAID,
+        CANCELED,
+        FAILED,
+        UNKNOWN
+    }
+
     public record Cancel(
             String providerCancellationId
     ) {}

@@ -51,6 +51,19 @@ public class TestPaymentAdapter implements PaymentGatewayPort {
         return new PaymentGatewayResult.Confirm("test-billing-payment-" + command.orderId());
     }
 
+    // 테스트 PG 결제 조회 즉시 성공 처리
+    @Override
+    public PaymentGatewayResult.Payment getPayment(PaymentGatewayCommand.GetPayment command) {
+        return new PaymentGatewayResult.Payment(
+                command.providerPaymentID(),
+                "test-order-id",
+                PaymentGatewayResult.PaymentStatus.PAID,
+                10000L,
+                10000L,
+                "test-transaction-" + command.providerPaymentID()
+        );
+    }
+
     // 결제 취소 즉시 성공 처리
     @Override
     public PaymentGatewayResult.Cancel cancelPayment(PaymentGatewayCommand.Cancel command) {

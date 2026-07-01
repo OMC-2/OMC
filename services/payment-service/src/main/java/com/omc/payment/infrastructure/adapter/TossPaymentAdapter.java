@@ -66,6 +66,24 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
         return new PaymentGatewayResult.Confirm(response.paymentKey());
     }
 
+    // Toss 결제 조회
+    @Override
+    public PaymentGatewayResult.Payment getPayment(PaymentGatewayCommand.GetPayment command) {
+        PaymentResponse response = get(
+                "/v1/payments/{paymentKey}",
+                PaymentResponse.class,
+                command.providerPaymentID()
+        );
+        return new PaymentGatewayResult.Payment(
+                response.paymentKey(),
+                response.orderId(),
+                toPaymentStatus(response.status()),
+                response.totalAmount(),
+                response.balanceAmount(),
+                response.lastTransactionKey()
+        );
+    }
+
     // Toss 결제 취소
     @Override
     public PaymentGatewayResult.Cancel cancelPayment(PaymentGatewayCommand.Cancel command) {
@@ -77,11 +95,44 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
                 command.providerPaymentId()
         );
         // lastTransactionKey가 없을 경우 paymentKey 폴백
-        String providerCancellationKey = response.lastTransactionKey() == null
+        String providerCancellationId = response.lastTransactionKey() == null
                 ? command.providerPaymentId()
                 : response.lastTransactionKey();
 
-        return new PaymentGatewayResult.Cancel(providerCancellationKey);
+        return new PaymentGatewayResult.Cancel(providerCancellationId);
+    }
+
+    // Toss 응답의 문자열 상태값을 서비스 내 Enum 상태값으로 매칭
+    private PaymentGatewayResult.PaymentStatus toPaymentStatus(String tossStatus) {
+        if (tossStatus == null || tossStatus.isBlank()) {
+            return PaymentGatewayResult.PaymentStatus.UNKNOWN;
+        }
+        return switch (tossStatus) {
+            case "READY", "IN_PROGRESS", "WAITING_FOR_DEPOSIT" -> PaymentGatewayResult.PaymentStatus.PENDING;
+            case "DONE" -> PaymentGatewayResult.PaymentStatus.PAID;
+            case "CANCELED", "PARTIAL_CANCELED" -> PaymentGatewayResult.PaymentStatus.CANCELED;
+            case "ABORTED", "EXPIRED" -> PaymentGatewayResult.PaymentStatus.FAILED;
+            default -> PaymentGatewayResult.PaymentStatus.UNKNOWN;
+        };
+    }
+
+    // Toss Get 호출 공통 로직
+    private <T> T get(
+            String uri,
+            Class<T> responseType,
+            Object... uriVariables
+    ) {
+        try {
+            return tossPaymentRestClient.get()
+                    .uri(uri, uriVariables)
+                    .retrieve()
+                    .body(responseType);
+        } catch (RestClientResponseException e) {
+            throw toBusinessException(e);
+        } catch (RestClientException e) {
+            log.error("Toss API 통신에 실패했습니다.", e);
+            throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 통신에 실패했습니다.", e);
+        }
     }
 
     // Toss Post 호출 공통 로직
@@ -163,6 +214,10 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     // 승인, 취소 응답
     private record PaymentResponse(
             String paymentKey, // 결제 식별키
+            String orderId,
+            String status,
+            Long totalAmount,
+            Long balanceAmount,
             String lastTransactionKey // 마지막 거래의 키값
     ) {}
 
