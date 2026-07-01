@@ -3,10 +3,11 @@ package com.omc.order.application.scheduler;
 import com.omc.order.domain.entity.OrderOutboxEvent;
 import com.omc.order.domain.enums.OutboxStatus;
 import com.omc.order.domain.repository.OrderOutboxRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
@@ -39,7 +40,13 @@ class OrderOutboxPollerTest {
   @Mock
   KafkaTemplate<String, String> kafkaTemplate;
 
-  @InjectMocks OrderOutboxPoller poller;
+  OrderOutboxPoller poller;
+
+  @BeforeEach
+  void setUp() {
+    //MeterRegistry는 mock이 아닌 실제 SimpleMeterRegistry 주입 (Timer/Counter 정상 동작)
+    poller = new OrderOutboxPoller(outboxRepository, kafkaTemplate, new SimpleMeterRegistry());
+  }
 
   private OrderOutboxEvent initEvent() {
     return OrderOutboxEvent.create(
@@ -89,7 +96,7 @@ class OrderOutboxPollerTest {
   @DisplayName("MAX_RETRY(5) 초과: FAILED로 격리")
   void maxRetryIsolatesToFailed() throws Exception {
     OrderOutboxEvent event = initEvent();
-    setRetryCount(event, 4); // 이번 실패로 5가 되어 임계 도달
+    setRetryCount(event, 4); // 이번 실패로 5가 되어 임계 도달 (경계값 테스트: MAX_RETRY(5)에 도달시 FAILED로 격리)
     when(outboxRepository.findByStatusOrderByCreatedAtAsc(eq(OutboxStatus.INIT), any(Pageable.class)))
         .thenReturn(List.of(event));
     CompletableFuture<SendResult<String, String>> failed = new CompletableFuture<>();
