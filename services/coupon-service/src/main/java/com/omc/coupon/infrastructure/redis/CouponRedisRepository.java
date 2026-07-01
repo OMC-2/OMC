@@ -1,9 +1,11 @@
 package com.omc.coupon.infrastructure.redis;
 
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;
 
+@Observed(name = "redis.coupon")
 @Repository
 @RequiredArgsConstructor
 public class CouponRedisRepository {

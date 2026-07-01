@@ -9,3 +9,21 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
+  health:
+    redis:
+      enabled: false
+
+sentry:
+  dsn: ${SENTRY_DSN:}
+  traces-sample-rate: 0.0
+  ignored-exceptions-for-type: org.springframework.web.context.request.async.AsyncRequestNotUsableException
+  environment: development

@@ -27,11 +27,14 @@
 #   4단계: Kafka + Keycloak healthy 대기
 #     → gateway가 Keycloak JWKS URI를 참조하므로 먼저 헬시해야 함
 #
-#   5단계: 서비스 기동
-#     eureka-server → config-server → gateway + user/drop/product/order/payment/coupon/notification
+#   5단계: 서비스 배치 기동 (메모리 경합 최소화)
+#     Batch1: eureka-server + config-server + gateway + user-service
+#     Batch2: drop-service + product-service
+#     Batch3: order-service + payment-service
+#     Batch4: coupon-service + notification-service
+#     Batch5: raffle-service
 #
-#   6단계: 서비스 healthy 대기
-#     → actuator/health 기준으로 컨테이너가 정상 기동되었는지 확인
+#   6단계: 전체 서비스 healthy 완료
 #
 #   7단계: Gateway 라우팅 확인
 #     → Eureka 전파가 완료되어 Gateway가 실제로 라우팅 가능한지 확인
@@ -190,24 +193,54 @@ start_infra() {
 # ----------------------------------------------------------------
 start_services() {
   echo ""
-  echo "▶ [5단계] 서비스 기동 (eureka / config-server / gateway / user-service / drop-service / product-service / payment-service / coupon-service / notification-service / order-service / raffle-service)"
+  echo "▶ [5단계] 서비스 배치 기동 (메모리 경합 최소화)"
+
+  echo "  → [Batch 1] gateway + user-service (Kafka 없음, 가벼운 서비스 먼저)"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
-    eureka-server config-server gateway user-service drop-service product-service payment-service coupon-service notification-service order-service raffle-service
+    eureka-server config-server gateway user-service
+  _pids=()
+  wait_healthy omc-gateway 500 & _pids+=($!)
+  wait_healthy omc-user-service 500 & _pids+=($!)
+  _failed=0; for _pid in "${_pids[@]}"; do wait "$_pid" || _failed=1; done
+  [ "$_failed" -eq 0 ] || exit 1
+
+  echo "  → [Batch 2] drop-service + product-service"
+  docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
+    drop-service product-service
+  _pids=()
+  wait_healthy omc-drop-service 500 & _pids+=($!)
+  wait_healthy omc-product-service 500 & _pids+=($!)
+  _failed=0; for _pid in "${_pids[@]}"; do wait "$_pid" || _failed=1; done
+  [ "$_failed" -eq 0 ] || exit 1
+
+  echo "  → [Batch 3] order-service + payment-service"
+  docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
+    order-service payment-service
+  _pids=()
+  wait_healthy omc-order-service 500 & _pids+=($!)
+  wait_healthy omc-payment-service 500 & _pids+=($!)
+  _failed=0; for _pid in "${_pids[@]}"; do wait "$_pid" || _failed=1; done
+  [ "$_failed" -eq 0 ] || exit 1
+
+  echo "  → [Batch 4] coupon-service + notification-service"
+  docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
+    coupon-service notification-service
+  _pids=()
+  wait_healthy omc-coupon-service 500 & _pids+=($!)
+  wait_healthy omc-notification-service 500 & _pids+=($!)
+  _failed=0; for _pid in "${_pids[@]}"; do wait "$_pid" || _failed=1; done
+  [ "$_failed" -eq 0 ] || exit 1
+
+  echo "  → [Batch 5] raffle-service"
+  docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d raffle-service
+  wait_healthy omc-raffle-service 500
 
   echo ""
-  echo "▶ [6단계] 서비스 healthy 대기 (최대 180초)"
-  wait_healthy omc-gateway 180
-  wait_healthy omc-user-service 180
-  wait_healthy omc-drop-service 180
-  wait_healthy omc-product-service 180
-  wait_healthy omc-payment-service 180
-  wait_healthy omc-coupon-service 180
-  wait_healthy omc-notification-service 180
-  wait_healthy omc-order-service 180
-  wait_healthy omc-raffle-service 180
+  echo "▶ [6단계] 전체 서비스 healthy 완료"
 
   echo ""
   echo "▶ [7단계] Gateway 라우팅 확인 (Eureka 전파 대기, 최대 90초)"
+
   # user-service: permitAll 경로로 실제 라우팅 확인
   wait_gateway_routing "http://localhost:8080/api/v1/users/signup" "user-service" 90
   # drop-service: Eureka 등록 확인

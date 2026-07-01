@@ -74,6 +74,9 @@ subprojects {
 // common 모듈: 일반 jar만 빌드 (bootJar 제외)
 project(':common') {
     apply plugin: 'java-library'
+    dependencies {
+        compileOnly 'io.sentry:sentry:8.13.2'
+    }
 }
 
 // arch-rules 모듈: 아키텍처 공통 규칙 (일반 jar)
@@ -105,6 +108,10 @@ configure(subprojects.findAll { it.name in jpaServiceModules }) {
         runtimeOnly 'org.postgresql:postgresql'
         implementation 'org.springframework.boot:spring-boot-starter-actuator'
         implementation 'io.micrometer:micrometer-registry-prometheus'
+        implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+        implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+        implementation 'net.ttddyy.observation:datasource-micrometer-spring-boot:1.0.5'
+        implementation 'io.sentry:sentry-spring-boot-starter-jakarta:8.13.2'
         implementation project(':common')
         implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
         implementation 'org.springframework.cloud:spring-cloud-starter-config'
@@ -141,6 +148,10 @@ project(':services:gateway') {
         implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
         implementation 'org.springframework.cloud:spring-cloud-starter-config'
         implementation 'org.springframework.boot:spring-boot-starter-actuator'
+        implementation 'io.micrometer:micrometer-registry-prometheus'
+        implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+        implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+        implementation 'io.sentry:sentry-spring-boot-starter-jakarta:8.13.2'
         implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
         implementation(project(':common')) {
             exclude group: 'org.springframework.boot', module: 'spring-boot-starter-web'

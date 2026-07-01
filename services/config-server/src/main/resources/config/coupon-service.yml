@@ -24,6 +24,7 @@ spring:
         default_schema: coupon_db
         jdbc:
           time_zone: Asia/Seoul
+        generate_statistics: true
 
   data:
     redis:
@@ -47,6 +48,10 @@ spring:
     listener:
       ack-mode: manual_immediate
       missing-topics-fatal: false
+
+logging:
+  level:
+    org.hibernate.stat: DEBUG
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}

@@ -129,6 +129,16 @@ services:
     networks:
       - omc-network
 
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: omc-zipkin
+    ports:
+      - "19411:9411"
+    environment:
+      JAVA_OPTS: "-Xms128m -Xmx256m"
+    networks:
+      - omc-network
+
   prometheus:
     image: prom/prometheus:latest
     container_name: omc-prometheus
@@ -136,6 +146,42 @@ services:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "19090:9090"
+    networks:
+      - omc-network
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: omc-redis-exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    ports:
+      - "19121:9121"
+    depends_on:
+      - redis
+    networks:
+      - omc-network
+
+  loki:
+    image: grafana/loki:latest
+    container_name: omc-loki
+    ports:
+      - "13100:3100"
+    volumes:
+      - ./docker/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - omc-network
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: omc-promtail
+    volumes:
+      - ./docker/promtail/promtail-config.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
     networks:
       - omc-network
 
@@ -148,8 +194,11 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
+      - loki
     networks:
       - omc-network
 
@@ -157,6 +206,7 @@ volumes:
   postgres_data:
   redis_data:
   grafana_data:
+  loki_data:
 
 networks:
   omc-network:
