@@ -8,6 +8,7 @@ import com.omc.coupon.domain.enums.OutboxEventType;
 import com.omc.coupon.domain.enums.UserCouponStatus;
 import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
+import com.omc.coupon.infrastructure.metrics.CouponMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -29,6 +30,7 @@ public class CouponSagaService {
     private final ProcessedEventIdempotencyService processedEventIdempotencyService;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final CouponMetrics couponMetrics;
 
     /**
      * payment.completed → RESERVED → USED 확정
@@ -57,6 +59,7 @@ public class CouponSagaService {
         ));
         outboxEventRepository.save(OutboxEvent.create(outboxEventId, "UserCoupon", uc.getUserCouponId(), OutboxEventType.COUPON_USED, payload));
 
+        couponMetrics.incrementSagaConfirmed();
         log.info("[CouponSagaService] 쿠폰 사용 확정. orderId={}, userCouponId={}", orderId, uc.getUserCouponId());
     }
 
@@ -76,6 +79,7 @@ public class CouponSagaService {
         }
 
         userCoupon.get().restore();
+        couponMetrics.incrementSagaRestored();
         log.info("[CouponSagaService] 쿠폰 복구 완료. orderId={}, userCouponId={}",
                 orderId, userCoupon.get().getUserCouponId());
     }

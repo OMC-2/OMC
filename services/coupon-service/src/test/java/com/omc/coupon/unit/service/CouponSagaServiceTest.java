@@ -9,6 +9,7 @@ import com.omc.coupon.domain.entity.UserCoupon;
 import com.omc.coupon.domain.enums.UserCouponStatus;
 import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
+import com.omc.coupon.infrastructure.metrics.CouponMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,6 +33,7 @@ class CouponSagaServiceTest {
     @Mock private ProcessedEventIdempotencyService processedEventIdempotencyService;
     @Mock private OutboxEventRepository outboxEventRepository;
     @Mock private ObjectMapper objectMapper;
+    @Mock private CouponMetrics couponMetrics;
 
     @InjectMocks private CouponSagaService couponSagaService;
 

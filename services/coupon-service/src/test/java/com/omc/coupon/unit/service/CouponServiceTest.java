@@ -16,13 +16,17 @@ import com.omc.coupon.domain.exception.UserCouponNotFoundException;
 import com.omc.coupon.domain.repository.CouponRepository;
 import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
+import com.omc.coupon.infrastructure.metrics.CouponMetrics;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
 import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.dao.DataIntegrityViolationException;
+
+import java.util.function.Supplier;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -48,8 +52,15 @@ class CouponServiceTest {
     @Mock private OutboxEventRepository outboxEventRepository;
     @Mock private CouponRedisRepository couponRedisRepository;
     @Mock private ObjectMapper objectMapper;
+    @Mock private CouponMetrics couponMetrics;
 
     @InjectMocks private CouponService couponService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().doAnswer(inv -> ((Supplier<Long>) inv.getArgument(1)).get())
+                 .when(couponMetrics).recordRedisDuration(any(), any());
+    }
 
     private final UUID couponId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();

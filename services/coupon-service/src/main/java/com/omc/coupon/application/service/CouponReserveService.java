@@ -3,6 +3,7 @@ package com.omc.coupon.application.service;
 import com.omc.coupon.domain.entity.UserCoupon;
 import com.omc.coupon.domain.exception.UserCouponNotFoundException;
 import com.omc.coupon.domain.repository.UserCouponRepository;
+import com.omc.coupon.infrastructure.metrics.CouponMetrics;
 import com.omc.coupon.presentation.dto.request.CouponReserveRequest;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CouponReserveService {
 
     private final UserCouponRepository userCouponRepository;
+    private final CouponMetrics couponMetrics;
 
     /**
      * 쿠폰 선점 (AVAILABLE → RESERVED).
@@ -24,13 +26,20 @@ public class CouponReserveService {
      */
     @Transactional
     public UserCouponResponse reserve(CouponReserveRequest request) {
-        UserCoupon userCoupon = userCouponRepository
-                .findById(request.userCouponId())
-                .filter(uc -> uc.getUserId().equals(request.userId()))
-                .orElseThrow(UserCouponNotFoundException::new);
+        UserCoupon userCoupon;
+        try {
+            userCoupon = userCouponRepository
+                    .findById(request.userCouponId())
+                    .filter(uc -> uc.getUserId().equals(request.userId()))
+                    .orElseThrow(UserCouponNotFoundException::new);
+        } catch (UserCouponNotFoundException e) {
+            couponMetrics.incrementReserveFailed();
+            throw e;
+        }
 
         userCoupon.reserve(request.orderId()); // 상태 검증 + AVAILABLE → RESERVED
 
+        couponMetrics.incrementReserveSuccess();
         log.info("[CouponReserveService] 쿠폰 선점 완료. userCouponId={}, orderId={}",
                 request.userCouponId(), request.orderId());
 
