@@ -23,10 +23,6 @@ public class CouponStockRecoveryService {
     private final UserCouponRepository userCouponRepository;
     private final CouponRedisRepository couponRedisRepository;
 
-    /**
-     * 서비스 시작 시 전체 쿠폰 Redis 재고를 DB 기준으로 재세팅.
-     * DB: 커넥션 준비 완료 후 발생하는 ApplicationReadyEvent 사용.
-     */
     @EventListener(ApplicationReadyEvent.class)
     @Transactional(readOnly = true)
     public void syncAllCouponStock() {
@@ -39,10 +35,6 @@ public class CouponStockRecoveryService {
         }
     }
 
-    /**
-     * Redis key가 없을 때 단일 쿠폰 재고 복구.
-     * CouponService.issueCoupon에서 DECR 전 호출.
-     */
     @Transactional(readOnly = true)
     public void syncCouponStock(UUID couponId) {
         Coupon coupon = couponRepository.findById(couponId)

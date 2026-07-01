@@ -42,6 +42,7 @@ public class CouponService {
     private final CouponRedisRepository couponRedisRepository;
     private final ObjectMapper objectMapper;
     private final CouponMetrics couponMetrics;
+    private final CouponStockRecoveryService couponStockRecoveryService;
 
     @Transactional
     public CouponResponse createCoupon(CouponCreateRequest request) {
@@ -82,6 +83,11 @@ public class CouponService {
             throw new CouponAlreadyIssuedException();
         }
 
+        // Redis key 없으면 DB COUNT로 즉시 복구 (케이스 1: Redis만 죽은 경우)
+        if (!couponRedisRepository.hasStock(couponId.toString())) {
+            couponStockRecoveryService.syncCouponStock(couponId);
+        }
+
         // Redis 원자적 재고 차감
         long remaining = couponMetrics.recordRedisDuration(
                 couponId.toString(),
@@ -119,12 +125,10 @@ public class CouponService {
                 "couponId", couponId.toString(),
                 "userId", userId.toString()
         ));
-        // UserCoupon 저장 + Outbox 저장 같은 트랜잭션으로 묶임
         outboxEventRepository.save(OutboxEvent.create(
                 outboxEventId, "UserCoupon", userCoupon.getUserCouponId(), OutboxEventType.COUPON_ISSUED, payload
         ));
 
-        // Redis 발급 목록에 추가 (중복 방지용 Set)
         couponRedisRepository.markIssued(couponId.toString(), userId.toString());
 
         couponMetrics.incrementIssueSuccess(couponId.toString());
