@@ -42,6 +42,9 @@ public class PaymentService {
         if (userId == null) {
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
         }
+        if (request == null) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
+        }
         Payment payment = paymentCoreService.confirmPayment(
                 request.orderID(),
                 request.dropId(),
@@ -58,6 +61,9 @@ public class PaymentService {
 
     public RegisterBillingKeyResponse registerBillingKey(RegisterBillingKeyRequest request) {
         try {
+            if (request == null) {
+                throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
+            }
             /*
             * Mocking을 위한 랜덤 키 Fallback
             * */
@@ -82,6 +88,9 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse cancelPayment(UUID paymentId, CancelPaymentRequest request) {
+        if (request == null) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
+        }
         Payment payment = paymentCoreService.cancelPaymentByPaymentId(
                 paymentId,
                 getCurrentUserId(),

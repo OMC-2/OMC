@@ -202,8 +202,8 @@ class PaymentServiceIntegrationTest {
                                     10000L,
                                     "E2E_CARD_LIMIT_EXCEEDED"
                             )))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.errorCode").value("PAYMENT-002"));
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.paymentStatus").value("FAILED"));
 
             Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
             assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
@@ -233,8 +233,8 @@ class PaymentServiceIntegrationTest {
                             .header("X-User-Id", USER_ID.toString())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestBody))
-                    .andExpect(status().isServiceUnavailable())
-                    .andExpect(jsonPath("$.errorCode").value("PAYMENT-005"));
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.paymentStatus").value("UNKNOWN"));
 
             Payment unknownPayment = paymentRepository.findByOrderId(orderId).orElseThrow();
             assertThat(unknownPayment.getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);

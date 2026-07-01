@@ -123,10 +123,14 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
             Object... uriVariables
     ) {
         try {
-            return tossPaymentRestClient.get()
+            T response = tossPaymentRestClient.get()
                     .uri(uri, uriVariables)
                     .retrieve()
                     .body(responseType);
+            if (response == null) {
+                throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 응답이 비어 있습니다.");
+            }
+            return response;
         } catch (RestClientResponseException e) {
             throw toBusinessException(e);
         } catch (RestClientException e) {
@@ -150,10 +154,14 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
                 requestBodySpec.header("Idempotency-Key", idempotencyKey);
             }
 
-            return requestBodySpec
+            T response = requestBodySpec
                     .body(body)
                     .retrieve()
                     .body(responseType);
+            if (response == null) {
+                throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 응답이 비어 있습니다.");
+            }
+            return response;
         } catch (RestClientResponseException e) {
             throw toBusinessException(e);
         } catch (RestClientException e) {

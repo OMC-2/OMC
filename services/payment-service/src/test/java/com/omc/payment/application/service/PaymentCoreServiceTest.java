@@ -19,7 +19,7 @@ import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.repository.PaymentRepository;
 import com.omc.payment.infrastructure.client.CouponReserveRequest;
 import com.omc.payment.infrastructure.client.CouponServiceClient;
-import com.omc.payment.infrastructure.client.CouponUserCouponResponse;
+import com.omc.payment.infrastructure.client.UserCouponResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -197,7 +197,7 @@ class PaymentCoreServiceTest {
             given(paymentGatewayPort.confirmPayment(any(PaymentGatewayCommand.Confirm.class)))
                     .willThrow(new PaymentGatewayRequestException("TOSS-400", "카드 승인이 거절되었습니다"));
 
-            assertThatThrownBy(() -> paymentCoreService.confirmPayment(
+            Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
                     DROP_ID,
                     PRODUCT_ID,
@@ -207,16 +207,10 @@ class PaymentCoreServiceTest {
                     0L,
                     10000L,
                     "결제 승인 아이디"
-            ))
-                    .isInstanceOf(NonRetryablePaymentException.class)
-                    .satisfies(exception -> {
-                        BusinessException businessException = (BusinessException) exception;
-                        assertThat(businessException.getErrorCode()).isEqualTo(PaymentErrorCode.PAYMENT_FAILED);
-                        assertThat(businessException).hasMessage("카드 승인이 거절되었습니다");
-                    });
-
+            );
             ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
             verify(paymentOutboxService).savePaymentFailed(paymentCaptor.capture());
+            assertThat(payment).isSameAs(paymentCaptor.getValue());
             assertThat(paymentCaptor.getValue().getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
             assertThat(paymentCaptor.getValue().getFailureCode()).isEqualTo("TOSS-400");
             assertThat(paymentCaptor.getValue().getFailureMessage()).isEqualTo("카드 승인이 거절되었습니다");
@@ -230,7 +224,7 @@ class PaymentCoreServiceTest {
             given(paymentGatewayPort.confirmPayment(any(PaymentGatewayCommand.Confirm.class)))
                     .willThrow(new PaymentGatewayConnectionException("게이트웨이 타임아웃", new RuntimeException("입출력 오류")));
 
-            assertThatThrownBy(() -> paymentCoreService.confirmPayment(
+            Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
                     DROP_ID,
                     PRODUCT_ID,
@@ -240,14 +234,13 @@ class PaymentCoreServiceTest {
                     0L,
                     10000L,
                     "결제 승인 아이디"
-            ))
-                    .isInstanceOf(BusinessException.class)
-                    .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
-                            .isEqualTo(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED));
+            );
 
             ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
             verify(paymentRepository).save(paymentCaptor.capture());
+            assertThat(payment).isSameAs(paymentCaptor.getValue());
             assertThat(paymentCaptor.getValue().getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
+            assertThat(paymentCaptor.getValue().getProviderPaymentId()).isNotBlank();
             verify(paymentOutboxService, never()).savePaymentFailed(any(Payment.class));
             verify(paymentOutboxService, never()).savePaymentCompleted(any(Payment.class));
         }
@@ -399,8 +392,8 @@ class PaymentCoreServiceTest {
         return payment;
     }
 
-    private CouponUserCouponResponse rateCoupon(String status, String discountValue, String maxDiscountAmount) {
-        return new CouponUserCouponResponse(
+    private UserCouponResponse rateCoupon(String status, String discountValue, String maxDiscountAmount) {
+        return new UserCouponResponse(
                 COUPON_ID,
                 UUID.randomUUID(),
                 "정률 쿠폰",

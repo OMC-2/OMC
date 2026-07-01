@@ -19,7 +19,7 @@ import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.repository.PaymentRepository;
 import com.omc.payment.infrastructure.client.CouponReserveRequest;
 import com.omc.payment.infrastructure.client.CouponServiceClient;
-import com.omc.payment.infrastructure.client.CouponUserCouponResponse;
+import com.omc.payment.infrastructure.client.UserCouponResponse;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -84,19 +84,20 @@ public class PaymentCoreService {
             validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
             validateDropPaymentReferences(dropId, productId);
             reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
+
+            payment.startConfirming();
+
+            // Mocking을 위한 랜덤 결제 식별자 Fallback
+            String resolvedProviderPaymentId = providerPaymentId == null || providerPaymentId.isBlank()
+                    ? orderId.toString()
+                    : providerPaymentId;
+            payment.assignProviderPaymentId(resolvedProviderPaymentId);
+
+            return confirmWithGateway(payment, orderId, finalAmount, resolvedProviderPaymentId);
         } catch (NonRetryablePaymentException e) {
             failValidation(payment, e);
             return payment;
         }
-
-        payment.startConfirming();
-
-        // Mocking을 위한 랜덤 결제 식별자 Fallback
-        String resolvedProviderPaymentId = providerPaymentId == null || providerPaymentId.isBlank()
-                ? orderId.toString()
-                : providerPaymentId;
-
-        return confirmWithGateway(payment, orderId, finalAmount, resolvedProviderPaymentId);
     }
 
     @Transactional(
@@ -147,14 +148,14 @@ public class PaymentCoreService {
             validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
             validateRafflePaymentReferences(raffleId, entryId, productId, billingKeyId);
             reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
+
+            payment.startConfirming();
+
+            return confirmBillingWithGateway(payment, billingKeyId, resolvedCustomerKey, orderId, finalAmount);
         } catch (NonRetryablePaymentException e) {
             failValidation(payment, e);
             return payment;
         }
-
-        payment.startConfirming();
-
-        return confirmBillingWithGateway(payment, billingKeyId, resolvedCustomerKey, orderId, finalAmount);
     }
 
     /*
@@ -204,7 +205,7 @@ public class PaymentCoreService {
     }
 
     private Payment cancelByUser(Payment payment, UUID requesterId, String reason) {
-        if (!requesterId.equals(payment.getUserId())) {
+        if (requesterId == null || !requesterId.equals(payment.getUserId())) {
             throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
         }
 
@@ -234,6 +235,9 @@ public class PaymentCoreService {
                             paymentIdempotencyService.confirmKey(orderId)
                     )
             );
+            if (result.providerPaymentId() == null || result.providerPaymentId().isBlank()) {
+                throw new PaymentGatewayConnectionException("PG 결제 승인 응답에 결제 ID가 없습니다.");
+            }
             payment.approve(result.providerPaymentId());
             paymentOutboxService.savePaymentCompleted(payment);
             return payment;
@@ -241,11 +245,11 @@ public class PaymentCoreService {
             /* FAILED 처리 */
             payment.fail(e.getProviderCode(), e.getMessage());
             paymentOutboxService.savePaymentFailed(payment);
-            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
+            return payment;
         } catch (PaymentGatewayConnectionException e) {
             /* UNKNOWN 처리, 추후 재처리 필요 */
             payment.markUnknown();
-            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
+            return payment;
         }
     }
 
@@ -272,16 +276,19 @@ public class PaymentCoreService {
                             paymentIdempotencyService.confirmKey(orderId)
                     )
             );
+            if (result.providerPaymentId() == null || result.providerPaymentId().isBlank()) {
+                throw new PaymentGatewayConnectionException("PG 결제 승인 응답에 결제 ID가 없습니다.");
+            }
             payment.approve(result.providerPaymentId());
             paymentOutboxService.savePaymentCompleted(payment);
             return payment;
         } catch (PaymentGatewayRequestException e) {
             payment.fail(e.getProviderCode(), e.getMessage());
             paymentOutboxService.savePaymentFailed(payment);
-            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, e.getMessage());
+            return payment;
         } catch (PaymentGatewayConnectionException e) {
             payment.markUnknown();
-            throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
+            return payment;
         }
     }
 
@@ -376,7 +383,7 @@ public class PaymentCoreService {
             return;
         }
 
-        CouponUserCouponResponse coupon = reserveCoupon(couponId, orderId, userId);
+        UserCouponResponse coupon = reserveCoupon(couponId, orderId, userId);
         if (!"RESERVED".equals(coupon.status())) {
             throw new NonRetryablePaymentException(
                     PaymentErrorCode.PAYMENT_INVALID_COUPON,
@@ -399,10 +406,10 @@ public class PaymentCoreService {
     }
 
     // coupon-service에서 쿠폰을 선점하고 응답을 결제 검증에 사용
-    private CouponUserCouponResponse reserveCoupon(UUID couponId, UUID orderId, UUID userId) {
+    private UserCouponResponse reserveCoupon(UUID couponId, UUID orderId, UUID userId) {
         try {
             CouponReserveRequest request = new CouponReserveRequest(couponId, orderId, userId);
-            ApiResponse<CouponUserCouponResponse> response = couponServiceClient.reserveCoupon(request);
+            ApiResponse<UserCouponResponse> response = couponServiceClient.reserveCoupon(request);
             if (response == null || response.getData() == null) {
                 throw new BusinessException(CommonErrorCode.REMOTE_RESPONSE_PARSE_ERROR, "쿠폰 서비스 응답이 비어 있습니다.");
             }
@@ -413,8 +420,14 @@ public class PaymentCoreService {
     }
 
     // 쿠폰 타입에 맞춰 실제 할인 금액을 다시 계산
-    private long calculateCouponDiscountAmount(CouponUserCouponResponse coupon, Long originalAmount) {
+    private long calculateCouponDiscountAmount(UserCouponResponse coupon, Long originalAmount) {
         BigDecimal originalAmountValue = BigDecimal.valueOf(originalAmount);
+        if (coupon.discountValue() == null) {
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_INVALID_COUPON,
+                    "쿠폰 할인 값은 필수입니다."
+            );
+        }
 
         if ("AMOUNT".equals(coupon.discountType())) {
             return coupon.discountValue().setScale(0, RoundingMode.DOWN).longValue();

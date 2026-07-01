@@ -1,7 +1,6 @@
 package com.omc.payment.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
-import com.omc.common.exception.BusinessException;
 import com.omc.common.util.UuidV7Generator;
 import com.omc.payment.domain.enums.CancellationCode;
 import com.omc.payment.domain.enums.PaymentMethod;
@@ -24,7 +23,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -182,10 +180,26 @@ public class Payment extends BaseEntity {
         transitTo(PaymentStatus.CONFIRMING);
     }
 
+    public void assignProviderPaymentId(String providerPaymentId) {
+        if (providerPaymentId == null || providerPaymentId.isBlank()) {
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_FAILED,
+                    "PG 결제 ID는 필수입니다."
+            );
+        }
+        this.providerPaymentId = providerPaymentId;
+    }
+
     // PG 승인 성공 이벤트 반영
     public void approve(String providerPaymentId) {
+        if (providerPaymentId == null || providerPaymentId.isBlank()) {
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED,
+                    "PG 결제 ID는 필수입니다."
+            );
+        }
         transitTo(PaymentStatus.PAID);
-        this.providerPaymentId = Objects.requireNonNull(providerPaymentId, "PG 결제 ID는 null일 수 없습니다.");
+        this.providerPaymentId = providerPaymentId;
         this.approvedAt = LocalDateTime.now();
         this.failedAt = null;
         this.failureCode = null;
@@ -219,8 +233,11 @@ public class Payment extends BaseEntity {
     }
 
     private void transitTo(PaymentStatus targetStatus) {
+        if (paymentStatus == targetStatus) {
+            return;
+        }
         if (!paymentStatus.canChangeTo(targetStatus)) {
-            throw new BusinessException(
+            throw new NonRetryablePaymentException(
                     PaymentErrorCode.PAYMENT_INVALID_STATUS,
                     "결제 상태를 " + paymentStatus + "에서 " + targetStatus + "로 변경할 수 없습니다."
             );

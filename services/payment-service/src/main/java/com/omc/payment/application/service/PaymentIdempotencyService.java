@@ -10,6 +10,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -109,7 +110,7 @@ public class PaymentIdempotencyService {
         * 잡았던 토큰과 현재 값이 같을 때만 삭제 가능
         * */
         String currentValue = stringRedisTemplate.opsForValue().get(idempotencyKey);
-        if (processingToken.equals(currentValue)) {
+        if (Objects.equals(processingToken, currentValue)) {
             stringRedisTemplate.delete(idempotencyKey);
         }
     }
