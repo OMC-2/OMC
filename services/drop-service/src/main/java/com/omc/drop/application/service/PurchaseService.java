@@ -40,8 +40,9 @@ public class PurchaseService {
         String eventId = UuidV7Generator.generate().toString();
 
         // ④ Lua 원자 실행: 중복 체크 → 재고 체크 → 선점 → Stream XADD → 순번 발급
-        Long result = dropMetrics.recordLuaDuration(
-                () -> dropRedisStore.executePurchase(dropId, userId, orderId, holdTtlSec, productId, eventId));
+        long start = System.nanoTime();
+        Long result = dropRedisStore.executePurchase(dropId, userId, orderId, holdTtlSec, productId, eventId);
+        dropMetrics.recordLuaDuration(System.nanoTime() - start);
 
         if (result == null || result == -2L) {
             dropMetrics.incrementDuplicatePurchase(dropId);

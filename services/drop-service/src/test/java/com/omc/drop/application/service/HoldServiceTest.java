@@ -2,6 +2,7 @@ package com.omc.drop.application.service;
 
 import com.omc.drop.application.event.producer.DropEventProducer;
 import com.omc.drop.application.event.producer.RefundRequestedEvent;
+import com.omc.drop.infrastructure.metrics.DropMetrics;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -26,6 +27,9 @@ class HoldServiceTest {
 
     @Mock
     private DropEventProducer dropEventProducer;
+
+    @Mock
+    private DropMetrics dropMetrics;
 
     @InjectMocks
     private HoldService holdService;

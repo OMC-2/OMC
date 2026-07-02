@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
-import java.util.function.Supplier;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
@@ -64,10 +64,10 @@ public class DropMetrics {
                 .increment();
     }
 
-    public <T> T recordLuaDuration(Supplier<T> action) {
-        return Timer.builder("drop.purchase.lua.duration")
+    public void recordLuaDuration(long elapsedNanos) {
+        Timer.builder("drop.purchase.lua.duration")
                 .register(meterRegistry)
-                .record(action);
+                .record(elapsedNanos, TimeUnit.NANOSECONDS);
     }
 
     public void incrementKafkaPublishFailed() {

@@ -5,6 +5,7 @@ import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.application.event.producer.HoldExpiredEvent;
+import com.omc.drop.infrastructure.metrics.DropMetrics;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -39,6 +40,9 @@ class HoldExpireSchedulerTest {
 
     @Mock
     private DropEventProducer dropEventProducer;
+
+    @Mock
+    private DropMetrics dropMetrics;
 
     @InjectMocks
     private HoldExpireScheduler holdExpireScheduler;
