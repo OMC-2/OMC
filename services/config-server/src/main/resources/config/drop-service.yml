@@ -1,5 +1,8 @@
 server:
   port: 8082
+  tomcat:
+    threads:
+      max: 400
 
 spring:
   datasource:
@@ -14,12 +17,13 @@ spring:
     default-schema: drop_db
 
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: drop_db
         jdbc:
