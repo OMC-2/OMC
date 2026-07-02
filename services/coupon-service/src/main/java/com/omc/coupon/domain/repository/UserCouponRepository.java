@@ -22,4 +22,6 @@ public interface UserCouponRepository extends JpaRepository<UserCoupon, UUID> {
     Page<UserCoupon> findByUserId(UUID userId, Pageable pageable);
 
     List<UserCoupon> findByStatusInAndExpiredAtBefore(List<UserCouponStatus> statuses, LocalDateTime now);
+
+    long countByCoupon_CouponId(UUID couponId);
 }
