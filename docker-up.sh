@@ -186,6 +186,7 @@ start_infra() {
   # kafka는 zookeeper 재시작 후 NodeExists 에러가 발생할 수 있으므로 healthy 확인
   wait_healthy omc-kafka 180
   wait_healthy omc-keycloak 180
+  wait_healthy omc-kafka-rest-proxy 180
 }
 
 # ----------------------------------------------------------------

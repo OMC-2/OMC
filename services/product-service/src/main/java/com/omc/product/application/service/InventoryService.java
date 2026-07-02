@@ -89,6 +89,10 @@ public class InventoryService {
             // ② 성공 처리 — ProcessedEvent + STOCK_DEDUCTED Outbox 저장
             stockSuccessHandler.handle(inventoryId, event);
 
+            // ③ 캐시 무효화 — availableQuantity가 실제로 변경됐으므로 상품 상세 캐시 갱신 필요
+            //    (updateInventory()의 수동 수정 경로와 동일하게 AFTER_COMMIT 시점에 evict)
+            eventPublisher.publishEvent(new ProductUpdatedEvent(event.productId()));
+
             log.info("[InventoryService] 재고 확정 차감 완료. productId={}, orderId={}",
                     event.productId(), event.orderId());
 

@@ -86,6 +86,25 @@ services:
     networks:
       - omc-network
 
+  kafka-rest-proxy:
+    image: confluentinc/cp-kafka-rest:7.5.0
+    container_name: omc-kafka-rest-proxy
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8082"
+    environment:
+      KAFKA_REST_HOST_NAME: kafka-rest-proxy
+      KAFKA_REST_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_REST_LISTENERS: http://0.0.0.0:8082
+    networks:
+      - omc-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8082/v3/clusters" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
     container_name: omc-keycloak
@@ -110,7 +129,7 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-    mem_limit: 768m
+    mem_limit: 1536m
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8180'"]
       interval: 15s
