@@ -1,13 +1,34 @@
 #!/bin/bash
 # k6/run.sh — 쿠폰 부하 테스트 자동화
-# 사용법: ./k6/run.sh coupon [태그]
-# 예시:   ./k6/run.sh coupon pool-size-10   (개선 전)
-#         ./k6/run.sh coupon pool-size-50   (개선 후)
+#
+# 사용법:
+#   ./k6/run.sh coupon <command> [태그]
+#
+# Commands:
+#   setup         유저 준비 + Sentry 비활성화 (개별 단계 실행 전 1회만)
+#   restore       Sentry 복원 (개별 단계 실행 모두 끝난 후)
+#   all [tag]     setup + 전체 단계 + restore (한 번에 전부)
+#   smoke [tag]   smoke 단계만 실행 (setup 없이)
+#   load [tag]    load 단계만 실행
+#   stress-200 [tag] ~ stress-1000 [tag]
+#   spike [tag]   spike 단계만 실행
+#
+# 권장 워크플로우:
+#   # 전체 자동 실행
+#   ./k6/run.sh coupon all pool-size-10
+#
+#   # 단계별 수동 실행
+#   ./k6/run.sh coupon setup                     # 1회
+#   ./k6/run.sh coupon smoke   pool-size-10
+#   ./k6/run.sh coupon load    pool-size-10
+#   ./k6/run.sh coupon stress-400 pool-size-10
+#   ./k6/run.sh coupon restore                   # 마지막에 1회
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJECT_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 SCENARIO_TYPE=${1:-"coupon"}
-TAG=${2:-""}
+COMMAND=${2:-""}    # setup | restore | all | smoke | load | stress-* | spike
+TAG=${3:-""}
 
 COMPOSE="docker compose -f $PROJECT_ROOT/docker-compose.yml -f $PROJECT_ROOT/docker-compose.services.yml"
 
@@ -30,11 +51,11 @@ POSTGRES_DB="omc"
 # ============================================================
 # 결과 폴더 설정
 # ============================================================
-DATE=$(date +%Y-%m-%d)
+DATETIME=$(date +%Y-%m-%d_%H%M%S)
 if [ -n "$TAG" ]; then
-  RESULT_DIR="$SCRIPT_DIR/results/${DATE}_${TAG}"
+  RESULT_DIR="$SCRIPT_DIR/results/${DATETIME}_${TAG}"
 else
-  RESULT_DIR="$SCRIPT_DIR/results/${DATE}"
+  RESULT_DIR="$SCRIPT_DIR/results/${DATETIME}"
 fi
 
 # ============================================================
@@ -322,6 +343,7 @@ run_stage() {
   local stage=$1
   local qty=$2
   local vus=${3:-0}
+  local expected_override=${4:-""}
   local stage_dir="$RESULT_DIR/$stage"
   mkdir -p "$stage_dir"
 
@@ -329,6 +351,51 @@ run_stage() {
   echo "=========================================="
   log "▶ 단계: $stage"
   echo "=========================================="
+
+  # 예상 발급 건수 (description + verify 양쪽에서 사용)
+  local expected
+  if [ -n "$expected_override" ]; then
+    expected=$expected_override
+  elif [ "$vus" -gt 0 ] 2>/dev/null; then
+    expected=$vus
+  else
+    expected=$qty
+  fi
+
+  # 단계 설명 출력
+  local purpose duration vu_desc
+  case "$stage" in
+    smoke)
+      purpose="스크립트·인증·라우팅 정상 동작 확인"
+      vu_desc="5명 × 1회 (총 5회 요청)"
+      duration="약 30초 이내"
+      ;;
+    load)
+      purpose="정상 부하 기준 응답시간 측정 (개선 전/후 비교 기준점)"
+      vu_desc="0 → 100명 ramp-up → 1분 유지 → 0명"
+      duration="약 2분"
+      ;;
+    stress-*)
+      purpose="서버 한계치 탐색 — 에러율·응답시간 변화 관찰"
+      vu_desc="0 → ${vus}명 ramp-up → 1분 유지 → 0명"
+      duration="약 1분 30초"
+      ;;
+    spike)
+      purpose="순간 트래픽 급증 시 대응 확인"
+      vu_desc="0 → 200명 (5초 급증) → 30초 유지 → 0명"
+      duration="약 40초"
+      ;;
+  esac
+
+  echo ""
+  echo "  ┌─────────────────────────────────────────────"
+  echo "  │  테스트: $stage"
+  echo "  │  목적  : $purpose"
+  echo "  │  시간  : $duration"
+  echo "  │  VU    : $vu_desc"
+  echo "  │  쿠폰  : 총 ${qty}개 준비 → 예상 ${expected}개 발급 (1인 1발급)"
+  echo "  └─────────────────────────────────────────────"
+  echo ""
 
   # 쿠폰 생성
   local coupon_id
@@ -363,9 +430,6 @@ run_stage() {
   fi
 
   # DB/Redis 검증 + summary.txt 저장
-  # stress: 예상 발급 건수 = VUS 수 (1인 1발급, qty=10000은 상한선)
-  # 그 외: 예상 발급 건수 = totalQuantity
-  local expected=${vus:-$qty}
   verify_and_save "$stage" "$coupon_id" "$qty" "$expected"
 
   # Smoke/Load Test 실패 시 중단
@@ -389,27 +453,22 @@ run_stage() {
 }
 
 # ============================================================
-# 쿠폰 시나리오
+# 쿠폰 시나리오 — 유저 준비 + Sentry 비활성화 (setup 전용)
 # ============================================================
-run_coupon() {
-  echo ""
-  echo "=========================================="
-  echo "  k6 쿠폰 부하 테스트"
-  if [ -n "$TAG" ]; then
-    echo "  태그: $TAG"
-  fi
-  echo "  결과 폴더: $RESULT_DIR"
-  echo "=========================================="
-  echo ""
-
+coupon_setup() {
   local NEEDED_ROLE="USER"
 
-  # 0. Sentry 비활성화 (테스트 종료/중단 시 자동 복원)
-  trap 'sentry_restore' EXIT
+  echo ""
+  echo "=========================================="
+  log "  [setup] 유저 준비 + Sentry 비활성화"
+  echo "=========================================="
+  echo ""
+
+  # Sentry 비활성화 (restore는 사용자가 수동으로 실행)
   sentry_disable
   echo ""
 
-  # 1. 유저 확인 → role 불일치/부족이면 재생성, 맞으면 토큰만 갱신
+  # 유저 확인 → role 불일치/부족이면 재생성, 맞으면 토큰만 갱신
   if [ -f "$SCRIPT_DIR/users.json" ]; then
     EXISTING=$(python3 -c "import json; print(len(json.load(open('$SCRIPT_DIR/users.json'))))" 2>/dev/null || echo "0")
     EXISTING_ROLE=$(python3 -c "import json; d=json.load(open('$SCRIPT_DIR/users.json')); print(d[0].get('role','UNKNOWN')) if d else print('UNKNOWN')" 2>/dev/null || echo "UNKNOWN")
@@ -437,18 +496,80 @@ run_coupon() {
   fi
 
   echo ""
+  log "✅ setup 완료 — 이제 개별 단계를 실행하세요:"
+  log "   ./k6/run.sh coupon smoke   [태그]"
+  log "   ./k6/run.sh coupon load    [태그]"
+  log "   ./k6/run.sh coupon stress-400 [태그]"
+  log "   ..."
+  log "   ./k6/run.sh coupon restore   # 모두 끝난 후"
+}
 
-  # 2. 단계별 테스트 (smoke/load 실패 시 run_stage 내부에서 exit)
-  run_stage "smoke"       $COUPON_LOAD_QTY
+# ============================================================
+# 쿠폰 시나리오 — 단일 단계 실행 (setup 없이)
+# ============================================================
+coupon_run_stage() {
+  local stage=$1
+
+  # users.json 없으면 setup 먼저 안내
+  if [ ! -f "$SCRIPT_DIR/users.json" ]; then
+    log "❌ users.json 없음 → 먼저 setup을 실행하세요:"
+    log "   ./k6/run.sh coupon setup"
+    exit 1
+  fi
+
+  echo ""
+  echo "=========================================="
+  echo "  k6 쿠폰 부하 테스트 — $stage"
+  if [ -n "$TAG" ]; then
+    echo "  태그: $TAG"
+  fi
+  echo "  결과 폴더: $RESULT_DIR"
+  echo "=========================================="
+
+  case "$stage" in
+    smoke)        run_stage "smoke"       $COUPON_LOAD_QTY  0  5 ;;
+    load)         run_stage "load"        $COUPON_LOAD_QTY ;;
+    stress-200)   run_stage "stress-200"  $COUPON_STRESS_QTY  200  || true ;;
+    stress-400)   run_stage "stress-400"  $COUPON_STRESS_QTY  400  || true ;;
+    stress-600)   run_stage "stress-600"  $COUPON_STRESS_QTY  600  || true ;;
+    stress-800)   run_stage "stress-800"  $COUPON_STRESS_QTY  800  || true ;;
+    stress-1000)  run_stage "stress-1000" $COUPON_STRESS_QTY 1000  || true ;;
+    spike)        run_stage "spike"       $COUPON_LOAD_QTY         || true ;;
+  esac
+
+  echo ""
+  log "  결과 위치: $RESULT_DIR"
+}
+
+# ============================================================
+# 쿠폰 시나리오 — 전체 실행 (setup + 전체 단계 + restore)
+# ============================================================
+coupon_all() {
+  coupon_setup
+
+  echo ""
+  echo "=========================================="
+  echo "  k6 쿠폰 부하 테스트 — 전체 실행"
+  if [ -n "$TAG" ]; then
+    echo "  태그: $TAG"
+  fi
+  echo "  결과 폴더: $RESULT_DIR"
+  echo "=========================================="
+  echo ""
+
+  # 중단/완료 시 Sentry 복원
+  trap 'sentry_restore' EXIT
+
+  # 전체 단계 (smoke/load 실패 시 중단)
+  run_stage "smoke"       $COUPON_LOAD_QTY  0  5
   run_stage "load"        $COUPON_LOAD_QTY
-  run_stage "stress-200"  $COUPON_STRESS_QTY  200 || true
-  run_stage "stress-400"  $COUPON_STRESS_QTY  400 || true
-  run_stage "stress-600"  $COUPON_STRESS_QTY  600 || true
-  run_stage "stress-800"  $COUPON_STRESS_QTY  800 || true
-  run_stage "stress-1000" $COUPON_STRESS_QTY 1000 || true
-  run_stage "spike"       $COUPON_LOAD_QTY        || true
+  run_stage "stress-200"  $COUPON_STRESS_QTY  200  || true
+  run_stage "stress-400"  $COUPON_STRESS_QTY  400  || true
+  run_stage "stress-600"  $COUPON_STRESS_QTY  600  || true
+  run_stage "stress-800"  $COUPON_STRESS_QTY  800  || true
+  run_stage "stress-1000" $COUPON_STRESS_QTY 1000  || true
+  run_stage "spike"       $COUPON_LOAD_QTY         || true
 
-  # 3. 완료 → Sentry 복원 후 trap 해제
   trap - EXIT
   sentry_restore
   echo ""
@@ -458,7 +579,6 @@ run_coupon() {
   echo "=========================================="
   echo ""
 
-  # 4. Cleanup 여부 확인
   log "⚠️  cleanup 전 DB/Redis/Grafana 검증을 먼저 완료하세요."
   read -rp "테스트 유저를 정리(cleanup)할까요? [y/N] " answer
   if [[ "$answer" =~ ^[Yy]$ ]]; then
@@ -472,15 +592,49 @@ run_coupon() {
 # 진입점
 # ============================================================
 case "$SCENARIO_TYPE" in
-  coupon) run_coupon ;;
+  coupon)
+    case "$COMMAND" in
+      setup)   coupon_setup ;;
+      restore) sentry_restore ;;
+      all)     coupon_all ;;
+      smoke|load|stress-200|stress-400|stress-600|stress-800|stress-1000|spike)
+               coupon_run_stage "$COMMAND" ;;
+      "")
+        echo "사용법: ./k6/run.sh coupon <command> [태그]"
+        echo ""
+        echo "Commands:"
+        echo "  setup             유저 준비 + Sentry 비활성화 (개별 실행 전 1회)"
+        echo "  restore           Sentry 복원 (개별 실행 모두 끝난 후)"
+        echo "  all [태그]        setup + 전체 단계 + restore"
+        echo "  smoke [태그]      smoke 단계만"
+        echo "  load [태그]       load 단계만"
+        echo "  stress-200 [태그] stress 200VU만"
+        echo "  stress-400 [태그] stress 400VU만"
+        echo "  stress-600 [태그] stress 600VU만"
+        echo "  stress-800 [태그] stress 800VU만"
+        echo "  stress-1000 [태그]stress 1000VU만"
+        echo "  spike [태그]      spike 단계만"
+        echo ""
+        echo "예시 — 전체 자동 실행:"
+        echo "  ./k6/run.sh coupon all pool-size-10"
+        echo ""
+        echo "예시 — 단계별 수동 실행:"
+        echo "  ./k6/run.sh coupon setup"
+        echo "  ./k6/run.sh coupon smoke   pool-size-10"
+        echo "  ./k6/run.sh coupon stress-400 pool-size-10"
+        echo "  ./k6/run.sh coupon restore"
+        exit 1
+        ;;
+      *)
+        echo "❌ 알 수 없는 command: $COMMAND"
+        echo "   ./k6/run.sh coupon 를 인수 없이 실행하면 도움말이 표시됩니다."
+        exit 1
+        ;;
+    esac
+    ;;
   *)
-    echo "사용법: ./k6/run.sh <scenario> [태그]"
+    echo "❌ 알 수 없는 시나리오: $SCENARIO_TYPE"
     echo "지원 시나리오: coupon"
-    echo ""
-    echo "예시:"
-    echo "  ./k6/run.sh coupon               # 태그 없이 실행"
-    echo "  ./k6/run.sh coupon pool-size-10  # 개선 전"
-    echo "  ./k6/run.sh coupon pool-size-50  # 개선 후"
     exit 1
     ;;
 esac
