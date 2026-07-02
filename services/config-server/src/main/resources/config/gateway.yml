@@ -119,6 +119,12 @@ spring:
                 key-resolver: "#{@rateLimiterKeyResolver}"
                 rate-limiter: "#{@couponRateLimiter}"
 
+      httpclient:
+        pool:
+          max-connections: 2000
+          pending-acquire-max-count: 4000
+          pending-acquire-timeout: 60000ms
+
   security:
     oauth2:
       resourceserver:
