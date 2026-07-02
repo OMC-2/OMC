@@ -76,6 +76,7 @@ public class PaymentCoreService {
                         discountAmount,
                         finalAmount,
                         Provider.TOSS,
+                        providerPaymentId,
                         PaymentMethod.CARD
                 )
         );
@@ -87,13 +88,7 @@ public class PaymentCoreService {
 
             payment.startConfirming();
 
-            // Mocking을 위한 랜덤 결제 식별자 Fallback
-            String resolvedProviderPaymentId = providerPaymentId == null || providerPaymentId.isBlank()
-                    ? orderId.toString()
-                    : providerPaymentId;
-            payment.assignProviderPaymentId(resolvedProviderPaymentId);
-
-            return confirmWithGateway(payment, orderId, finalAmount, resolvedProviderPaymentId);
+            return confirmWithGateway(payment, orderId, finalAmount, providerPaymentId);
         } catch (NonRetryablePaymentException e) {
             failValidation(payment, e);
             return payment;
@@ -140,6 +135,7 @@ public class PaymentCoreService {
                         discountAmount,
                         finalAmount,
                         Provider.TOSS,
+                        null,
                         PaymentMethod.CARD
                 )
         );

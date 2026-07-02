@@ -64,7 +64,7 @@ public class PaymentEventService {
                             event.originalAmount(),
                             event.discountAmount(),
                             event.finalAmount(),
-                            null
+                            event.orderId().toString() // Mocking을 위한 orderId 결제 식별자
                     );
                 }
         );

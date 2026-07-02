@@ -371,6 +371,7 @@ class PaymentCoreServiceTest {
                 discountAmount,
                 originalAmount - discountAmount,
                 Provider.TOSS,
+                "결제 승인 아이디",
                 PaymentMethod.CARD
         );
         ReflectionTestUtils.setField(payment, "paymentId", PAYMENT_ID);

@@ -132,6 +132,7 @@ public class Payment extends BaseEntity {
             Long discountAmount,
             Long finalAmount,
             Provider provider,
+            String providerPaymentId,
             PaymentMethod paymentMethod
     ) {
         /*
@@ -160,6 +161,7 @@ public class Payment extends BaseEntity {
                 .discountAmount(resolvedDiscountAmount)
                 .finalAmount(resolvedFinalAmount)
                 .provider(require(provider, PaymentErrorCode.PAYMENT_FAILED, "결제 제공자는 null일 수 없습니다."))
+                .providerPaymentId(providerPaymentId)
                 .paymentMethod(require(paymentMethod, PaymentErrorCode.PAYMENT_FAILED, "결제 수단은 null일 수 없습니다."))
                 .paymentStatus(PaymentStatus.READY)
                 .requestedAt(LocalDateTime.now())
@@ -178,16 +180,6 @@ public class Payment extends BaseEntity {
     // 결제 승인 요청 이벤트 처리
     public void startConfirming() {
         transitTo(PaymentStatus.CONFIRMING);
-    }
-
-    public void assignProviderPaymentId(String providerPaymentId) {
-        if (providerPaymentId == null || providerPaymentId.isBlank()) {
-            throw new NonRetryablePaymentException(
-                    PaymentErrorCode.PAYMENT_FAILED,
-                    "PG 결제 ID는 필수입니다."
-            );
-        }
-        this.providerPaymentId = providerPaymentId;
     }
 
     // PG 승인 성공 이벤트 반영
