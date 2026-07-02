@@ -1,4 +1,4 @@
-import http from 'k6/http';
+import http, { setResponseCallback } from 'k6/http';
 import { check } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
 import exec from 'k6/execution';
@@ -46,8 +46,8 @@ export const smokeOptions = {
     },
   },
   thresholds: {
-    http_req_failed:   ['rate<0.01'],
-    http_req_duration: ['p(95)<500'],
+    // smoke 목적: 라우팅/인증 동작 확인 → 에러율만 체크, 응답시간은 측정만
+    http_req_failed: ['rate<0.01'],
   },
 };
 
@@ -67,8 +67,10 @@ export const loadOptions = {
     },
   },
   thresholds: {
-    http_req_failed:   ['rate<0.01'],
-    http_req_duration: ['p(95)<2000'],
+    // 개선 전 HikariCP pool-size 10 기준 → 일부 타임아웃 허용, 5% 미만 기준
+    // pool-size 50으로 개선 후에는 1% 미만으로 줄어야 함 (비교 포인트)
+    http_req_failed: ['rate<0.05'],
+    // p95 응답시간은 임계값 없이 측정만 (HikariCP 개선 전/후 비교용)
   },
 };
 
@@ -124,6 +126,10 @@ export function setup() {
 }
 
 export default function (data) {
+  // 201(발급 성공), 409(재고 소진/중복)은 정상 비즈니스 응답 → http_req_failed 카운트 제외
+  // VU별로 설정해야 하므로 default 함수 안에서 호출
+  setResponseCallback(http.expectedStatuses(201, 409));
+
   const vuIndex = exec.vu.idInTest - 1;
   const token   = data.tokens[vuIndex % data.tokens.length];
 
