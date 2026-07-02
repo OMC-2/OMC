@@ -5,6 +5,7 @@ import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.application.event.producer.HoldExpiredEvent;
+import com.omc.drop.infrastructure.metrics.DropMetrics;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class HoldExpireScheduler {
     private final DropRepository dropRepository;
     private final DropRedisStore dropRedisStore;
     private final DropEventProducer dropEventProducer;
+    private final DropMetrics dropMetrics;
 
     @Scheduled(fixedDelay = 10000)
     public void expireHolds() {
@@ -85,6 +87,7 @@ public class HoldExpireScheduler {
                 if (removed == 0) {
                     continue;
                 }
+                dropMetrics.incrementHoldExpired(dropId);
                 dropEventProducer.publishHoldExpired(HoldExpiredEvent.of(orderId, dropId));
                 log.info("hold 만료 처리 완료. dropId={}, orderId={}", dropId, orderId);
             } catch (Exception e) {
