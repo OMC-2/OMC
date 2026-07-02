@@ -1,6 +1,7 @@
 package com.omc.drop.application.event.stream;
 
 import com.omc.drop.application.event.producer.PurchaseConfirmedEvent;
+import com.omc.drop.infrastructure.metrics.DropMetrics;
 import com.omc.drop.infrastructure.redis.PurchaseStreamStore;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -34,10 +35,11 @@ public class PurchaseStreamWorker {
 
     private final PurchaseStreamStore purchaseStreamStore;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final DropMetrics dropMetrics;
 
     /**
      * 재시작 후에도 동일한 consumerId로 자기 PEL을 복구하기 위해 고정값 사용.
-     * K8s: HOSTNAME = pod 이름(StatefulSet 기준 안정적), Docker: container hostname, 로컬: machine hostname.
+     * HOSTNAME 환경변수(Docker container hostname) → InetAddress hostname → 랜덤 UUID 순으로 fallback.
      */
     private static final String consumerId = resolveConsumerId();
 
@@ -116,6 +118,7 @@ public class PurchaseStreamWorker {
             kafkaTemplate.send("purchase.confirmed", event.orderId().toString(), event)
                     .thenAccept(r -> purchaseStreamStore.acknowledge(record.getId()))
                     .exceptionally(ex -> {
+                        dropMetrics.incrementKafkaPublishFailed();
                         log.error("[PurchaseStream] Kafka 발행 실패 — pending 유지: messageId={}", record.getId(), ex);
                         return null;
                     });
