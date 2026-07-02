@@ -22,15 +22,18 @@ const http  = require('http');
 const fs    = require('fs');
 const path  = require('path');
 
-const BASE          = process.env.BASE_URL       || 'http://localhost:8080';
-const COUNT         = parseInt(process.env.COUNT || '1000', 10);
-const ADMIN_SECRET  = process.env.ADMIN_SECRET   || 'local-admin-secret';
-const GATEWAY_SECRET = process.env.GATEWAY_SECRET || 'local-secret';
-// Gateway RedisRateLimiter(replenishRate=10, burstCapacity=20)를 user-service 전체가 공유.
-// JMeter Constant Throughput Timer(300/min ≈ 5 req/sec)와 동일한 여유를 두고,
-// 회원가입+로그인 1쌍(2 request)마다 400ms 간격으로 순차 발사 → 평균 5 req/sec 유지.
-const REQUEST_INTERVAL_MS = parseInt(process.env.REQUEST_INTERVAL_MS || '400', 10);
-const OUTPUT_PATH  = path.join(__dirname, 'users.json');
+const BASE           = process.env.BASE_URL        || 'http://localhost:8080';
+const COUNT          = parseInt(process.env.COUNT  || '1000', 10);
+const ADMIN_SECRET   = process.env.ADMIN_SECRET    || 'local-admin-secret';
+const GATEWAY_SECRET = process.env.GATEWAY_SECRET  || 'local-secret';
+// ROLE=USER → 일반 signup (쿠폰 발급 등 USER 역할 필요한 테스트용)
+// ROLE=ADMIN(기본) → admin/signup (drop 구매 등 역할 무관 테스트용)
+const ROLE           = process.env.ROLE            || 'ADMIN';
+// X-Load-Test 헤더를 전송해 게이트웨이 Rate Limit을 우회하므로 간격을 50ms로 단축
+// (게이트웨이 KeyResolver가 Mono.empty() 반환 → deny-empty-key:false → 스킵)
+const REQUEST_INTERVAL_MS = parseInt(process.env.REQUEST_INTERVAL_MS || '50', 10);
+const LOAD_TEST_SECRET = 'local-loadtest-secret';
+const OUTPUT_PATH    = path.join(__dirname, 'users.json');
 
 // HTTP 요청 헬퍼
 function request(method, url, body, headers = {}) {
@@ -73,12 +76,21 @@ async function createUser(index) {
   const nickname = `loadtest_${index}`;
 
   // 회원가입
-  const signup = await request(
-    'POST',
-    `${BASE}/api/v1/users/admin/signup`,
-    { email, password, nickname },
-    { 'X-Admin-Secret': ADMIN_SECRET, 'X-Gateway-Secret': GATEWAY_SECRET }
-  );
+  // ROLE=USER → 일반 signup (USER 역할) / ROLE=ADMIN(기본) → admin/signup (ADMIN 역할)
+  // X-Load-Test 헤더: 게이트웨이 Rate Limit 우회 (로컬 전용)
+  const signup = ROLE === 'USER'
+    ? await request(
+        'POST',
+        `${BASE}/api/v1/users/signup`,
+        { email, password, nickname, slackId: '' },
+        { 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
+      )
+    : await request(
+        'POST',
+        `${BASE}/api/v1/users/admin/signup`,
+        { email, password, nickname },
+        { 'X-Admin-Secret': ADMIN_SECRET, 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
+      );
 
   if (signup.status !== 201 && signup.status !== 200) {
     console.warn(`[${index}] 회원가입 실패 (${signup.status}): ${email}`);
@@ -90,7 +102,7 @@ async function createUser(index) {
     'POST',
     `${BASE}/api/v1/users/login`,
     { email, password },
-    { 'X-Gateway-Secret': GATEWAY_SECRET }
+    { 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
   );
 
   const token = login.body?.data?.accessToken;
