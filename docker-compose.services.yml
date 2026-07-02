@@ -141,7 +141,7 @@ services:
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
       SENTRY_DSN: ${SENTRY_DSN:-}
-      JAVA_TOOL_OPTIONS: "-Xms512m -Xmx1g -XX:+UseG1GC"
+      JAVA_TOOL_OPTIONS: "-Xmx1g -XX:+UseG1GC"
     depends_on:
       config-server:
         condition: service_healthy
