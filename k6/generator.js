@@ -34,6 +34,8 @@ const ROLE           = process.env.ROLE            || 'ADMIN';
 const REQUEST_INTERVAL_MS = parseInt(process.env.REQUEST_INTERVAL_MS || '50', 10);
 const LOAD_TEST_SECRET = 'local-loadtest-secret';
 const OUTPUT_PATH    = path.join(__dirname, 'users.json');
+// RELOGIN=true → 기존 users.json의 email/password로 재로그인하여 토큰만 갱신
+const RELOGIN        = process.env.RELOGIN === 'true';
 
 // HTTP 요청 헬퍼
 function request(method, url, body, headers = {}) {
@@ -111,7 +113,51 @@ async function createUser(index) {
     return null;
   }
 
-  return { email, token };
+  return { email, password, role: ROLE, token };
+}
+
+// RELOGIN 모드: users.json의 email/password로 재로그인 → 토큰만 갱신
+async function reloginUsers() {
+  if (!fs.existsSync(OUTPUT_PATH)) {
+    console.error('[generator] users.json 없음 — RELOGIN 불가');
+    process.exit(1);
+  }
+  const existing = JSON.parse(fs.readFileSync(OUTPUT_PATH, 'utf-8'));
+  if (!existing[0]?.password) {
+    console.error('[generator] users.json에 password 없음 — 재생성 필요 (rm users.json 후 재실행)');
+    process.exit(1);
+  }
+
+  console.log(`[generator] 토큰 갱신 시작 (${existing.length}명, 요청 간격 ${REQUEST_INTERVAL_MS}ms)`);
+  const updated = [];
+  let failed = 0;
+
+  for (let i = 0; i < existing.length; i++) {
+    const { email, password } = existing[i];
+    const login = await request(
+      'POST',
+      `${BASE}/api/v1/users/login`,
+      { email, password },
+      { 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
+    );
+    const token = login.body?.data?.accessToken;
+    if (!token) {
+      console.warn(`[${i}] 로그인 실패 (${login.status}): ${email}`);
+      failed++;
+    }
+    updated.push({ ...existing[i], token: token || existing[i].token });
+
+    if ((i + 1) % 50 === 0 || i + 1 === existing.length) {
+      console.log(`[generator] 진행률: ${i + 1}/${existing.length} (실패: ${failed})`);
+    }
+    if (i + 1 < existing.length) {
+      await new Promise((r) => setTimeout(r, REQUEST_INTERVAL_MS));
+    }
+  }
+
+  fs.writeFileSync(OUTPUT_PATH, JSON.stringify(updated, null, 2), 'utf-8');
+  console.log(`[generator] 토큰 갱신 완료. 실패: ${failed}명`);
+  if (failed > 0) process.exit(1);
 }
 
 // 순차 처리: 배치 동시발사 대신 유저 1명(회원가입+로그인 2 request)마다
@@ -145,4 +191,4 @@ async function run() {
   }
 }
 
-run().catch(console.error);
+(RELOGIN ? reloginUsers() : run()).catch(console.error);

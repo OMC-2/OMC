@@ -101,6 +101,7 @@ verify_and_save() {
   local stage=$1
   local coupon_id=$2
   local total_qty=$3
+  local expected_count=${4:-$total_qty}   # 예상 발급 건수 (stress: VUS 수, 그 외: totalQuantity)
   local stage_dir="$RESULT_DIR/$stage"
   mkdir -p "$stage_dir"
 
@@ -115,12 +116,15 @@ verify_and_save() {
   DB_COUNT=$(echo "$DB_COUNT" | tr -d '[:space:]')
 
   if [ -n "$DB_COUNT" ] && [ "$DB_COUNT" != "" ]; then
-    if [ "$DB_COUNT" -le "$total_qty" ] 2>/dev/null; then
-      log "  ✅ DB 발급 건수: ${DB_COUNT}건 / totalQuantity: ${total_qty}"
-      db_status="정상 (${DB_COUNT}건)"
-    else
+    if [ "$DB_COUNT" -gt "$total_qty" ] 2>/dev/null; then
       log "  ❌ DB 발급 건수: ${DB_COUNT}건 (초과! totalQuantity: ${total_qty})"
-      db_status="초과 (${DB_COUNT}건)"
+      db_status="초과 (${DB_COUNT}건 / 예상: ${expected_count}건)"
+    elif [ "$DB_COUNT" -eq "$expected_count" ] 2>/dev/null; then
+      log "  ✅ DB 발급 건수: ${DB_COUNT}건 / 예상: ${expected_count}건"
+      db_status="정상 (${DB_COUNT}건 / 예상: ${expected_count}건)"
+    else
+      log "  ⚠️  DB 발급 건수: ${DB_COUNT}건 / 예상: ${expected_count}건 (일부 요청 실패)"
+      db_status="부족 (${DB_COUNT}건 / 예상: ${expected_count}건)"
     fi
   else
     log "  ⚠️  DB 연결 실패"
@@ -143,21 +147,175 @@ verify_and_save() {
     redis_status="키 없음 (재고 소진 또는 키 만료)"
   fi
 
+  # k6-summary.json 파싱
+  local k6_metrics=""
+  if [ -f "$stage_dir/k6-summary.json" ]; then
+    k6_metrics=$(python3 - "$stage_dir/k6-summary.json" <<'PYEOF'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    m = d.get('metrics', {})
+    dur  = m.get('http_req_duration', {}).get('values', {})
+    fail = m.get('http_req_failed',   {}).get('values', {})
+    reqs = m.get('http_reqs',         {}).get('values', {})
+    it   = m.get('iterations',        {}).get('values', {})
+    vus  = m.get('vus_max',           {}).get('values', {})
+    print(f"총 요청수  : {int(reqs.get('count', 0))}건")
+    print(f"처리량     : {reqs.get('rate', 0):.1f} req/s")
+    print(f"에러율     : {fail.get('rate', 0)*100:.2f}%")
+    print(f"응답 avg   : {dur.get('avg', 0):.0f}ms")
+    print(f"응답 p90   : {dur.get('p(90)', 0):.0f}ms")
+    print(f"응답 p95   : {dur.get('p(95)', 0):.0f}ms")
+    print(f"응답 max   : {dur.get('max', 0):.0f}ms")
+    print(f"최대 VU    : {int(vus.get('max', 0))}명")
+except Exception as e:
+    print(f"(메트릭 파싱 실패: {e})")
+PYEOF
+)
+  fi
+
   # summary.txt 저장
   cat > "$stage_dir/summary.txt" <<EOF
 테스트: $stage
 태그: ${TAG:-없음}
 날짜: $(date '+%Y-%m-%d %H:%M:%S')
 쿠폰 ID: $coupon_id
-totalQuantity: $total_qty
+쿠폰 수량(totalQuantity): $total_qty
+예상 발급 건수: $expected_count
 ---
+[k6 메트릭]
+$k6_metrics
+---
+[DB / Redis]
 DB 발급 건수: $db_status
 Redis stock: $redis_status
 EOF
 
+  # report.html 생성
+  if [ -f "$stage_dir/k6-summary.json" ]; then
+    python3 - "$stage_dir/k6-summary.json" "$stage_dir/report.html" \
+      "$stage" "${TAG:-없음}" "$coupon_id" "$total_qty" "$expected_count" \
+      "$db_status" "$redis_status" <<'PYEOF'
+import json, sys
+from datetime import datetime
+
+summary_path, out_path, stage, tag, coupon_id, total_qty, expected, db_status, redis_status = sys.argv[1:]
+
+try:
+    d = json.load(open(summary_path))
+    m = d.get('metrics', {})
+    dur  = m.get('http_req_duration', {}).get('values', {})
+    fail = m.get('http_req_failed',   {}).get('values', {})
+    reqs = m.get('http_reqs',         {}).get('values', {})
+    vus  = m.get('vus_max',           {}).get('values', {})
+
+    total   = int(reqs.get('count', 0))
+    rate    = reqs.get('rate', 0)
+    err_pct = fail.get('rate', 0) * 100
+    avg     = dur.get('avg', 0)
+    p90     = dur.get('p(90)', 0)
+    p95     = dur.get('p(95)', 0)
+    p99     = dur.get('p(99)', 0)
+    max_ms  = dur.get('max', 0)
+    max_vu  = int(vus.get('max', 0))
+
+    err_color = '#e74c3c' if err_pct >= 5 else ('#f39c12' if err_pct >= 1 else '#27ae60')
+    p95_color = '#e74c3c' if p95 >= 5000 else ('#f39c12' if p95 >= 2000 else '#27ae60')
+    db_ok = '부족' not in db_status and '초과' not in db_status and '실패' not in db_status
+    db_color = '#27ae60' if db_ok else '#e74c3c'
+
+    html = f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>k6 부하 테스트 보고서 — {stage}</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f5f6fa; color: #2c3e50; }}
+  .header {{ background: #2c3e50; color: #fff; padding: 32px 40px; }}
+  .header h1 {{ margin: 0 0 8px; font-size: 24px; }}
+  .header .meta {{ font-size: 13px; opacity: 0.7; }}
+  .container {{ max-width: 900px; margin: 32px auto; padding: 0 24px; }}
+  .card {{ background: #fff; border-radius: 8px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }}
+  .card h2 {{ margin: 0 0 20px; font-size: 15px; text-transform: uppercase; letter-spacing: .5px; color: #7f8c8d; border-bottom: 1px solid #ecf0f1; padding-bottom: 10px; }}
+  .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }}
+  .metric {{ text-align: center; padding: 16px; background: #f8f9fa; border-radius: 6px; }}
+  .metric .value {{ font-size: 28px; font-weight: 700; margin-bottom: 4px; }}
+  .metric .label {{ font-size: 12px; color: #7f8c8d; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  td, th {{ padding: 10px 12px; text-align: left; border-bottom: 1px solid #ecf0f1; font-size: 14px; }}
+  th {{ font-weight: 600; color: #7f8c8d; font-size: 12px; text-transform: uppercase; }}
+  .badge {{ display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; color: #fff; }}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>k6 부하 테스트 보고서 &nbsp;·&nbsp; {stage}</h1>
+  <div class="meta">태그: {tag} &nbsp;|&nbsp; 쿠폰 ID: {coupon_id} &nbsp;|&nbsp; 생성일: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+</div>
+<div class="container">
+
+  <div class="card">
+    <h2>핵심 지표</h2>
+    <div class="grid">
+      <div class="metric">
+        <div class="value">{total:,}</div>
+        <div class="label">총 요청수</div>
+      </div>
+      <div class="metric">
+        <div class="value">{rate:.1f}</div>
+        <div class="label">처리량 (req/s)</div>
+      </div>
+      <div class="metric">
+        <div class="value" style="color:{err_color}">{err_pct:.2f}%</div>
+        <div class="label">에러율</div>
+      </div>
+      <div class="metric">
+        <div class="value" style="color:{p95_color}">{p95/1000:.2f}s</div>
+        <div class="label">p95 응답시간</div>
+      </div>
+      <div class="metric">
+        <div class="value">{max_vu}</div>
+        <div class="label">최대 VU</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>응답시간 분포</h2>
+    <table>
+      <tr><th>지표</th><th>값</th></tr>
+      <tr><td>평균 (avg)</td><td>{avg/1000:.3f}s</td></tr>
+      <tr><td>90th percentile (p90)</td><td>{p90/1000:.3f}s</td></tr>
+      <tr><td>95th percentile (p95)</td><td style="color:{p95_color};font-weight:600">{p95/1000:.3f}s</td></tr>
+      <tr><td>99th percentile (p99)</td><td>{p99/1000:.3f}s</td></tr>
+      <tr><td>최대 (max)</td><td>{max_ms/1000:.3f}s</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>데이터 정합성</h2>
+    <table>
+      <tr><th>항목</th><th>결과</th></tr>
+      <tr><td>쿠폰 수량 (totalQuantity)</td><td>{total_qty}</td></tr>
+      <tr><td>예상 발급 건수</td><td>{expected}건</td></tr>
+      <tr><td>DB 발급 건수</td><td style="color:{db_color};font-weight:600">{db_status}</td></tr>
+      <tr><td>Redis stock</td><td>{redis_status}</td></tr>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>"""
+    open(out_path, 'w').write(html)
+except Exception as e:
+    print(f"(HTML 생성 실패: {e})", file=sys.stderr)
+PYEOF
+  fi
+
   log "  결과 저장: $stage_dir/"
-  log "    - summary.txt (검증 결과 요약)"
-  log "    - raw.json    (k6 원본 메트릭)"
+  log "    - summary.txt  (텍스트 요약)"
+  log "    - report.html  (HTML 보고서)"
+  log "    - raw.json     (k6 원본 메트릭)"
 }
 
 run_stage() {
@@ -191,6 +349,7 @@ run_stage() {
       --env BASE_URL="$BASE_URL" \
       --env GATEWAY_SECRET="$GATEWAY_SECRET" \
       --out "json=$stage_dir/raw.json" \
+      --summary-export "$stage_dir/k6-summary.json" \
       "$SCRIPT_DIR/03-coupon-issue.js" || k6_exit=$?
   else
     k6 run \
@@ -199,11 +358,15 @@ run_stage() {
       --env BASE_URL="$BASE_URL" \
       --env GATEWAY_SECRET="$GATEWAY_SECRET" \
       --out "json=$stage_dir/raw.json" \
+      --summary-export "$stage_dir/k6-summary.json" \
       "$SCRIPT_DIR/03-coupon-issue.js" || k6_exit=$?
   fi
 
   # DB/Redis 검증 + summary.txt 저장
-  verify_and_save "$stage" "$coupon_id" "$qty"
+  # stress: 예상 발급 건수 = VUS 수 (1인 1발급, qty=10000은 상한선)
+  # 그 외: 예상 발급 건수 = totalQuantity
+  local expected=${vus:-$qty}
+  verify_and_save "$stage" "$coupon_id" "$qty" "$expected"
 
   # Smoke/Load Test 실패 시 중단
   if [[ "$stage" == "smoke" || "$stage" == "load" ]] && [ "$k6_exit" -ne 0 ]; then
@@ -239,25 +402,37 @@ run_coupon() {
   echo "=========================================="
   echo ""
 
+  local NEEDED_ROLE="USER"
+
   # 0. Sentry 비활성화 (테스트 종료/중단 시 자동 복원)
   trap 'sentry_restore' EXIT
   sentry_disable
   echo ""
 
-  # 1. 유저 확인 → 없으면 생성
+  # 1. 유저 확인 → role 불일치/부족이면 재생성, 맞으면 토큰만 갱신
   if [ -f "$SCRIPT_DIR/users.json" ]; then
     EXISTING=$(python3 -c "import json; print(len(json.load(open('$SCRIPT_DIR/users.json'))))" 2>/dev/null || echo "0")
-    if [ "$EXISTING" -ge "$USER_COUNT" ]; then
-      log "✅ users.json 존재 (${EXISTING}명) → 유저 생성 스킵"
-    else
+    EXISTING_ROLE=$(python3 -c "import json; d=json.load(open('$SCRIPT_DIR/users.json')); print(d[0].get('role','UNKNOWN')) if d else print('UNKNOWN')" 2>/dev/null || echo "UNKNOWN")
+
+    if [ "$EXISTING_ROLE" != "$NEEDED_ROLE" ]; then
+      log "⚠️  users.json role 불일치 (${EXISTING_ROLE} ≠ ${NEEDED_ROLE}) → 재생성"
+      rm -f "$SCRIPT_DIR/users.json"
+      COUNT=$USER_COUNT ROLE=$NEEDED_ROLE node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+      _verify_users_json
+    elif [ "$EXISTING" -lt "$USER_COUNT" ]; then
       log "⚠️  users.json 유저 부족 (${EXISTING}명 < ${USER_COUNT}명) → 재생성"
       rm -f "$SCRIPT_DIR/users.json"
-      COUNT=$USER_COUNT ROLE=USER node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+      COUNT=$USER_COUNT ROLE=$NEEDED_ROLE node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+      _verify_users_json
+    else
+      log "✅ users.json 존재 (${EXISTING}명, ROLE=${EXISTING_ROLE}) → 토큰 갱신 중..."
+      log "  (약 1분 소요)"
+      RELOGIN=true node "$SCRIPT_DIR/generator.js" || { log "❌ 토큰 갱신 실패"; exit 1; }
     fi
   else
     log "▶ users.json 없음 → 유저 ${USER_COUNT}명 생성 중..."
     log "  (X-Load-Test 헤더로 Rate Limit 우회 — 약 1분 소요)"
-    COUNT=$USER_COUNT ROLE=USER node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+    COUNT=$USER_COUNT ROLE=$NEEDED_ROLE node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
     _verify_users_json
   fi
 
