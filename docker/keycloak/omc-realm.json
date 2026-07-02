@@ -9,7 +9,7 @@
   "resetPasswordAllowed": false,
   "editUsernameAllowed": false,
   "bruteForceProtected": false,
-  "accessTokenLifespan": 3600,
+  "accessTokenLifespan": 86400,
   "ssoSessionIdleTimeout": 86400,
   "ssoSessionMaxLifespan": 86400,
   "clients": [

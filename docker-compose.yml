@@ -13,6 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    restart: on-failure
     networks:
       - omc-network
     healthcheck:
@@ -28,6 +29,7 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    restart: on-failure
     networks:
       - omc-network
     command: redis-server --appendonly yes
@@ -43,8 +45,10 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_HEAP_OPTS: "-Xms128m -Xmx256m"
     ports:
       - "2181:2181"
+    restart: on-failure
     networks:
       - omc-network
 
@@ -63,6 +67,8 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+    restart: on-failure
     networks:
       - omc-network
     healthcheck:
@@ -83,8 +89,10 @@ services:
       KAFKA_CLUSTERS_0_NAME: omc-local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    restart: on-failure
     networks:
       - omc-network
+
 
   kafka-rest-proxy:
     image: confluentinc/cp-kafka-rest:7.5.0
@@ -97,6 +105,8 @@ services:
       KAFKA_REST_HOST_NAME: kafka-rest-proxy
       KAFKA_REST_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_REST_LISTENERS: http://0.0.0.0:8082
+      KAFKAREST_HEAP_OPTS: "-Xms128m -Xmx256m"
+    restart: on-failure
     networks:
       - omc-network
     healthcheck:
@@ -148,6 +158,7 @@ services:
     command:
       - "--global-response-templating"
       - "--verbose"
+    restart: on-failure
     networks:
       - omc-network
 
@@ -169,6 +180,7 @@ services:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "19090:9090"
+    restart: on-failure
     networks:
       - omc-network
 
@@ -181,6 +193,7 @@ services:
       - "19121:9121"
     depends_on:
       - redis
+    restart: on-failure
     networks:
       - omc-network
 
@@ -193,6 +206,7 @@ services:
       - ./docker/loki/loki-config.yml:/etc/loki/local-config.yaml
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
+    restart: on-failure
     networks:
       - omc-network
 
@@ -205,6 +219,7 @@ services:
     command: -config.file=/etc/promtail/config.yml
     depends_on:
       - loki
+    restart: on-failure
     networks:
       - omc-network
 
@@ -222,6 +237,7 @@ services:
     depends_on:
       - prometheus
       - loki
+    restart: on-failure
     networks:
       - omc-network
 

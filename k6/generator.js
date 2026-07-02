@@ -32,6 +32,9 @@ const ROLE           = process.env.ROLE            || 'ADMIN';
 // X-Load-Test 헤더를 전송해 게이트웨이 Rate Limit을 우회하므로 간격을 50ms로 단축
 // (게이트웨이 KeyResolver가 Mono.empty() 반환 → deny-empty-key:false → 스킵)
 const REQUEST_INTERVAL_MS = parseInt(process.env.REQUEST_INTERVAL_MS || '50', 10);
+// RELOGIN 전용 간격: 로그인은 Keycloak까지 연결되며 Keycloak Brute Force Protection이
+// 20 req/s(50ms) 에서 반응하므로 기본값을 200ms(5 req/s)로 분리
+const RELOGIN_INTERVAL_MS = parseInt(process.env.RELOGIN_INTERVAL_MS || '200', 10);
 const LOAD_TEST_SECRET = 'local-loadtest-secret';
 const OUTPUT_PATH    = path.join(__dirname, 'users.json');
 // RELOGIN=true → 기존 users.json의 email/password로 재로그인하여 토큰만 갱신
@@ -128,18 +131,30 @@ async function reloginUsers() {
     process.exit(1);
   }
 
-  console.log(`[generator] 토큰 갱신 시작 (${existing.length}명, 요청 간격 ${REQUEST_INTERVAL_MS}ms)`);
+  console.log(`[generator] 토큰 갱신 시작 (${existing.length}명, 요청 간격 ${RELOGIN_INTERVAL_MS}ms)`);
   const updated = [];
   let failed = 0;
 
   for (let i = 0; i < existing.length; i++) {
     const { email, password } = existing[i];
-    const login = await request(
+
+    let login = await request(
       'POST',
       `${BASE}/api/v1/users/login`,
       { email, password },
       { 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
     );
+    // 502/429 시 1회 재시도 (Keycloak 일시 과부하 대응)
+    if (!login.body?.data?.accessToken && (login.status === 502 || login.status === 429)) {
+      await new Promise((r) => setTimeout(r, 1000));
+      login = await request(
+        'POST',
+        `${BASE}/api/v1/users/login`,
+        { email, password },
+        { 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
+      );
+    }
+
     const token = login.body?.data?.accessToken;
     if (!token) {
       console.warn(`[${i}] 로그인 실패 (${login.status}): ${email}`);
@@ -151,7 +166,7 @@ async function reloginUsers() {
       console.log(`[generator] 진행률: ${i + 1}/${existing.length} (실패: ${failed})`);
     }
     if (i + 1 < existing.length) {
-      await new Promise((r) => setTimeout(r, REQUEST_INTERVAL_MS));
+      await new Promise((r) => setTimeout(r, RELOGIN_INTERVAL_MS));
     }
   }
 
