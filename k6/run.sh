@@ -5,8 +5,11 @@
 #         ./k6/run.sh coupon pool-size-50   (개선 후)
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+PROJECT_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 SCENARIO_TYPE=${1:-"coupon"}
 TAG=${2:-""}
+
+COMPOSE="docker compose -f $PROJECT_ROOT/docker-compose.yml -f $PROJECT_ROOT/docker-compose.services.yml"
 
 # ============================================================
 # 설정값 — 필요 시 수정
@@ -40,6 +43,38 @@ fi
 
 log() {
   echo "[$(date +%H:%M:%S)] $*"
+}
+
+sentry_disable() {
+  log "▶ Sentry 비활성화 (부하 테스트 중 에러 알림 차단)"
+  SENTRY_DSN="" $COMPOSE up -d --force-recreate --no-deps coupon-service > /dev/null 2>&1
+  # Spring Boot 초기화 대기 (최대 90초)
+  local i=0
+  while [ $i -lt 90 ]; do
+    if curl -s "http://localhost:8087/actuator/health" 2>/dev/null | grep -q '"UP"'; then
+      log "  ✅ coupon-service 준비 완료 (Sentry 비활성화됨)"
+      return 0
+    fi
+    sleep 3
+    i=$((i+3))
+  done
+  log "  ⚠️  health check 타임아웃 — 계속 진행합니다"
+}
+
+sentry_restore() {
+  log "▶ Sentry 복원"
+  $COMPOSE up -d --force-recreate --no-deps coupon-service > /dev/null 2>&1
+  log "  ✅ coupon-service 재시작 완료 (Sentry 복원됨)"
+}
+
+_verify_users_json() {
+  local count
+  count=$(python3 -c "import json; print(len(json.load(open('$SCRIPT_DIR/users.json'))))" 2>/dev/null || echo "0")
+  if [ "$count" -lt "$USER_COUNT" ]; then
+    log "❌ users.json 생성 실패 또는 유저 부족 (${count}명) → 중단"
+    exit 1
+  fi
+  log "✅ users.json 생성 완료 (${count}명)"
 }
 
 create_coupon() {
@@ -204,6 +239,11 @@ run_coupon() {
   echo "=========================================="
   echo ""
 
+  # 0. Sentry 비활성화 (테스트 종료/중단 시 자동 복원)
+  trap 'sentry_restore' EXIT
+  sentry_disable
+  echo ""
+
   # 1. 유저 확인 → 없으면 생성
   if [ -f "$SCRIPT_DIR/users.json" ]; then
     EXISTING=$(python3 -c "import json; print(len(json.load(open('$SCRIPT_DIR/users.json'))))" 2>/dev/null || echo "0")
@@ -212,12 +252,13 @@ run_coupon() {
     else
       log "⚠️  users.json 유저 부족 (${EXISTING}명 < ${USER_COUNT}명) → 재생성"
       rm -f "$SCRIPT_DIR/users.json"
-      COUNT=$USER_COUNT node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+      COUNT=$USER_COUNT ROLE=USER node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
     fi
   else
     log "▶ users.json 없음 → 유저 ${USER_COUNT}명 생성 중..."
-    log "  (400ms 간격 순차 생성 — 약 7분 소요, Rate Limiter 대응)"
-    COUNT=$USER_COUNT node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+    log "  (X-Load-Test 헤더로 Rate Limit 우회 — 약 1분 소요)"
+    COUNT=$USER_COUNT ROLE=USER node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+    _verify_users_json
   fi
 
   echo ""
@@ -232,7 +273,9 @@ run_coupon() {
   run_stage "stress-1000" $COUPON_STRESS_QTY 1000 || true
   run_stage "spike"       $COUPON_LOAD_QTY        || true
 
-  # 3. 완료
+  # 3. 완료 → Sentry 복원 후 trap 해제
+  trap - EXIT
+  sentry_restore
   echo ""
   echo "=========================================="
   log "  모든 테스트 완료"

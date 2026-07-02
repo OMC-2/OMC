@@ -32,7 +32,7 @@ docker compose up -d
 ```
 1. users.json 확인
    → 1000명 이상이면 스킵
-   → 없거나 부족하면 generator.js 자동 실행 (약 7분 소요)
+   → 없거나 부족하면 generator.js 자동 실행 (ROLE=USER, 약 1분 소요)
 
 2. 단계별 실행 (각 단계마다 새 쿠폰 생성 → k6 실행 → DB/Redis 검증)
    smoke → load → stress-200 → stress-400 → stress-600 → stress-800 → stress-1000 → spike
@@ -95,11 +95,51 @@ Redis stock: 정상 (stock: 9802)
 
 ---
 
+## Rate Limit 우회 전략 (유저 생성 속도 개선)
+
+generator.js는 유저 생성 시 모든 요청에 `X-Load-Test: local-loadtest-secret` 헤더를 포함한다.
+
+게이트웨이 `KeyResolver`는 이 헤더를 감지하면 `Mono.empty()`를 반환한다.  
+`deny-empty-key: false` 설정과 함께 Rate Limit이 우회되어 요청이 그대로 통과한다.
+
+```
+X-Load-Test 헤더 있음 → KeyResolver → Mono.empty()
+                      → deny-empty-key: false → Rate Limit 스킵 → 통과
+
+X-Load-Test 헤더 없음 → KeyResolver → routeId:userId 키 반환
+                      → 기존 Redis Rate Limiter 정상 동작
+```
+
+덕분에 유저 생성 간격을 400ms → 50ms로 단축 (7분 → 약 1분).
+
+> ⚠️ `X-Load-Test` 헤더는 로컬 개발 전용. 운영 환경에서는 게이트웨이 앞단(nginx 등)에서 이 헤더를 차단해야 한다.
+
+---
+
+## 유저 생성 옵션 (generator.js)
+
+| 환경변수 | 기본값 | 설명 |
+|---|---|---|
+| `ROLE=USER` | — | 일반 signup → **USER 역할** (쿠폰 발급 테스트용) |
+| `ROLE=ADMIN` | 기본값 | admin/signup → **ADMIN 역할** (drop 구매 등) |
+| `COUNT` | 1000 | 생성할 유저 수 |
+| `REQUEST_INTERVAL_MS` | 50 | 요청 간격 (ms) |
+
+```bash
+# 쿠폰 테스트용 (USER 역할)
+COUNT=1000 ROLE=USER node k6/generator.js
+
+# drop 테스트용 (ADMIN 역할, 기존 동작)
+COUNT=1000 node k6/generator.js
+```
+
+---
+
 ## 수동 실행 (단계별 직접)
 
 ```bash
 # 유저 생성 (users.json 없을 때)
-COUNT=1000 node k6/generator.js
+COUNT=1000 ROLE=USER node k6/generator.js
 
 # 각 단계 개별 실행
 k6 run --env SCENARIO=smoke  --env COUPON_ID=<uuid> k6/03-coupon-issue.js
