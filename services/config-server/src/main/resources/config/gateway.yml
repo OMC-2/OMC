@@ -138,6 +138,10 @@ spring:
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
+  warmup:
+    keycloak-token-uri: ${KEYCLOAK_URL:http://keycloak:8180}/realms/omc/protocol/openid-connect/token
+    warmup-user-email: ${WARMUP_USER_EMAIL:directtest@test.com}
+    warmup-user-password: ${WARMUP_USER_PASSWORD:password123}
 
 springdoc:
   swagger-ui:
