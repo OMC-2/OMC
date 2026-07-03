@@ -1,6 +1,6 @@
 package com.omc.product.application.service;
 
-import com.omc.product.application.event.ProductUpdatedEvent;
+import com.omc.product.application.event.producer.ProductUpdatedEvent;
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.entity.Product;
 import com.omc.product.domain.exception.ActiveDropExistsException;

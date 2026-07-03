@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.util.UuidV7Generator;
 import com.omc.product.application.event.PaymentCompletedEvent;
-import com.omc.product.application.event.StockFailedEvent;
+import com.omc.product.application.event.producer.StockFailedEvent;
 import com.omc.product.domain.entity.FailedEventLog;
 import com.omc.product.domain.entity.OutboxEvent;
 import com.omc.product.domain.enums.OutboxEventType;
