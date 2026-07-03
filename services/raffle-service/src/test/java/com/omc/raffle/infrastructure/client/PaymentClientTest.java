@@ -9,7 +9,8 @@ import org.springframework.cloud.contract.wiremock.AutoConfigureWireMock;
 
 import java.math.BigDecimal;
 import java.util.UUID;
-import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
+import com.omc.raffle.infrastructure.client.dto.RegisterBillingKeyRequest;
+import com.omc.raffle.infrastructure.client.dto.RegisterBillingKeyResponse;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,55 +30,52 @@ class PaymentFeignClientTest {
     private PaymentFeignClient paymentFeignClient;
 
     @Test
-    @DisplayName("결제 가승인 요청을 정상적으로 처리할 수 있다.")
-    void preAuth_success() {
+    @DisplayName("빌링키 신규 발급 요청을 정상적으로 처리할 수 있다.")
+    void registerBillingKey_success() {
         // given
-        String billingKeyId = "bk_" + UUID.randomUUID().toString();
-        BigDecimal amount = BigDecimal.valueOf(100);
+        String newBillingKeyId = "bk_" + UUID.randomUUID().toString();
 
-        stubFor(post(urlPathEqualTo("/internal/v1/payments/pre-auth"))
-                .withRequestBody(matchingJsonPath("$.billingKeyId", equalTo(billingKeyId)))
-                .withRequestBody(matchingJsonPath("$.amount", equalTo("100")))
+        stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
+                .withRequestBody(matchingJsonPath("$.customerKey", equalTo("")))
+                .withRequestBody(matchingJsonPath("$.authKey", equalTo("")))
                 .willReturn(aResponse()
                         .withHeader("Content-Type", "application/json")
-                        .withStatus(200)));
+                        .withStatus(200)
+                        .withBody("{\"billingKeyId\":\"" + newBillingKeyId + "\"}")));
 
-        // when & then (no exception thrown)
-        paymentFeignClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
+        // when
+        RegisterBillingKeyResponse response = paymentFeignClient.registerBillingKey(new RegisterBillingKeyRequest("", ""));
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.billingKeyId()).isEqualTo(newBillingKeyId);
     }
 
     @Test
     @DisplayName("결제 서버가 500 에러를 반환하면 서킷 브레이커 fallback이 동작해 PaymentPreAuthFailedException이 발생한다.")
-    void preAuth_serverError() {
+    void registerBillingKey_serverError() {
         // given
-        String billingKeyId = "bk_" + UUID.randomUUID().toString();
-        BigDecimal amount = BigDecimal.valueOf(100);
-
-        stubFor(post(urlPathEqualTo("/internal/v1/payments/pre-auth"))
+        stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
                 .willReturn(aResponse()
                         .withStatus(500)));
 
         // when & then
         org.junit.jupiter.api.Assertions.assertThrows(com.omc.raffle.domain.exception.PaymentPreAuthFailedException.class, () -> {
-            paymentFeignClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
+            paymentFeignClient.registerBillingKey(new RegisterBillingKeyRequest("", ""));
         });
     }
 
     @Test
     @DisplayName("결제 서버가 404를 반환하면 서킷 브레이커 fallback이 동작해 PaymentPreAuthFailedException이 발생한다.")
-    void preAuth_notFound() {
+    void registerBillingKey_notFound() {
         // given
-        String billingKeyId = "bk_" + UUID.randomUUID().toString();
-        BigDecimal amount = BigDecimal.valueOf(100);
-
-        stubFor(post(urlPathEqualTo("/internal/v1/payments/pre-auth"))
+        stubFor(post(urlPathEqualTo("/internal/v1/payments/billing-keys"))
                 .willReturn(aResponse()
                         .withStatus(404)));
 
         // when & then
         org.junit.jupiter.api.Assertions.assertThrows(com.omc.raffle.domain.exception.PaymentPreAuthFailedException.class, () -> {
-            paymentFeignClient.preAuthCard(new PreAuthRequest(billingKeyId, amount));
+            paymentFeignClient.registerBillingKey(new RegisterBillingKeyRequest("", ""));
         });
     }
 }
-
