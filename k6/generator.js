@@ -36,7 +36,7 @@ const REQUEST_INTERVAL_MS = parseInt(process.env.REQUEST_INTERVAL_MS || '50', 10
 // 20 req/s(50ms) 에서 반응하므로 기본값을 200ms(5 req/s)로 분리
 const RELOGIN_INTERVAL_MS = parseInt(process.env.RELOGIN_INTERVAL_MS || '200', 10);
 const LOAD_TEST_SECRET = 'local-loadtest-secret';
-const OUTPUT_PATH    = path.join(__dirname, 'users.json');
+const OUTPUT_PATH    = process.env.OUTPUT_PATH || path.join(__dirname, 'users.json');
 // RELOGIN=true → 기존 users.json의 email/password로 재로그인하여 토큰만 갱신
 const RELOGIN        = process.env.RELOGIN === 'true';
 

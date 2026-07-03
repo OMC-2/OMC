@@ -10,6 +10,7 @@
 #   all [tag]     setup + 전체 단계 + restore (한 번에 전부)
 #   smoke [tag]   smoke 단계만 실행 (setup 없이)
 #   load [tag]    load 단계만 실행
+#   load-repeat [N] [tag]  load를 N번 반복 (기본 10번, 매 회차 새 쿠폰)
 #   stress-200 [tag] ~ stress-1000 [tag]
 #   spike [tag]   spike 단계만 실행
 #
@@ -21,6 +22,7 @@
 #   ./k6/run.sh coupon setup                     # 1회
 #   ./k6/run.sh coupon smoke   pool-size-10
 #   ./k6/run.sh coupon load    pool-size-10
+#   ./k6/run.sh coupon load-repeat 10 pool-size-10   # load 10회 반복
 #   ./k6/run.sh coupon stress-400 pool-size-10
 #   ./k6/run.sh coupon restore                   # 마지막에 1회
 
@@ -40,9 +42,11 @@ COUPON_SERVICE_URL="http://localhost:8087"
 GATEWAY_SECRET="local-secret"
 ADMIN_USER_ID="00000000-0000-0000-0000-000000000001"
 
-COUPON_LOAD_QTY=100       # Smoke / Load / Spike Test 쿠폰 수량
-COUPON_STRESS_QTY=10000   # Stress Test 쿠폰 수량 (재고 소진이 아닌 서버 한계 탐색)
-USER_COUNT=1000           # 필요 유저 수 (Stress 최대 1000명 기준)
+COUPON_LOAD_QTY=${COUPON_LOAD_QTY:-1000}        # Smoke / Load / Spike Test 쿠폰 수량
+LOAD_REPEAT=${LOAD_REPEAT:-10}                  # load-repeat 반복 횟수
+COUPON_STRESS_QTY=${COUPON_STRESS_QTY:-10000}   # Stress Test 쿠폰 수량 (재고 소진이 아닌 서버 한계 탐색)
+USER_COUNT=${USER_COUNT:-1000}                   # 필요 유저 수
+REQUEST_INTERVAL_MS=${REQUEST_INTERVAL_MS:-50}   # 유저 생성 요청 간격 (ms) — 클수록 안정, 느림
 
 POSTGRES_CONTAINER="omc-postgres"
 POSTGRES_USER="omc"
@@ -478,12 +482,12 @@ coupon_setup() {
     if [ "$EXISTING_ROLE" != "$NEEDED_ROLE" ]; then
       log "⚠️  users.json role 불일치 (${EXISTING_ROLE} ≠ ${NEEDED_ROLE}) → 재생성"
       rm -f "$SCRIPT_DIR/users.json"
-      COUNT=$USER_COUNT ROLE=$NEEDED_ROLE node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+      COUNT=$USER_COUNT ROLE=$NEEDED_ROLE REQUEST_INTERVAL_MS=$REQUEST_INTERVAL_MS node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
       _verify_users_json
     elif [ "$EXISTING" -lt "$USER_COUNT" ]; then
       log "⚠️  users.json 유저 부족 (${EXISTING}명 < ${USER_COUNT}명) → 재생성"
       rm -f "$SCRIPT_DIR/users.json"
-      COUNT=$USER_COUNT ROLE=$NEEDED_ROLE node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+      COUNT=$USER_COUNT ROLE=$NEEDED_ROLE REQUEST_INTERVAL_MS=$REQUEST_INTERVAL_MS node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
       _verify_users_json
     else
       log "✅ users.json 존재 (${EXISTING}명, ROLE=${EXISTING_ROLE}) → 토큰 갱신 중..."
@@ -492,8 +496,8 @@ coupon_setup() {
     fi
   else
     log "▶ users.json 없음 → 유저 ${USER_COUNT}명 생성 중..."
-    log "  (X-Load-Test 헤더로 Rate Limit 우회 — 약 1분 소요)"
-    COUNT=$USER_COUNT ROLE=$NEEDED_ROLE node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
+    log "  (X-Load-Test 헤더로 Rate Limit 우회, 간격 ${REQUEST_INTERVAL_MS}ms)"
+    COUNT=$USER_COUNT ROLE=$NEEDED_ROLE REQUEST_INTERVAL_MS=$REQUEST_INTERVAL_MS node "$SCRIPT_DIR/generator.js" || { log "❌ 유저 생성 실패"; exit 1; }
     _verify_users_json
   fi
 
@@ -531,6 +535,19 @@ coupon_run_stage() {
   case "$stage" in
     smoke)        run_stage "smoke"       $COUPON_LOAD_QTY  0  5 ;;
     load)         run_stage "load"        $COUPON_LOAD_QTY ;;
+    load-repeat)
+      local rounds=${TAG:-$LOAD_REPEAT}
+      if [[ "$rounds" =~ ^[0-9]+$ ]]; then
+        TAG="${5:-}"
+      else
+        rounds=$LOAD_REPEAT
+      fi
+      log "▶ load-repeat: ${rounds}회 반복 (쿠폰 ${COUPON_LOAD_QTY}개 × ${rounds}회)"
+      for i in $(seq 1 "$rounds"); do
+        log "  ▶ round ${i}/${rounds}"
+        run_stage "load-round-${i}" "$COUPON_LOAD_QTY" || true
+      done
+      ;;
     stress-200)   run_stage "stress-200"  $COUPON_STRESS_QTY  200  || true ;;
     stress-400)   run_stage "stress-400"  $COUPON_STRESS_QTY  400  || true ;;
     stress-600)   run_stage "stress-600"  $COUPON_STRESS_QTY  600  || true ;;
@@ -599,7 +616,7 @@ case "$SCENARIO_TYPE" in
       setup)   coupon_setup ;;
       restore) sentry_restore ;;
       all)     coupon_all ;;
-      smoke|load|stress-200|stress-400|stress-600|stress-800|stress-1000|spike)
+      smoke|load|load-repeat|stress-200|stress-400|stress-600|stress-800|stress-1000|spike)
                coupon_run_stage "$COMMAND" ;;
       "")
         echo "사용법: ./k6/run.sh coupon <command> [태그]"
@@ -610,6 +627,7 @@ case "$SCENARIO_TYPE" in
         echo "  all [태그]        setup + 전체 단계 + restore"
         echo "  smoke [태그]      smoke 단계만"
         echo "  load [태그]       load 단계만"
+  echo "  load-repeat [N] [태그]  load N회 반복 (기본 LOAD_REPEAT=${LOAD_REPEAT}회, 매 회차 새 쿠폰)"
         echo "  stress-200 [태그] stress 200VU만"
         echo "  stress-400 [태그] stress 400VU만"
         echo "  stress-600 [태그] stress 600VU만"
