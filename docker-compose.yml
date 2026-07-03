@@ -168,7 +168,7 @@ services:
     ports:
       - "19411:9411"
     environment:
-      JAVA_OPTS: "-Xms256m -Xmx512m"
+      JAVA_OPTS: "-Xms256m -Xmx1g"
     restart: on-failure
     networks:
       - omc-network
