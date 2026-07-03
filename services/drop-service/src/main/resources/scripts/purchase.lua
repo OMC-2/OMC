@@ -6,6 +6,7 @@
 -- KEYS[6] = drop:{dropId}:status       OPEN 플래그
 -- KEYS[7] = hold_ttl:{dropId}          holdTtlSec
 -- KEYS[8] = product_id:{dropId}        productId
+-- KEYS[9] = sold_out:{dropId}          품절 플래그 (Gateway 조기 차단용)
 -- ARGV[1] = userId
 -- ARGV[2] = orderId
 -- ARGV[3] = dropId
@@ -38,7 +39,10 @@ if stock == nil or stock <= 0 then
 end
 
 -- 원자적 선점 처리
-redis.call('DECR', KEYS[2])
+local remaining = redis.call('DECR', KEYS[2])
+if remaining <= 0 then
+    redis.call('SET', KEYS[9], '1')
+end
 redis.call('SADD', KEYS[1], ARGV[1])
 
 -- Redis 서버 시간 기준 만료 epoch 계산 (다중 인스턴스 시계 차이 방지)
