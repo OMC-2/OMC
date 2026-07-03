@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -72,6 +73,54 @@ class UserServiceTest {
         assertThat(response.email()).isEqualTo("test@example.com");
         assertThat(response.nickname()).isEqualTo("testuser");
         assertThat(response.role()).isEqualTo("USER");
+        verify(keycloakAdminClient).setDbUserId(keycloakId, "testuser", userId.toString());
+    }
+
+    @Test
+    void signup_keycloak_attribute_설정_후_순서_보장() {
+        SignupRequest request = new SignupRequest("test@example.com", "password123", "testuser", null);
+        String keycloakId = UUID.randomUUID().toString();
+        UUID userId = UUID.randomUUID();
+
+        User mockUser = mock(User.class);
+        given(mockUser.getUserId()).willReturn(userId);
+        given(mockUser.getEmail()).willReturn("test@example.com");
+        given(mockUser.getNickname()).willReturn("testuser");
+        given(mockUser.getRole()).willReturn(UserRole.USER);
+
+        given(userRepository.existsByEmail("test@example.com")).willReturn(false);
+        given(keycloakAdminClient.createUser("test@example.com", "password123", "testuser")).willReturn(keycloakId);
+        given(userRepository.save(any(User.class))).willReturn(mockUser);
+
+        userService.signup(request);
+
+        // DB 저장 → setDbUserId 순서 보장
+        var inOrder = inOrder(userRepository, keycloakAdminClient);
+        inOrder.verify(userRepository).save(any(User.class));
+        inOrder.verify(keycloakAdminClient).setDbUserId(keycloakId, "testuser", userId.toString());
+    }
+
+    @Test
+    void signup_setDbUserId_실패_시_DB_롤백_및_Keycloak_삭제() {
+        SignupRequest request = new SignupRequest("test@example.com", "password123", "testuser", null);
+        String keycloakId = UUID.randomUUID().toString();
+        UUID userId = UUID.randomUUID();
+
+        User mockUser = mock(User.class);
+        given(mockUser.getUserId()).willReturn(userId);
+
+        given(userRepository.existsByEmail("test@example.com")).willReturn(false);
+        given(keycloakAdminClient.createUser("test@example.com", "password123", "testuser")).willReturn(keycloakId);
+        given(userRepository.save(any(User.class))).willReturn(mockUser);
+        willThrow(new BusinessException(CommonErrorCode.REMOTE_CALL_FAILED))
+                .given(keycloakAdminClient).setDbUserId(keycloakId, "testuser", userId.toString());
+
+        assertThatThrownBy(() -> userService.signup(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(CommonErrorCode.INTERNAL_SERVER_ERROR));
+
+        verify(keycloakAdminClient).deleteUser(keycloakId);
     }
 
     @Test
@@ -101,6 +150,7 @@ class UserServiceTest {
                         .isEqualTo(CommonErrorCode.INTERNAL_SERVER_ERROR));
 
         verify(keycloakAdminClient).deleteUser(keycloakId);
+        verify(keycloakAdminClient, never()).setDbUserId(any(), any(), any());
     }
 
     // =========================================================================
