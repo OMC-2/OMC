@@ -11,3 +11,12 @@ gateway:
 app:
   swagger:
     server-url: ${SWAGGER_SERVER_URL:http://localhost:8080}
+
+spring:
+  kafka:
+    listener:
+      observation:
+        enabled: true
+    producer:
+      observation:
+        enabled: true
