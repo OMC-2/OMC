@@ -29,6 +29,7 @@ import com.omc.raffle.presentation.dto.response.RaffleResponse;
 import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
 
 import com.omc.raffle.infrastructure.client.PaymentFeignClient;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
 
 /**
@@ -73,19 +74,15 @@ public class RaffleAppService {
             throw new DuplicateEntryException(RaffleErrorCode.RAFFLE_002); // 이미 응모함
         }
 
-        // 5. 신규 빌링키 발급 (가승인 우회)
-        // 프론트엔드가 없는 환경을 위해, 래플 서버가 결제 서버에 빈 값으로 요청하여 가짜 빌링키를 발급받습니다.
-        String finalBillingKeyId = request.billingKeyId();
+        // 5. 결제 수단 유효성 검증 (가승인)
         try {
-            var registerResponse = paymentFeignClient.registerBillingKey(
-                new com.omc.raffle.infrastructure.client.dto.RegisterBillingKeyRequest("", "")
-            );
-            finalBillingKeyId = registerResponse.billingKeyId();
+            // 결제 서버에 100원 가승인 요청 (이후 결제 서버 내에서 자동 승인 취소됨)
+            paymentFeignClient.preAuthCard(new PreAuthRequest(request.billingKeyId(), java.math.BigDecimal.valueOf(100)));
         } catch (Exception e) {
-            // SAGA 보상 트랜잭션: 빌링키 발급 실패 시 이미 SADD된 Redis 값을 제거
-            log.error("[RaffleAppService] 결제 수단 빌링키 발급 실패. userId={}", request.userId(), e);
+            // SAGA 보상 트랜잭션: 결제 수단 가승인 실패 시 이미 SADD된 Redis 값을 제거
+            log.error("[RaffleAppService] 결제 수단 가승인 실패. userId={}, billingKeyId={}", request.userId(), request.billingKeyId(), e);
             redisRepository.removeEntry(raffleId, request.userId());
-            throw new PaymentPreAuthFailedException(RaffleErrorCode.RAFFLE_004, "결제 수단 빌링키 발급에 실패했습니다.");
+            throw new PaymentPreAuthFailedException(RaffleErrorCode.RAFFLE_004, "결제 수단(카드) 검증에 실패했습니다.");
         }
 
         // 6. 응모 내역 저장
@@ -94,7 +91,7 @@ public class RaffleAppService {
             RaffleEntry entry = RaffleEntry.create(
                     raffleId, 
                     request.userId(), 
-                    finalBillingKeyId,
+                    request.billingKeyId(),
                     request.couponId(),
                     request.originalAmount(),
                     request.discountAmount(),

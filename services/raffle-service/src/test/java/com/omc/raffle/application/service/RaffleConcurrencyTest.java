@@ -8,6 +8,7 @@ import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.EmbeddedRedisConfig;
 import com.omc.raffle.infrastructure.client.PaymentFeignClient;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @Import(EmbeddedRedisConfig.class)
@@ -61,8 +61,8 @@ class RaffleConcurrencyTest {
         raffle = raffleRepository.save(raffle);
         raffleId = raffle.getId();
 
-        when(paymentFeignClient.registerBillingKey(any(com.omc.raffle.infrastructure.client.dto.RegisterBillingKeyRequest.class)))
-                .thenReturn(new com.omc.raffle.infrastructure.client.dto.RegisterBillingKeyResponse("bk_dummy"));
+        // 결제 가승인 항상 성공
+        doNothing().when(paymentFeignClient).preAuthCard(any(PreAuthRequest.class));
     }
 
     @AfterEach

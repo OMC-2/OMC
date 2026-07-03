@@ -11,9 +11,8 @@ import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.domain.repository.RafflePenaltyRepository;
 import com.omc.raffle.infrastructure.client.PaymentFeignClient;
-import com.omc.raffle.infrastructure.client.dto.RegisterBillingKeyRequest;
-import com.omc.raffle.infrastructure.client.dto.RegisterBillingKeyResponse;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -58,7 +57,7 @@ class RaffleAppServiceTest {
     class ApplyRaffle {
 
         @Test
-        @DisplayName("유효한 요청일 경우 정상적으로 응모되며 Redis에 기록된다.")
+        @DisplayName("모든 조건이 만족되면 응모에 성공한다")
         void success() {
             // given
             UUID raffleId = UUID.randomUUID();
@@ -73,8 +72,7 @@ class RaffleAppServiceTest {
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
             when(rafflePenaltyRepository.existsByUserIdAndPenaltyEndDateAfter(eq(request.userId()), any(LocalDateTime.class))).thenReturn(false);
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(true);
-            when(paymentFeignClient.registerBillingKey(any(RegisterBillingKeyRequest.class)))
-                    .thenReturn(new RegisterBillingKeyResponse("bk_dummy"));
+            doNothing().when(paymentFeignClient).preAuthCard(any(PreAuthRequest.class));
 
             RaffleEntry savedEntry = RaffleEntry.create(raffleId, request.userId(), request.billingKeyId(), null, BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000));
             when(raffleEntryRepository.save(any(RaffleEntry.class))).thenReturn(savedEntry);
@@ -85,8 +83,7 @@ class RaffleAppServiceTest {
             // then
             assertNotNull(response);
             assertEquals(request.userId(), response.userId());
-            verify(redisRepository, times(1)).addEntry(raffleId, request.userId());
-            verify(paymentFeignClient, times(1)).registerBillingKey(any(RegisterBillingKeyRequest.class));
+            verify(paymentFeignClient, times(1)).preAuthCard(any(PreAuthRequest.class));
             verify(raffleEntryRepository, times(1)).save(any(RaffleEntry.class));
         }
 
@@ -152,7 +149,7 @@ class RaffleAppServiceTest {
             // when & then
             BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
             assertEquals(RaffleErrorCode.RAFFLE_002.getCode(), exception.getErrorCode().getCode());
-            verify(paymentFeignClient, never()).registerBillingKey(any());
+            verify(paymentFeignClient, never()).preAuthCard(any());
         }
 
         @Test
@@ -171,7 +168,7 @@ class RaffleAppServiceTest {
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
             when(rafflePenaltyRepository.existsByUserIdAndPenaltyEndDateAfter(eq(request.userId()), any(LocalDateTime.class))).thenReturn(false);
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(true);
-            doThrow(new RuntimeException("Payment Error")).when(paymentFeignClient).registerBillingKey(any(RegisterBillingKeyRequest.class));
+            doThrow(new RuntimeException("Payment Error")).when(paymentFeignClient).preAuthCard(any());
 
             // when & then
             BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
