@@ -47,7 +47,6 @@ public class RaffleResultService {
             throw new com.omc.raffle.domain.exception.DrawSeedNotGeneratedException(com.omc.raffle.domain.enums.RaffleErrorCode.RAFFLE_005);
         }
 
-        long totalParticipants = raffleEntryRepository.countByRaffleId(raffleId);
 
         List<RaffleResult> winners = raffleResultRepository.findByRaffleIdAndResult(raffleId, RaffleResultStatus.WIN);
 

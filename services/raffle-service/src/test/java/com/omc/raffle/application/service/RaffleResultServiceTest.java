@@ -99,7 +99,7 @@ class RaffleResultServiceTest {
             RaffleResult winner2 = RaffleResult.create(UUID.randomUUID(), raffleId, UUID.randomUUID(), RaffleResultStatus.WIN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
-            when(raffleEntryRepository.countByRaffleId(raffleId)).thenReturn(10L);
+
             when(raffleResultRepository.findByRaffleIdAndResult(raffleId, RaffleResultStatus.WIN))
                     .thenReturn(List.of(winner1, winner2));
 

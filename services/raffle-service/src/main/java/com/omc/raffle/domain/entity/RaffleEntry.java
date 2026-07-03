@@ -19,7 +19,9 @@ import org.springframework.util.Assert;
  * 결제 실패 시 보상 트랜잭션 처리를 위해, 참여자가 선택한 쿠폰과 결제 예정 금액을 보존합니다.
  */
 @Entity
-@Table(name = "p_raffle_entries")
+@Table(name = "p_raffle_entries", uniqueConstraints = {
+    @UniqueConstraint(name = "uk_raffle_user", columnNames = {"raffle_id", "user_id"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @SQLRestriction("deleted_at IS NULL")
