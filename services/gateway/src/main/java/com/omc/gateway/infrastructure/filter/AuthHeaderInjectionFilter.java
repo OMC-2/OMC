@@ -47,7 +47,15 @@ public class AuthHeaderInjectionFilter implements GlobalFilter, Ordered {
                     Jwt jwt = jwtAuth.getToken();
                     String keycloakId = jwt.getSubject();
                     String role = extractRole(jwt);
+                    String dbUserIdClaim = jwt.getClaim("db_user_id");
 
+                    if (dbUserIdClaim != null && !dbUserIdClaim.isBlank()) {
+                        requestBuilder.header("X-User-Id", dbUserIdClaim);
+                        requestBuilder.header("X-User-Role", role);
+                        return Mono.just(exchange.mutate().request(requestBuilder.build()).build());
+                    }
+
+                    log.debug("[AuthHeader] db_user_id claim 없음, user-service fallback (keycloakId={})", keycloakId);
                     return fetchDbUserId(keycloakId)
                         .map(dbUserId -> {
                             requestBuilder.header("X-User-Id", dbUserId);

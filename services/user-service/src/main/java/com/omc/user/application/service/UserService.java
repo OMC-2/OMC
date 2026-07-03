@@ -47,9 +47,10 @@ public class UserService {
             User user = userRepository.save(
                     User.create(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
+            keycloakAdminClient.setDbUserId(keycloakUserId, request.nickname(), user.getUserId().toString());
             return new SignupResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getRole().name());
         } catch (Exception e) {
-            log.error("DB save failed after Keycloak user creation, rolling back keycloak user {}", keycloakUserId, e);
+            log.error("signup failed after Keycloak user creation, rolling back keycloak user {}", keycloakUserId, e);
             keycloakAdminClient.deleteUser(keycloakUserId);
             throw new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
@@ -69,9 +70,10 @@ public class UserService {
             User user = userRepository.save(
                     User.createAdmin(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
+            keycloakAdminClient.setDbUserId(keycloakUserId, request.nickname(), user.getUserId().toString());
             return new SignupResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getRole().name());
         } catch (Exception e) {
-            log.error("DB save failed after Keycloak admin creation, rolling back keycloak user {}", keycloakUserId, e);
+            log.error("adminSignup failed after Keycloak admin creation, rolling back keycloak user {}", keycloakUserId, e);
             keycloakAdminClient.deleteUser(keycloakUserId);
             throw new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
