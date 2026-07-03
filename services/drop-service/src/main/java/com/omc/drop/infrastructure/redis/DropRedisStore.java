@@ -63,18 +63,21 @@ public class DropRedisStore {
         return val != null ? UUID.fromString(val) : null;
     }
 
-    // 반환값: -2 = 중복 구매, -1 = 품절, 양수 = 순번(queueNumber)
-    public Long executePurchase(UUID dropId, UUID userId, UUID orderId, int holdTtlSec, UUID productId, String eventId) {
+    // 반환값: -4 = 드롭 없음, -3 = OPEN 아님, -2 = 중복 구매, -1 = 품절, 양수 = 순번(queueNumber)
+    // isOpen/getHoldTtlSec/getProductId 개별 호출 제거 → Lua 내부에서 일괄 조회 (4 round-trips → 1)
+    public Long executePurchase(UUID dropId, UUID userId, UUID orderId, String eventId) {
         List<String> keys = List.of(
                 purchasedKey(dropId),
                 stockKey(dropId),
                 holdsKey(dropId),
                 queueKey(dropId),
-                PurchaseStreamStore.STREAM_KEY
+                PurchaseStreamStore.STREAM_KEY,
+                statusKey(dropId),
+                holdTtlKey(dropId),
+                productIdKey(dropId)
         );
         return redisTemplate.execute(PURCHASE_SCRIPT, keys,
-                userId.toString(), orderId.toString(), String.valueOf(holdTtlSec),
-                productId.toString(), dropId.toString(), eventId);
+                userId.toString(), orderId.toString(), dropId.toString(), eventId);
     }
 
     // 만료 epoch 이하인 orderId 목록 조회
