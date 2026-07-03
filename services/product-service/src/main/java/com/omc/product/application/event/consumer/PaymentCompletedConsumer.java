@@ -50,7 +50,8 @@ public class PaymentCompletedConsumer {
             throw new PoisonMessageException("역직렬화 실패: " + e.getMessage(), e);
         }
 
-        // 성공/실패 처리와 offset 커밋은 InventoryService.confirmDeduct() 내부에서 처리
+        // confirmDeduct() 성공 시 컨테이너가 offset을 자동 커밋하고,
+        // 예외 발생 시에는 DefaultErrorHandler가 재시도/DLT 처리를 담당한다 (수동 ack 없음)
         inventoryService.confirmDeduct(event);
     }
 }
