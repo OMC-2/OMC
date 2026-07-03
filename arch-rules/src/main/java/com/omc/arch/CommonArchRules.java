@@ -2,13 +2,12 @@ package com.omc.arch;
 
 import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.lang.ArchRule;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RestController;
 import jakarta.persistence.Entity;
-import org.springframework.data.repository.RepositoryDefinition;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
@@ -69,6 +68,13 @@ public class CommonArchRules {
                 .should().haveSimpleNameEndingWith("Repository");
     }
 
+    public static ArchRule processorNamingRule() {
+        return classes()
+                .that().resideInAPackage("..processor..")
+                .should().haveSimpleNameEndingWith("Processor")
+                .orShould().haveSimpleNameEndingWith("Handler");
+    }
+
     public static ArchRule requestDtoNamingRule() {
         return classes()
                 .that().resideInAPackage("..dto.request..")
@@ -94,6 +100,13 @@ public class CommonArchRules {
                 .that().resideInAPackage("..service..")
                 .and().areNotInterfaces()
                 .should().beAnnotatedWith(Service.class);
+    }
+
+    public static ArchRule processorAnnotationRule() {
+        return classes()
+                .that().resideInAPackage("..processor..")
+                .and().areNotInterfaces()
+                .should().beAnnotatedWith(Component.class);
     }
 
     public static ArchRule repositoryAnnotationRule() {

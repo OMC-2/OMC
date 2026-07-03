@@ -53,6 +53,9 @@ public class ProductServiceArchTest {
     static final ArchRule repository_naming = CommonArchRules.repositoryNamingRule();
 
     @ArchTest
+    static final ArchRule processor_naming = CommonArchRules.processorNamingRule();
+
+    @ArchTest
     static final ArchRule request_dto_naming = CommonArchRules.requestDtoNamingRule();
 
     @ArchTest
@@ -64,6 +67,9 @@ public class ProductServiceArchTest {
 
     @ArchTest
     static final ArchRule service_annotation = CommonArchRules.serviceAnnotationRule();
+
+    @ArchTest
+    static final ArchRule processor_annotation = CommonArchRules.processorAnnotationRule();
 
     @ArchTest
     static final ArchRule repository_annotation = CommonArchRules.repositoryAnnotationRule();
