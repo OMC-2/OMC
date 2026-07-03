@@ -14,6 +14,8 @@ import com.omc.coupon.domain.repository.CouponRepository;
 import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
 import com.omc.coupon.infrastructure.metrics.CouponMetrics;
+import com.omc.coupon.infrastructure.redis.CouponCacheDto;
+import com.omc.coupon.infrastructure.redis.CouponCacheRepository;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
 import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
@@ -44,6 +46,7 @@ public class CouponService {
     private final UserCouponRepository userCouponRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final CouponRedisRepository couponRedisRepository;
+    private final CouponCacheRepository couponCacheRepository;
     private final ObjectMapper objectMapper;
     private final CouponMetrics couponMetrics;
     private final CouponStockRecoveryService couponStockRecoveryService;
@@ -53,6 +56,7 @@ public class CouponService {
     public CouponResponse createCoupon(CouponCreateRequest request) {
         Coupon coupon = couponRepository.save(request.toEntity());
         couponRedisRepository.initStock(coupon.getCouponId().toString(), coupon.getTotalQuantity());
+        couponCacheRepository.put(coupon);
         log.info("[CouponService] 쿠폰 생성 완료. couponId={}", coupon.getCouponId());
         return CouponResponse.from(coupon);
     }
@@ -71,20 +75,17 @@ public class CouponService {
     public UserCouponResponse issueCoupon(UUID couponId, UUID userId) {
         registerTxCommitSpan();
 
-        Coupon coupon = findCoupon(couponId);
+        CouponCacheDto couponDto = findCouponDto(couponId);
 
-        // [validate] isIssuable 체크 — findCoupon 이후 갭 구간
+        // [validate] 날짜 유효성 검사 — 재고는 Redis DECR이 제어
         Span validateSpan = tracer.nextSpan().name("coupon.issue.validate").start();
         try (Tracer.SpanInScope ws = tracer.withSpan(validateSpan)) {
-            if (!coupon.isIssuable()) {
-                if (coupon.getExpiredAt().isBefore(java.time.LocalDateTime.now())) {
-                    throw new BusinessException(CouponErrorCode.COUPON_EXPIRED);
-                }
-                if (coupon.getStartedAt().isAfter(java.time.LocalDateTime.now())) {
-                    throw new BusinessException(CouponErrorCode.COUPON_NOT_STARTED);
-                }
-                couponMetrics.incrementOutOfStock(couponId.toString());
-                throw new CouponOutOfStockException();
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            if (couponDto.getExpiredAt().isBefore(now)) {
+                throw new BusinessException(CouponErrorCode.COUPON_EXPIRED);
+            }
+            if (couponDto.getStartedAt().isAfter(now)) {
+                throw new BusinessException(CouponErrorCode.COUPON_NOT_STARTED);
             }
         } finally {
             validateSpan.end();
@@ -127,10 +128,12 @@ public class CouponService {
         }
 
         // [entity-create] UserCoupon 객체 생성 — DB 중복 체크 이후 갭 구간
+        // couponRef: JPA 프록시(DB 조회 없음), expiredAt은 캐시에서 가져옴
         UserCoupon newUserCoupon;
         Span entitySpan = tracer.nextSpan().name("coupon.issue.entity-create").start();
         try (Tracer.SpanInScope ws = tracer.withSpan(entitySpan)) {
-            newUserCoupon = UserCoupon.create(userId, coupon, coupon.getExpiredAt());
+            Coupon couponRef = couponRepository.getReferenceById(couponId);
+            newUserCoupon = UserCoupon.create(userId, couponRef, couponDto.getExpiredAt());
         } finally {
             entitySpan.end();
         }
@@ -207,6 +210,16 @@ public class CouponService {
 
     private Coupon findCoupon(UUID couponId) {
         return couponRepository.findById(couponId).orElseThrow(CouponNotFoundException::new);
+    }
+
+    private CouponCacheDto findCouponDto(UUID couponId) {
+        return couponCacheRepository.get(couponId)
+                .orElseGet(() -> {
+                    Coupon coupon = couponRepository.findById(couponId)
+                            .orElseThrow(CouponNotFoundException::new);
+                    couponCacheRepository.put(coupon);
+                    return CouponCacheDto.from(coupon);
+                });
     }
 
     private String toJson(Object obj) {
