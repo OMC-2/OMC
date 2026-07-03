@@ -13,6 +13,7 @@ import com.omc.coupon.domain.exception.CouponOutOfStockException;
 import com.omc.coupon.domain.repository.CouponRepository;
 import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
+import com.omc.coupon.infrastructure.metrics.CouponMetrics;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
 import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
@@ -40,6 +41,8 @@ public class CouponService {
     private final OutboxEventRepository outboxEventRepository;
     private final CouponRedisRepository couponRedisRepository;
     private final ObjectMapper objectMapper;
+    private final CouponMetrics couponMetrics;
+    private final CouponStockRecoveryService couponStockRecoveryService;
 
     @Transactional
     public CouponResponse createCoupon(CouponCreateRequest request) {
@@ -70,18 +73,29 @@ public class CouponService {
             if (coupon.getStartedAt().isAfter(java.time.LocalDateTime.now())) {
                 throw new BusinessException(CouponErrorCode.COUPON_NOT_STARTED);
             }
+            couponMetrics.incrementOutOfStock(couponId.toString());
             throw new CouponOutOfStockException();
         }
 
         // Redis 이중 방어: 이미 발급 여부 확인
         if (couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())) {
+            couponMetrics.incrementDuplicate(couponId.toString());
             throw new CouponAlreadyIssuedException();
         }
 
+        // Redis key 없으면 DB COUNT로 즉시 복구 (케이스 1: Redis만 죽은 경우)
+        if (!couponRedisRepository.hasStock(couponId.toString())) {
+            couponStockRecoveryService.syncCouponStock(couponId);
+        }
+
         // Redis 원자적 재고 차감
-        long remaining = couponRedisRepository.decrementStock(couponId.toString());
+        long remaining = couponMetrics.recordRedisDuration(
+                couponId.toString(),
+                () -> couponRedisRepository.decrementStock(couponId.toString())
+        );
         if (remaining < 0) {
             couponRedisRepository.incrementStock(couponId.toString()); // 롤백
+            couponMetrics.incrementOutOfStock(couponId.toString());
             throw new CouponOutOfStockException();
         }
 
@@ -89,6 +103,7 @@ public class CouponService {
         userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId).ifPresent(uc -> {
             couponRedisRepository.incrementStock(couponId.toString()); // 재고 롤백
             couponRedisRepository.markIssued(couponId.toString(), userId.toString()); // Redis Set 동기화
+            couponMetrics.incrementDuplicate(couponId.toString());
             throw new CouponAlreadyIssuedException();
         });
 
@@ -100,6 +115,7 @@ public class CouponService {
             );
         } catch (DataIntegrityViolationException e) {
             couponRedisRepository.incrementStock(couponId.toString());
+            couponMetrics.incrementDuplicate(couponId.toString());
             throw new CouponAlreadyIssuedException();
         }
 
@@ -109,14 +125,13 @@ public class CouponService {
                 "couponId", couponId.toString(),
                 "userId", userId.toString()
         ));
-        // UserCoupon 저장 + Outbox 저장 같은 트랜잭션으로 묶임
         outboxEventRepository.save(OutboxEvent.create(
                 outboxEventId, "UserCoupon", userCoupon.getUserCouponId(), OutboxEventType.COUPON_ISSUED, payload
         ));
 
-        // Redis 발급 목록에 추가 (중복 방지용 Set)
         couponRedisRepository.markIssued(couponId.toString(), userId.toString());
 
+        couponMetrics.incrementIssueSuccess(couponId.toString());
         log.info("[CouponService] 쿠폰 발급 완료. couponId={}, userId={}", couponId, userId);
         return UserCouponResponse.from(userCoupon);
     }

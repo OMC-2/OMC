@@ -4,6 +4,7 @@ import com.omc.drop.domain.exception.DuplicatePurchaseException;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.DropNotOpenException;
 import com.omc.drop.domain.exception.SoldOutException;
+import com.omc.drop.infrastructure.metrics.DropMetrics;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
 import com.omc.drop.presentation.dto.response.PurchaseResponse;
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +28,9 @@ class PurchaseServiceTest {
 
     @Mock
     private DropRedisStore dropRedisStore;
+
+    @Mock
+    private DropMetrics dropMetrics;
 
     @InjectMocks
     private PurchaseService purchaseService;

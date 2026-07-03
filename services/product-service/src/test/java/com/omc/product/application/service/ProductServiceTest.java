@@ -12,6 +12,7 @@ import com.omc.product.infrastructure.client.ActiveDropResponse;
 import com.omc.product.presentation.dto.request.ProductCreateRequest;
 import com.omc.product.presentation.dto.request.ProductUpdateRequest;
 import com.omc.product.presentation.dto.response.ProductResponse;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class ProductServiceTest {
     @Mock private ProductRepository productRepository;
     @Mock private InventoryRepository inventoryRepository;
     @Mock private DropInternalClient dropInternalClient;
+    @Mock private EntityManager entityManager;
 
     @InjectMocks
     private ProductService productService;

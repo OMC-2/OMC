@@ -105,7 +105,7 @@ public class OrderEventConsumer {
   @Transactional
   public void consumeStockDeducted(String message) {
       StockDeductedEvent payload = parse(message, StockDeductedEvent.class, "stock.deducted");
-      if(isAlreadyProcessed(payload.eventId(), "stock.defunded")) return;
+      if(isAlreadyProcessed(payload.eventId(), "stock.deducted")) return;
 
       log.info("[OrderConsumer] 재고 차막 완료 수신 -> CONFIRMED 전이: orderId={}", payload.orderId());
       orderService.confirmOrder(payload.orderId());

@@ -5,6 +5,7 @@ import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.exception.ErrorCode;
 import com.omc.common.response.ErrorResponse;
 import com.omc.common.response.FieldErrorDetail;
+import io.sentry.Sentry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +54,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse<Void>> handleException(Exception e) {
         log.error("Server Error: ", e);
+        Sentry.captureException(e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse.of(
                         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -74,6 +76,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse<Void>> handleAccessDeniedException(AccessDeniedException e) {
+        Sentry.captureException(e);
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(
                         HttpStatus.FORBIDDEN,
@@ -103,6 +106,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse<Void>> handleMissingRequestHeaderException(MissingRequestHeaderException e) {
         log.warn("Missing Request Header: {}", e.getHeaderName());
+        Sentry.captureException(e);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(
                         HttpStatus.BAD_REQUEST,

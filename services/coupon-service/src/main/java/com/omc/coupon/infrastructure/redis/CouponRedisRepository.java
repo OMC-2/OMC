@@ -1,9 +1,11 @@
 package com.omc.coupon.infrastructure.redis;
 
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;
 
+@Observed(name = "redis.coupon")
 @Repository
 @RequiredArgsConstructor
 public class CouponRedisRepository {
@@ -37,5 +39,9 @@ public class CouponRedisRepository {
 
     public void markIssued(String couponId, String userId) {
         redisTemplate.opsForSet().add(ISSUED_KEY_PREFIX + couponId, userId);
+    }
+
+    public boolean hasStock(String couponId) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(STOCK_KEY_PREFIX + couponId));
     }
 }

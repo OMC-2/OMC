@@ -1,6 +1,7 @@
 function fn() {
     var config = {
         baseUrl: 'http://localhost:8080',
+        couponServiceUrl: 'http://localhost:8087',
         paymentServiceUrl: 'http://localhost:8085',
         kafkaBootstrapServers: 'localhost:9092',
         gatewaySecret: 'local-secret',

@@ -140,7 +140,7 @@ class PaymentEventServiceTest {
                     org.mockito.ArgumentMatchers.eq(9000L),
                     providerPaymentIdCaptor.capture()
             );
-            assertThat(providerPaymentIdCaptor.getValue()).isNotBlank();
+            assertThat(providerPaymentIdCaptor.getValue()).isNull();
         }
     }
 

@@ -51,6 +51,6 @@ public class ProductAdminController {
             @RequestHeader("X-User-Id") UUID userId
     ) {
         productService.deleteProduct(productId, userId);
-        return ResponseEntity.ok(ApiResponse.success("상품 삭제가 성공적으로 처리되었습니다.", null));
+        return ResponseEntity.ok(ApiResponse.ok());
     }
 }

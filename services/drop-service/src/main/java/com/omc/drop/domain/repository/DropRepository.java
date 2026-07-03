@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface DropRepository extends JpaRepository<Drop, UUID> {
@@ -35,7 +36,20 @@ public interface DropRepository extends JpaRepository<Drop, UUID> {
                                   @Param("currentStatus") DropStatus currentStatus,
                                   @Param("newStatus") DropStatus newStatus);
 
+    // 어드민 전용: @SQLRestriction("deleted_at IS NULL") 우회
+    @Query(value = "SELECT * FROM p_drops ORDER BY created_at DESC",
+           countQuery = "SELECT COUNT(*) FROM p_drops",
+           nativeQuery = true)
+    Page<Drop> findAllIncludingDeleted(Pageable pageable);
+
+    @Query(value = "SELECT * FROM p_drops WHERE drop_id = :dropId", nativeQuery = true)
+    Optional<Drop> findByIdIncludingDeleted(@Param("dropId") UUID dropId);
+
     default Drop getByIdOrThrow(UUID dropId) {
         return findById(dropId).orElseThrow(DropNotFoundException::new);
+    }
+
+    default Drop getByIdIncludingDeletedOrThrow(UUID dropId) {
+        return findByIdIncludingDeleted(dropId).orElseThrow(DropNotFoundException::new);
     }
 }

@@ -25,7 +25,10 @@ public enum ProductErrorCode implements ErrorCode {
     INSUFFICIENT_STOCK(HttpStatus.CONFLICT, "PRODUCT-015", "재고가 부족합니다."),
 
     // 외부 서비스
-    DROP_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "PRODUCT-020", "Drop Service가 응답하지 않습니다. 잠시 후 다시 시도해 주세요.");
+    DROP_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "PRODUCT-020", "Drop Service가 응답하지 않습니다. 잠시 후 다시 시도해 주세요."),
+
+    // Outbox
+    OUTBOX_EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "PRODUCT-030", "존재하지 않는 Outbox 이벤트입니다.");
 
 
     private final HttpStatus status;

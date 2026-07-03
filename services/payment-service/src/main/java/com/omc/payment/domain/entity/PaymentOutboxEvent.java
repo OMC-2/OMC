@@ -70,9 +70,12 @@ public class PaymentOutboxEvent {
         this.publishedAt = LocalDateTime.now();
     }
 
-    public void markFailed() {
+    public void markFailed(int maxRetryCount) {
         this.status = OutboxEventStatus.FAILED;
         this.retryCount += 1;
+        this.status = retryCount >= maxRetryCount
+                ? OutboxEventStatus.DEAD
+                : OutboxEventStatus.FAILED;
     }
 
     public void resetToInit() {
