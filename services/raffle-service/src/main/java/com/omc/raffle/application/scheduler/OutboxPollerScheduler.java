@@ -25,7 +25,7 @@ public class OutboxPollerScheduler {
     @SchedulerLock(name = "pollAndPublishOutboxEvents", lockAtLeastFor = "PT4S", lockAtMostFor = "PT10S")
     @Transactional
     public void pollAndPublishOutboxEvents() {
-        List<OutboxEvent> pendingEvents = outboxEventRepository.findAllByStatusIn(
+        List<OutboxEvent> pendingEvents = outboxEventRepository.findTop100ByStatusIn(
                 List.of(OutboxStatus.INIT, OutboxStatus.FAILED)
         );
 

@@ -48,6 +48,11 @@ spring:
         enabled: true
         alphanumeric-ids:
           enabled: true
+      client:
+        config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 10000
 
 resilience4j:
   circuitbreaker:
