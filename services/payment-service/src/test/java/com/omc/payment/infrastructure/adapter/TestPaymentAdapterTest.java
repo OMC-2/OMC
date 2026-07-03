@@ -48,7 +48,7 @@ class TestPaymentAdapterTest {
                 .isInstanceOf(PaymentGatewayRequestException.class)
                 .hasMessage("카드 한도를 초과했습니다")
                 .satisfies(exception -> assertThat(
-                        ((PaymentGatewayRequestException) exception).getProviderCode()
+                        ((PaymentGatewayRequestException) exception).getProviderErrorCode()
                 ).isEqualTo("EXCEED_MAX_CARD_LIMIT"));
     }
 

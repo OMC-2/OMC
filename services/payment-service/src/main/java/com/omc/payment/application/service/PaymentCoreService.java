@@ -8,10 +8,7 @@ import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
 import com.omc.payment.domain.entity.Payment;
 import com.omc.payment.domain.enums.CancellationCode;
-import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
-import com.omc.payment.domain.enums.Provider;
-import com.omc.payment.domain.enums.SalesType;
 import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
@@ -32,7 +29,6 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class PaymentCoreService {
 
     private final PaymentRepository paymentRepository;
@@ -40,11 +36,8 @@ public class PaymentCoreService {
     private final PaymentOutboxService paymentOutboxService;
     private final CouponServiceClient couponServiceClient;
     private final PaymentIdempotencyService paymentIdempotencyService;
+    private final PaymentTransactionService paymentTransactionService;
 
-    @Transactional(
-            propagation = Propagation.REQUIRES_NEW,
-            noRollbackFor = BusinessException.class
-    )
     public Payment confirmPayment(
             UUID orderId,
             UUID dropId,
@@ -57,28 +50,21 @@ public class PaymentCoreService {
             String providerPaymentId
     ) {
         // 멱등성 방어 로직
-        Payment existingPayment = paymentRepository.findByOrderId(orderId).orElse(null);
+        Payment existingPayment = paymentTransactionService.findByOrderId(orderId);
         if (existingPayment != null) {
             return existingPayment;
         }
 
-        Payment payment = paymentRepository.save(
-                Payment.create(
-                        orderId,
-                        dropId,
-                        null,
-                        null,
-                        productId,
-                        couponId,
-                        userId,
-                        SalesType.DROP,
-                        originalAmount,
-                        discountAmount,
-                        finalAmount,
-                        Provider.TOSS,
-                        providerPaymentId,
-                        PaymentMethod.CARD
-                )
+        Payment payment = paymentTransactionService.createDropPayment(
+                orderId,
+                dropId,
+                productId,
+                couponId,
+                userId,
+                originalAmount,
+                discountAmount,
+                finalAmount,
+                providerPaymentId
         );
 
         try {
@@ -86,12 +72,14 @@ public class PaymentCoreService {
             validateDropPaymentReferences(dropId, productId);
             reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
 
-            payment.startConfirming();
-
-            return confirmWithGateway(payment, orderId, finalAmount, providerPaymentId);
+            Payment confirmingPayment = paymentTransactionService.markConfirming(payment.getPaymentId());
+            return confirmWithGateway(confirmingPayment, orderId, finalAmount, providerPaymentId);
         } catch (NonRetryablePaymentException e) {
-            failValidation(payment, e);
-            return payment;
+            return paymentTransactionService.failAndSaveOutbox(
+                    payment.getPaymentId(),
+                    e.getErrorCode().getCode(),
+                    e.getMessage()
+            );
         }
     }
 
@@ -112,7 +100,7 @@ public class PaymentCoreService {
             Long discountAmount,
             Long finalAmount
     ) {
-        Payment existingPayment = paymentRepository.findByOrderId(orderId).orElse(null);
+        Payment existingPayment = paymentTransactionService.findByOrderId(orderId);
         if (existingPayment != null) {
             return existingPayment;
         }
@@ -121,23 +109,16 @@ public class PaymentCoreService {
                 ? UUID.randomUUID().toString()
                 : customerKey;
 
-        Payment payment = paymentRepository.save(
-                Payment.create(
-                        orderId,
-                        null,
-                        raffleId,
-                        entryId,
-                        productId,
-                        couponId,
-                        userId,
-                        SalesType.RAFFLE,
-                        originalAmount,
-                        discountAmount,
-                        finalAmount,
-                        Provider.TOSS,
-                        null,
-                        PaymentMethod.CARD
-                )
+        Payment payment = paymentTransactionService.createBillingPayment(
+                orderId,
+                entryId,
+                raffleId,
+                productId,
+                couponId,
+                userId,
+                originalAmount,
+                discountAmount,
+                finalAmount
         );
 
         try {
@@ -145,12 +126,14 @@ public class PaymentCoreService {
             validateRafflePaymentReferences(raffleId, entryId, productId, billingKeyId);
             reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
 
-            payment.startConfirming();
-
-            return confirmBillingWithGateway(payment, billingKeyId, resolvedCustomerKey, orderId, finalAmount);
+            Payment confirmingPayment = paymentTransactionService.markConfirming(payment.getPaymentId());
+            return confirmBillingWithGateway(confirmingPayment, billingKeyId, resolvedCustomerKey, orderId, finalAmount);
         } catch (NonRetryablePaymentException e) {
-            failValidation(payment, e);
-            return payment;
+            return paymentTransactionService.failAndSaveOutbox(
+                    payment.getPaymentId(),
+                    e.getErrorCode().getCode(),
+                    e.getMessage()
+            );
         }
     }
 
@@ -234,18 +217,13 @@ public class PaymentCoreService {
             if (result.providerPaymentId() == null || result.providerPaymentId().isBlank()) {
                 throw new PaymentGatewayConnectionException("PG 결제 승인 응답에 결제 ID가 없습니다.");
             }
-            payment.approve(result.providerPaymentId());
-            paymentOutboxService.savePaymentCompleted(payment);
-            return payment;
+            return paymentTransactionService.approveAndSaveOutbox(payment.getPaymentId(), result.providerPaymentId());
         } catch (PaymentGatewayRequestException e) {
             /* FAILED 처리 */
-            payment.fail(e.getProviderCode(), e.getMessage());
-            paymentOutboxService.savePaymentFailed(payment);
-            return payment;
+            return paymentTransactionService.failAndSaveOutbox(payment.getPaymentId(), e.getProviderErrorCode(), e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
             /* UNKNOWN 처리, 추후 재처리 필요 */
-            payment.markUnknown();
-            return payment;
+            return paymentTransactionService.markUnknown(payment.getPaymentId());
         }
     }
 
@@ -275,16 +253,11 @@ public class PaymentCoreService {
             if (result.providerPaymentId() == null || result.providerPaymentId().isBlank()) {
                 throw new PaymentGatewayConnectionException("PG 결제 승인 응답에 결제 ID가 없습니다.");
             }
-            payment.approve(result.providerPaymentId());
-            paymentOutboxService.savePaymentCompleted(payment);
-            return payment;
+            return paymentTransactionService.approveAndSaveOutbox(payment.getPaymentId(), result.providerPaymentId());
         } catch (PaymentGatewayRequestException e) {
-            payment.fail(e.getProviderCode(), e.getMessage());
-            paymentOutboxService.savePaymentFailed(payment);
-            return payment;
+            return paymentTransactionService.failAndSaveOutbox(payment.getPaymentId(), e.getProviderErrorCode(), e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
-            payment.markUnknown();
-            return payment;
+            return paymentTransactionService.markUnknown(payment.getPaymentId());
         }
     }
 

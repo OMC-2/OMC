@@ -29,7 +29,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
@@ -101,6 +101,7 @@ public class PaymentService {
         return PaymentResponse.from(payment);
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<PaymentDetailResponse> getMyPayments(Pageable pageable) {
         Pageable validatedPageable = PageableUtil.validatePageSize(pageable);
         UUID currentUserId = getCurrentUserId();
@@ -109,6 +110,7 @@ public class PaymentService {
         return new PageResponse<>(page);
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<PaymentDetailResponse> getPayments(Pageable pageable) {
         Pageable validatedPageable = PageableUtil.validatePageSize(pageable);
         Page<PaymentDetailResponse> page = paymentRepository.findAll(validatedPageable)
