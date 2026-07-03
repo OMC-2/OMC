@@ -7,6 +7,7 @@ import com.omc.product.application.processor.StockFailureHandler;
 import com.omc.product.application.processor.StockSuccessHandler;
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.exception.ActiveDropExistsException;
+import com.omc.product.domain.exception.DeductionBusyException;
 import com.omc.product.domain.exception.InsufficientStockException;
 import com.omc.product.domain.exception.InventoryNotFoundException;
 import com.omc.product.domain.repository.InventoryRepository;
@@ -18,34 +19,31 @@ import com.omc.product.presentation.dto.response.InventoryResponse;
 import com.omc.product.presentation.dto.response.InventorySnapshotResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 재고 관리 서비스
  *
- * 주요 책임
- * - 상품 재고 조회 및 수정
- * - payment.completed 이벤트 기반 재고 확정 차감
- * - Outbox 패턴을 통한 재고 이벤트 발행
- * - ProcessedEvent를 이용한 이벤트 멱등성 보장
+ * - 상품 재고 조회/수정
+ * - payment.completed 이벤트 기반 재고 확정 차감 (낙관적 락 충돌·재고 부족 시 SAGA 보상)
+ * - 진행 중인 Drop(SCHEDULED, OPEN)이 있는 상품은 재고 수동 수정 불가
  *
- * 재고 확정 차감 처리
- * - payment.completed 이벤트 수신 시 재고를 확정 차감
- * - 동일 eventId는 한 번만 처리
- * - 차감 성공 시 STOCK_DEDUCTED 이벤트를 Outbox에 저장
+ * 재고 확정 차감 (payment.completed 이벤트 수신 시 호출):
+ * 재고 차감과 결과 기록(Outbox)을 REQUIRES_NEW로 분리해, 차감 성공 후
+ * 결과 기록이 실패해도 재고 차감 자체는 롤백되지 않도록 함
  *
- * SAGA 보상 처리
- * - 낙관적 락 충돌 또는 재고 부족으로 차감 실패 시 STOCK_FAILED 이벤트를 발행
- * - Payment Service는 해당 이벤트를 수신하여 환불 등 보상 트랜잭션을 수행
- *
- * 재고 수정 정책
- * - 진행 중인 Drop(SCHEDULED, OPEN)이 존재하는 상품은 재고 수정이 불가능
- * - Drop Service Internal API를 통해 활성 Drop 여부를 확인
+ * 동시성 방어막 (Bulkhead): confirmDeduct() 동시 실행이 HikariCP 풀 크기를 넘으면
+ * 커넥션 고갈로 전멸하는 현상이 실측 확인됨(근본 원인 미상). Semaphore로 동시 실행 수를 제한하고,
+ * 허가를 못 받으면 DeductionBusyException으로 즉시 실패시켜 Kafka 재시도로 위임
+ * 상세 배경: InventoryConcurrentHttpBypassLoadTest 참고
  */
 @Slf4j
 @Service
@@ -61,37 +59,44 @@ public class InventoryService {
     private final StockSuccessHandler stockSuccessHandler;
     private final StockFailureHandler stockFailureHandler;
 
-    /**
-     * 재고 확정 차감 (payment.completed 이벤트 수신 시 호출)
-     *
-     * 트랜잭션 설계:
-     * ① InventoryDeductProcessor.tryDeduct() [REQUIRES_NEW]
-     *    - inventory UPDATE → 즉시 커밋
-     *    - ObjectOptimisticLockingFailureException 발생 시 호출부로 전파
-     * ② StockSuccessHandler.handle() [REQUIRES_NEW]
-     *    - ProcessedEvent + STOCK_DEDUCTED Outbox 저장
-     *    - ①과 독립 트랜잭션 → ①성공 후 ②실패해도 재처리 시 ①은 유지
-     * ③ StockFailureHandler.handle() [REQUIRES_NEW]
-     *    - FailedEventLog + STOCK_FAILED Outbox 저장
-     *    - ①롤백과 무관하게 독립 커밋
-     */
+    @Value("${inventory.deduct.max-concurrency:3}")
+    private int maxConcurrency = 3; // 순수 단위테스트에선 @Value가 주입 안 돼 0으로 남는 것을 방지
+    @Value("${inventory.deduct.acquire-timeout-ms:2000}")
+    private long acquireTimeoutMs = 2000;
+    private Semaphore deductPermits;
+
+    private Semaphore deductPermits() {
+        if (deductPermits == null) {
+            deductPermits = new Semaphore(maxConcurrency);
+        }
+        return deductPermits;
+    }
+
     public void confirmDeduct(PaymentCompletedEvent event) {
 
-        if (processedEventRepository.existsByEventId(event.eventId())) {
-            log.info("[InventoryService] 이미 처리된 이벤트 스킵. eventId={}", event.eventId());
-            return;
+        boolean acquired;
+        try {
+            acquired = deductPermits().tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("[InventoryService] 세마포어 대기 중 인터럽트. eventId={}", event.eventId());
+            throw new DeductionBusyException();
+        }
+        if (!acquired) {
+            log.warn("[InventoryService] 동시성 한도 초과로 처리 지연. eventId={}, productId={}, maxConcurrency={}",
+                    event.eventId(), event.productId(), maxConcurrency);
+            throw new DeductionBusyException(); // Kafka 리스너까지 전파 → 재시도
         }
 
         try {
-            // ① 재고 차감 — REQUIRES_NEW로 즉시 커밋 → 충돌 시 예외 발생
+            if (processedEventRepository.existsByEventId(event.eventId())) {
+                log.info("[InventoryService] 이미 처리된 이벤트 스킵. eventId={}", event.eventId());
+                return;
+            }
+
             UUID inventoryId = inventoryDeductProcessor.tryDeduct(event.productId());
-
-            // ② 성공 처리 — ProcessedEvent + STOCK_DEDUCTED Outbox 저장
             stockSuccessHandler.handle(inventoryId, event);
-
-            // ③ 캐시 무효화 — availableQuantity가 실제로 변경됐으므로 상품 상세 캐시 갱신 필요
-            //    (updateInventory()의 수동 수정 경로와 동일하게 AFTER_COMMIT 시점에 evict)
-            eventPublisher.publishEvent(new ProductUpdatedEvent(event.productId()));
+            eventPublisher.publishEvent(new ProductUpdatedEvent(event.productId())); // 재고 변경 → 캐시 무효화
 
             log.info("[InventoryService] 재고 확정 차감 완료. productId={}, orderId={}",
                     event.productId(), event.orderId());
@@ -107,6 +112,9 @@ public class InventoryService {
             UUID inventoryId = inventoryRepository.findByProductId(event.productId())
                     .orElseThrow(InventoryNotFoundException::new).getInventoryId();
             stockFailureHandler.handle(inventoryId, event, e.getMessage());
+
+        } finally {
+            deductPermits().release();
         }
     }
 

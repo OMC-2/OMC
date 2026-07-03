@@ -46,6 +46,9 @@ test {
         if (System.getenv('CI') != null) {
             excludeTags 'integration'
         }
+        if (System.getenv('RUN_LOADTEST') == null) {
+            excludeTags 'loadtest'
+        }
     }
     systemProperty "api.version", "1.44"
     environment "DOCKER_API_VERSION", "1.44"

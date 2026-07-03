@@ -7,8 +7,14 @@ spring:
     username: ${DB_USERNAME:omc}
     password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # 기본 30000ms(30초)는 커넥션 고갈 시 스레드가 30초씩 멈춰있게 만듦
+      # 짧게 줄여서 "빨리 실패 → Kafka 재시도"로 넘어가도록 함 (근본 원인 해결책은 아님,
+      # 완화 조치 — InventoryConcurrentHttpBypassLoadTest 참고)
+      connection-timeout: 3000
 
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: false
