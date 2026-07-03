@@ -52,25 +52,22 @@ export const smokeOptions = {
 };
 
 // =====================================================================
-// Load Test: 0 → 100명 ramp-up → 1분 유지
+// Load Test: 1000명이 100 VU 동시로 쿠폰 발급 시도 (1인 1회)
+// - shared-iterations: 각 iteration = 독립 유저 1회 시도
+// - iteration 기반 유저 순환 → 같은 유저 중복 요청 없음
+// - 쿠폰 100개: 먼저 온 100명 201, 나머지 900명 409
 // =====================================================================
 export const loadOptions = {
   scenarios: {
     coupon_load: {
-      executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '30s', target: 100 },
-        { duration: '60s', target: 100 },
-        { duration: '30s', target: 0 },
-      ],
+      executor: 'shared-iterations',
+      vus: 100,
+      iterations: 1000,
+      maxDuration: '2m',
     },
   },
   thresholds: {
-    // 개선 전 HikariCP pool-size 10 기준 → 일부 타임아웃 허용, 5% 미만 기준
-    // pool-size 50으로 개선 후에는 1% 미만으로 줄어야 함 (비교 포인트)
     http_req_failed: ['rate<0.05'],
-    // p95 응답시간은 임계값 없이 측정만 (HikariCP 개선 전/후 비교용)
   },
 };
 
@@ -130,8 +127,12 @@ export default function (data) {
   // VU별로 설정해야 하므로 default 함수 안에서 호출
   setResponseCallback(http.expectedStatuses(201, 409));
 
-  const vuIndex = exec.vu.idInTest - 1;
-  const token   = data.tokens[vuIndex % data.tokens.length];
+  // load: iteration 기반 순환 (1인 1회, 중복 없음)
+  // smoke/stress/spike: VU 기반 (기존 동작 유지)
+  const idx   = SCENARIO === 'load'
+    ? exec.scenario.iterationInTest % data.tokens.length
+    : exec.vu.idInTest - 1;
+  const token = data.tokens[idx % data.tokens.length];
 
   const res = http.post(
     `${BASE}/api/v1/coupons/${COUPON_ID}/issue`,
