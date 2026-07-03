@@ -257,6 +257,7 @@ processed_events (
 | 9 | **product-service 호출에 Feign + Resilience4j + FallbackFactory** 적용 | 드롭 오픈 스케줄러가 재고 스냅샷 조회 시 product-service 장애가 드롭 오픈을 막지 않도록 설계. 서킷 오픈 시 FallbackFactory가 예외 throw → 스케줄러 catch → totalQty 폴백으로 드롭 오픈 유지 |
 | 10 | **진입 API Redis 호출을 Lua 1회로 통합** | 기존 isOpen GET + holdTtlSec GET + productId GET + EVALSHA = 4 round-trips. Redis 단일 스레드 특성상 400 스레드 동시 접근 시 직렬화 대기가 avg 200ms까지 누적됨. 3개의 개별 GET을 Lua 내부로 이동해 1 round-trip으로 축소 |
 | 11 | **Gateway Rate Limiter (dropId 기준 200 req/s)** 추가 | 1000 VU 동시 유입 시 Tomcat thread pool(200) 포화로 p99가 30~37s까지 치솟는 문제 확인. Redis Token Bucket 기반 Rate Limiter로 유입량을 thread pool 이내로 억제. 초과 요청은 Tomcat 도달 전 게이트웨이에서 즉시 429 반환 |
+| 12 | **Gateway SoldOutCheckFilter — 품절 후 즉시 409 차단** | 재고 소진 후에도 요청이 Tomcat 큐까지 도달해 ~28s 대기 후 409를 받는 문제 확인. purchase.lua에서 DECR 후 재고 0 도달 시 `sold_out:{dropId}` 플래그 SET. Gateway GlobalFilter(order=-10)가 플래그 확인 → drop-service 호출 없이 56ms 즉시 409 반환. hold 만료·결제 취소 시 재고 복구와 함께 플래그 DEL |
 
 ---
 
@@ -319,11 +320,12 @@ k6 run -e DROP_ID=<id> -e HOLD_TTL_SEC=15 -e HOLD_COUNT=50 k6/03-hold-expire.js
 
 **성능 측정 결과 (1,000 VU · 재고 100개)**
 
-| 최적화 단계 | 성공 avg | 전체 p99 | req/s |
+| 최적화 단계 | 성공 avg | 전체 p(90) | req/s |
 | --- | --- | --- | --- |
 | Redis Lua 기본 | 12s | 37s | 26 |
 | Lua 4→1 round-trip 통합 | 5s | 30s | 48 |
 | + Gateway Rate Limiter (200 req/s) | 4~5s | 23~28s | 48~168 |
+| + Gateway 품절 조기 차단 (SoldOutCheckFilter) | 1s | 8.5s | 297 |
 
 ---
 
