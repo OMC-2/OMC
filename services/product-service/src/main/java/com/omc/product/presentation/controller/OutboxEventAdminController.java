@@ -2,6 +2,7 @@ package com.omc.product.presentation.controller;
 
 import com.omc.common.response.ApiResponse;
 import com.omc.product.application.service.OutboxEventService;
+import com.omc.product.presentation.dto.response.OutboxRetryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,8 +25,7 @@ public class OutboxEventAdminController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> retryFailedEvent(@PathVariable UUID eventId) {
         outboxEventService.retryFailedEvent(eventId);
-        return ResponseEntity.ok(
-                ApiResponse.success("Outbox 이벤트 재처리 요청이 완료되었습니다.", null));
+        return ResponseEntity.ok(ApiResponse.ok());
     }
 
     /**
@@ -33,10 +33,9 @@ public class OutboxEventAdminController {
      */
     @PostMapping("/retry-all")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> retryAllFailedEvents() {
+    public ResponseEntity<ApiResponse<OutboxRetryResponse>> retryAllFailedEvents() {
         int count = outboxEventService.retryAllFailedEvents();
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        String.format("%d건 Outbox 이벤트 재처리 요청이 완료되었습니다.", count), null));
+        return ResponseEntity.ok(ApiResponse.success(new OutboxRetryResponse(count)));
     }
 }
+
