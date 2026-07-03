@@ -17,9 +17,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 
 import com.omc.common.response.PageResponse;
+import com.omc.raffle.presentation.dto.response.PublicRaffleResultResponse;
 import com.omc.raffle.presentation.dto.response.RaffleResponse;
 import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -117,6 +119,17 @@ public class RaffleController {
             @PathVariable UUID raffleId) {
         long count = raffleAppService.getParticipantsCount(raffleId);
         return ApiResponse.success(count);
+    }
+
+    /**
+     * 래플 공개 당첨자 조회 API (추첨 완료 후 공개)
+     * GET /api/v1/raffles/{raffleId}/winners
+     */
+    @GetMapping("/{raffleId}/winners")
+    public ApiResponse<List<PublicRaffleResultResponse>> getPublicResults(
+            @PathVariable UUID raffleId) {
+        List<PublicRaffleResultResponse> response = raffleResultService.getPublicResults(raffleId);
+        return ApiResponse.success(response);
     }
 }
 

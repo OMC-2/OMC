@@ -8,7 +8,10 @@ import com.omc.raffle.application.service.RaffleResultService;
 import com.omc.raffle.domain.enums.RaffleResultStatus;
 import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.presentation.dto.request.RaffleEnterRequest;
+import com.omc.raffle.presentation.dto.response.PublicRaffleResultResponse;
 import com.omc.raffle.presentation.dto.response.RaffleResultResponse;
+
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -157,6 +160,30 @@ class RaffleControllerTest {
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.status").value(200))
                     .andExpect(jsonPath("$.data").value(150));
+        }
+    }
+
+    @Nested
+    @DisplayName("공개 당첨자 조회 API")
+    class GetPublicResults {
+
+        @Test
+        @DisplayName("추첨이 완료된 래플의 당첨자 목록을 인증 없이 조회할 수 있다")
+        void success() throws Exception {
+            // given
+            UUID raffleId = UUID.randomUUID();
+            List<PublicRaffleResultResponse> responseList = List.of(
+                    new PublicRaffleResultResponse(UUID.randomUUID(), RaffleResultStatus.WIN, LocalDateTime.now()),
+                    new PublicRaffleResultResponse(UUID.randomUUID(), RaffleResultStatus.WIN, LocalDateTime.now())
+            );
+            when(raffleResultService.getPublicResults(raffleId)).thenReturn(responseList);
+
+            // when & then — X-User-Id 헤더 없이 호출 (인증 불필요)
+            mockMvc.perform(get("/api/v1/raffles/{raffleId}/winners", raffleId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.length()").value(2))
+                    .andExpect(jsonPath("$.data[0].result").value("WIN"));
         }
     }
 }

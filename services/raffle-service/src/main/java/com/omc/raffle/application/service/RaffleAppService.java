@@ -13,6 +13,9 @@ import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.domain.enums.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
+import com.omc.raffle.domain.repository.RafflePenaltyRepository;
+import com.omc.raffle.domain.exception.PenaltyActiveException;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,6 +44,7 @@ public class RaffleAppService {
 
     private final RaffleRepository raffleRepository;
     private final RaffleEntryRepository raffleEntryRepository;
+    private final RafflePenaltyRepository rafflePenaltyRepository;
     private final RaffleEntryRedisRepository redisRepository;
     private final PaymentFeignClient paymentFeignClient;
 
@@ -58,16 +62,22 @@ public class RaffleAppService {
             throw new RaffleNotOpenException(RaffleErrorCode.RAFFLE_003); // 진행 중인 래플이 아님
         }
 
-        // 3. 중복 응모 검증 (Redis SADD 활용)
+        // 3. 패널티 여부 검증
+        boolean isPenaltyActive = rafflePenaltyRepository.existsByUserIdAndPenaltyEndDateAfter(request.userId(), LocalDateTime.now());
+        if (isPenaltyActive) {
+            throw new PenaltyActiveException(RaffleErrorCode.RAFFLE_007, "현재 패널티 상태이므로 응모할 수 없습니다.");
+        }
+
+        // 4. 중복 응모 검증 (Redis SADD 활용)
         boolean isAdded = redisRepository.addEntry(raffleId, request.userId());
         if (!isAdded) {
             throw new DuplicateEntryException(RaffleErrorCode.RAFFLE_002); // 이미 응모함
         }
 
-        // 4. 결제 수단 유효성 검증 (가승인)
+        // 5. 결제 수단 유효성 검증 (가승인)
         try {
             // 결제 서버에 100원 가승인 요청 (이후 결제 서버 내에서 자동 승인 취소됨)
-            paymentFeignClient.preAuthCard(new PreAuthRequest(request.billingKeyId(), new java.math.BigDecimal("100")));
+            paymentFeignClient.preAuthCard(new PreAuthRequest(request.billingKeyId(), 100L));
         } catch (Exception e) {
             // SAGA 보상 트랜잭션: 결제 수단 가승인 실패 시 이미 SADD된 Redis 값을 제거
             log.error("[RaffleAppService] 결제 수단 가승인 실패. userId={}, billingKeyId={}", request.userId(), request.billingKeyId(), e);
@@ -75,7 +85,7 @@ public class RaffleAppService {
             throw new PaymentPreAuthFailedException(RaffleErrorCode.RAFFLE_004, "결제 수단(카드) 검증에 실패했습니다.");
         }
 
-        // 5. 응모 내역 저장
+        // 6. 응모 내역 저장
         RaffleEntry savedEntry;
         try {
             RaffleEntry entry = RaffleEntry.create(
