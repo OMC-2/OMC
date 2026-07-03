@@ -5,9 +5,11 @@
 # 사용법
 # ================================================================
 #
-#   bash docker-up.sh          # 전체 기동 (빌드 + 인프라 + 서비스)
-#   bash docker-up.sh infra    # 인프라만 기동 (postgres, redis, kafka, keycloak)
-#   bash docker-up.sh services # 빌드 후 애플리케이션 서비스 기동
+#   bash docker-up.sh                          # 전체 기동 (빌드 + 인프라 + 서비스)
+#   bash docker-up.sh infra                    # 인프라만 기동 (postgres, redis, kafka, keycloak)
+#   bash docker-up.sh services                 # 빌드 후 애플리케이션 서비스 기동
+#   bash docker-up.sh rebuild <서비스명>        # 특정 서비스만 재빌드 후 재시작
+#   bash docker-up.sh rebuild coupon-service   # (예시)
 #
 # ================================================================
 # 기동 순서
@@ -55,10 +57,12 @@ COMPOSE_INFRA="docker-compose.yml"
 COMPOSE_SERVICES="docker-compose.services.yml"
 
 # ----------------------------------------------------------------
-# 0단계: 기존 컨테이너 전체 종료
+# 0단계: 기존 컨테이너 전체 종료 (rebuild 단독 실행 시에는 건너뜀)
 # ----------------------------------------------------------------
-echo "▶ [0단계] 기존 컨테이너 종료"
-docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" down --remove-orphans
+if [ "${1:-all}" != "rebuild" ]; then
+  echo "▶ [0단계] 기존 컨테이너 종료"
+  docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" down --remove-orphans
+fi
 
 # ----------------------------------------------------------------
 # 헬스체크 대기 함수
@@ -196,11 +200,10 @@ start_services() {
   echo ""
   echo "▶ [5단계] 서비스 배치 기동 (메모리 경합 최소화)"
 
-  echo "  → [Batch 1] gateway + user-service (Kafka 없음, 가벼운 서비스 먼저)"
+  echo "  → [Batch 1] eureka-server + config-server + user-service"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
-    eureka-server config-server gateway user-service
+    eureka-server config-server user-service
   _pids=()
-  wait_healthy omc-gateway 500 & _pids+=($!)
   wait_healthy omc-user-service 500 & _pids+=($!)
   _failed=0; for _pid in "${_pids[@]}"; do wait "$_pid" || _failed=1; done
   [ "$_failed" -eq 0 ] || exit 1
@@ -223,18 +226,19 @@ start_services() {
   _failed=0; for _pid in "${_pids[@]}"; do wait "$_pid" || _failed=1; done
   [ "$_failed" -eq 0 ] || exit 1
 
-  echo "  → [Batch 4] coupon-service + notification-service"
+  echo "  → [Batch 4] coupon-service + notification-service + raffle-service"
   docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
-    coupon-service notification-service
+    coupon-service notification-service raffle-service
   _pids=()
   wait_healthy omc-coupon-service 500 & _pids+=($!)
   wait_healthy omc-notification-service 500 & _pids+=($!)
+  wait_healthy omc-raffle-service 500 & _pids+=($!)
   _failed=0; for _pid in "${_pids[@]}"; do wait "$_pid" || _failed=1; done
   [ "$_failed" -eq 0 ] || exit 1
 
-  echo "  → [Batch 5] raffle-service"
-  docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d raffle-service
-  wait_healthy omc-raffle-service 500
+  echo "  → [Batch 5] gateway (맨 마지막 — 모든 서비스 Eureka 등록 후 워밍업)"
+  docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d gateway
+  wait_healthy omc-gateway 500
 
   echo ""
   echo "▶ [6단계] 전체 서비스 healthy 완료"
@@ -257,6 +261,49 @@ start_services() {
 }
 
 # ----------------------------------------------------------------
+# rebuild <서비스명>: 특정 서비스만 JAR 빌드 → 이미지 재빌드 → 컨테이너 교체
+# ----------------------------------------------------------------
+rebuild_service() {
+  local svc=$1
+
+  # 서비스명 → Gradle 모듈명 매핑
+  local module
+  case "$svc" in
+    gateway)              module="gateway" ;;
+    user-service)         module="user-service" ;;
+    drop-service)         module="drop-service" ;;
+    product-service)      module="product-service" ;;
+    payment-service)      module="payment-service" ;;
+    coupon-service)       module="coupon-service" ;;
+    notification-service) module="notification-service" ;;
+    eureka-server)        module="eureka-server" ;;
+    order-service)        module="order-service" ;;
+    raffle-service)       module="raffle-service" ;;
+    config-server)        module="config-server" ;;
+    *)
+      echo "❌ 알 수 없는 서비스: $svc"
+      echo "사용 가능한 서비스: gateway user-service drop-service product-service payment-service coupon-service notification-service eureka-server order-service raffle-service config-server"
+      exit 1
+      ;;
+  esac
+
+  echo "▶ [1단계] JAR 빌드: $svc"
+  ./gradlew :services:${module}:bootJar
+
+  echo ""
+  echo "▶ [2단계] 이미지 재빌드 + 컨테이너 교체: $svc"
+  docker compose -f "$COMPOSE_INFRA" -f "$COMPOSE_SERVICES" up -d \
+    --build --force-recreate --no-deps "$svc"
+
+  echo ""
+  echo "▶ [3단계] healthy 대기: omc-$svc"
+  wait_healthy "omc-$svc" 300
+
+  echo ""
+  echo "✅ $svc 재빌드 완료"
+}
+
+# ----------------------------------------------------------------
 # 실행 분기
 # ----------------------------------------------------------------
 TARGET=${1:-all}
@@ -274,9 +321,18 @@ case "$TARGET" in
     start_infra
     start_services
     ;;
+  rebuild)
+    if [ -z "$2" ]; then
+      echo "❌ 서비스명을 입력하세요."
+      echo "사용법: bash docker-up.sh rebuild <서비스명>"
+      echo "예시:   bash docker-up.sh rebuild coupon-service"
+      exit 1
+    fi
+    rebuild_service "$2"
+    ;;
   *)
     echo "알 수 없는 대상: $TARGET"
-    echo "사용법: bash docker-up.sh [infra|services|all]"
+    echo "사용법: bash docker-up.sh [infra|services|all|rebuild <서비스명>]"
     exit 1
     ;;
 esac
