@@ -1,7 +1,7 @@
 package com.omc.product.application.service;
 
 import com.omc.product.application.event.PaymentCompletedEvent;
-import com.omc.product.application.event.ProductUpdatedEvent;
+import com.omc.product.application.event.producer.ProductUpdatedEvent;
 import com.omc.product.application.processor.InventoryDeductProcessor;
 import com.omc.product.application.processor.StockFailureHandler;
 import com.omc.product.application.processor.StockSuccessHandler;

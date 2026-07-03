@@ -1,6 +1,6 @@
 package com.omc.product.application.event.consumer;
 
-import com.omc.product.application.event.ProductUpdatedEvent;
+import com.omc.product.application.event.producer.ProductUpdatedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
