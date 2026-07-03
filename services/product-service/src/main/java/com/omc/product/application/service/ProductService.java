@@ -10,7 +10,7 @@ import com.omc.product.domain.exception.ProductNotFoundException;
 import com.omc.product.domain.repository.InventoryRepository;
 import com.omc.product.domain.repository.ProductRepository;
 import com.omc.product.infrastructure.client.ActiveDropResponse;
-import com.omc.product.infrastructure.client.DropInternalClient;
+import com.omc.product.infrastructure.client.DropFeignClient;
 import com.omc.product.presentation.dto.request.ProductCreateRequest;
 import com.omc.product.presentation.dto.request.ProductUpdateRequest;
 import com.omc.product.presentation.dto.response.ProductResponse;
@@ -52,7 +52,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final DropInternalClient dropInternalClient;
+    private final DropFeignClient dropFeignClient;
     private final EntityManager entityManager;
 
     @Transactional
@@ -91,7 +91,7 @@ public class ProductService {
 
     @Transactional
     public ProductResponse updateProduct(UUID productId, ProductUpdateRequest request) {
-        ActiveDropResponse response = dropInternalClient.hasActiveDrop(productId).getData();
+        ActiveDropResponse response = dropFeignClient.hasActiveDrop(productId).getData();
         if (response.hasActiveDrop()) {
             throw new ActiveDropExistsException();
         }
@@ -108,7 +108,7 @@ public class ProductService {
 
     @Transactional
     public void deleteProduct(UUID productId, UUID deletedBy) {
-        ActiveDropResponse response = dropInternalClient.hasActiveDrop(productId).getData();
+        ActiveDropResponse response = dropFeignClient.hasActiveDrop(productId).getData();
         if (response.hasActiveDrop()) {
             throw new ActiveDropExistsException();
         }

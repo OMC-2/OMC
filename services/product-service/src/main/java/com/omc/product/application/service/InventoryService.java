@@ -13,7 +13,7 @@ import com.omc.product.domain.exception.InventoryNotFoundException;
 import com.omc.product.domain.repository.InventoryRepository;
 import com.omc.product.domain.repository.ProcessedEventRepository;
 import com.omc.product.infrastructure.client.ActiveDropResponse;
-import com.omc.product.infrastructure.client.DropInternalClient;
+import com.omc.product.infrastructure.client.DropFeignClient;
 import com.omc.product.presentation.dto.request.InventoryUpdateRequest;
 import com.omc.product.presentation.dto.response.InventoryResponse;
 import com.omc.product.presentation.dto.response.InventorySnapshotResponse;
@@ -53,7 +53,7 @@ public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final ProcessedEventRepository processedEventRepository;
-    private final DropInternalClient dropInternalClient;
+    private final DropFeignClient dropFeignClient;
     private final ApplicationEventPublisher eventPublisher;
     private final InventoryDeductProcessor inventoryDeductProcessor;
     private final StockSuccessHandler stockSuccessHandler;
@@ -132,7 +132,7 @@ public class InventoryService {
 
     @Transactional
     public InventoryResponse updateInventory(UUID productId, InventoryUpdateRequest request) {
-        ActiveDropResponse activeDropResponse = dropInternalClient.hasActiveDrop(productId).getData();
+        ActiveDropResponse activeDropResponse = dropFeignClient.hasActiveDrop(productId).getData();
         if (activeDropResponse.hasActiveDrop()) {
             throw new ActiveDropExistsException();
         }

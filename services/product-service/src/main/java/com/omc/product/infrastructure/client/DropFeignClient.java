@@ -10,9 +10,9 @@ import java.util.UUID;
 @FeignClient(
         name = "drop-service",
         url = "${feign.drop-service.url:}",
-        fallbackFactory = DropInternalClientFallbackFactory.class
+        fallbackFactory = DropFeignClientFallbackFactory.class
 )
-public interface DropInternalClient {
+public interface DropFeignClient {
 
     @GetMapping("/internal/v1/drops/products/{productId}/active")
     ApiResponse<ActiveDropResponse> hasActiveDrop(@PathVariable UUID productId);
