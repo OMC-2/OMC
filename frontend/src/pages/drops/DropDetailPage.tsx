@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { dropsApi } from '../../api/drops'
 import { productsApi } from '../../api/products'
 import { Spinner } from '../../components/ui/Spinner'
-import { formatPrice, formatDate } from '../../lib/utils'
+import { formatPrice, formatDate, getDropDisplayStatus } from '../../lib/utils'
 import { getPlaceholderImage } from '../../lib/images'
 import { useAuthStore } from '../../store/authStore'
 import { ArrowLeft, Clock, Package } from 'lucide-react'
@@ -36,11 +36,13 @@ export function DropDetailPage() {
   if (dropLoading || productLoading) return <Spinner className="py-20" />
   if (!drop) return <p className="text-center py-20 text-xs tracking-widest text-gray-400">NOT FOUND</p>
 
-  const isOpen = drop.status === 'OPEN'
+  const dropDisplayStatus = getDropDisplayStatus(drop)
+  const isOpen = dropDisplayStatus === 'LIVE'
+  const isUpcoming = dropDisplayStatus === 'UPCOMING'
   const name = product?.name ?? '상품 정보 로딩 중'
   const price = product?.price ?? 0
   const description = product?.description ?? ''
-  const imageUrl = product?.imageUrl ?? getPlaceholderImage(1)
+  const imageUrl = product?.imageUrl || getPlaceholderImage(1)
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -50,14 +52,14 @@ export function DropDetailPage() {
       <div className="grid gap-12 md:grid-cols-2">
         <div className="relative aspect-square overflow-hidden bg-gray-100">
           <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
-          {isOpen && <span className="absolute top-5 left-5 bg-red-500 px-3 py-1.5 text-[10px] font-black tracking-[0.2em] text-white">ON DROP</span>}
+          {(isOpen || isUpcoming) && <span className="absolute top-5 left-5 {isUpcoming ? 'bg-blue-600' : 'bg-red-500'} px-3 py-1.5 text-[10px] font-black tracking-[0.2em] text-white">ON DROP</span>}
         </div>
         <div className="flex flex-col space-y-6">
           <div>
             <p className="text-[10px] font-bold tracking-[0.3em] text-gray-400 mb-2">
               {product?.brand ?? ''}{product?.category ? ` · ${product.category}` : ''}
             </p>
-            <p className="text-[10px] font-bold tracking-[0.3em] text-gray-400 mb-2">{isOpen ? 'NOW AVAILABLE' : 'DROP ENDED'}</p>
+            <p className="text-[10px] font-bold tracking-[0.3em] text-gray-400 mb-2">{isOpen ? 'NOW AVAILABLE' : isUpcoming ? '진행 예정' : 'DROP ENDED'}</p>
             <h1 className="text-3xl font-black tracking-tight text-gray-900">{name}</h1>
           </div>
           <p className="text-4xl font-black">{formatPrice(price)}</p>
@@ -86,7 +88,7 @@ export function DropDetailPage() {
               onClick={() => purchaseMutation.mutate()}
               className="w-full bg-black py-5 text-xs font-black tracking-[0.2em] text-white hover:bg-red-500 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
             >
-              {purchaseMutation.isPending ? '처리 중...' : isOpen ? 'BUY NOW' : 'SOLD OUT'}
+              {purchaseMutation.isPending ? '처리 중...' : isOpen ? 'BUY NOW' : isUpcoming ? '오픈 예정' : 'SOLD OUT'}
             </button>
           ) : (
             <Link to="/login" className="block w-full bg-black py-5 text-center text-xs font-black tracking-[0.2em] text-white hover:bg-red-500 transition-colors">

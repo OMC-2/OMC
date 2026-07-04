@@ -25,8 +25,8 @@ export function AdminDropsPage() {
   const createMutation = useMutation({
     mutationFn: () => adminDropsApi.create({
       productId: form.productId,
-      startAt: new Date(form.startAt).toISOString().slice(0, 19),
-      endAt: new Date(form.endAt).toISOString().slice(0, 19),
+      startAt: form.startAt + ':00',
+      endAt: form.endAt + ':00',
       totalQty: Number(form.totalQty),
       holdTtlSec: Number(form.holdTtlSec),
     }),
