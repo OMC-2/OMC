@@ -3,6 +3,7 @@ package com.omc.payment.infrastructure.adapter;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
+import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -57,7 +58,7 @@ public class TestPaymentAdapter implements PaymentGatewayPort {
         return new PaymentGatewayResult.Payment(
                 command.providerPaymentID(),
                 "test-order-id",
-                PaymentGatewayResult.PaymentStatus.PAID,
+                PaymentGatewayStatus.PAID,
                 10000L,
                 10000L,
                 "test-transaction-" + command.providerPaymentID()

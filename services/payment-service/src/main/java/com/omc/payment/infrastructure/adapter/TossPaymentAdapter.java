@@ -6,6 +6,7 @@ import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
+import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -103,16 +104,16 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     }
 
     // Toss 응답의 문자열 상태값을 서비스 내 Enum 상태값으로 매칭
-    private PaymentGatewayResult.PaymentStatus toPaymentStatus(String tossStatus) {
+    private PaymentGatewayStatus toPaymentStatus(String tossStatus) {
         if (tossStatus == null || tossStatus.isBlank()) {
-            return PaymentGatewayResult.PaymentStatus.UNKNOWN;
+            return PaymentGatewayStatus.UNKNOWN;
         }
         return switch (tossStatus) {
-            case "READY", "IN_PROGRESS", "WAITING_FOR_DEPOSIT" -> PaymentGatewayResult.PaymentStatus.PENDING;
-            case "DONE" -> PaymentGatewayResult.PaymentStatus.PAID;
-            case "CANCELED", "PARTIAL_CANCELED" -> PaymentGatewayResult.PaymentStatus.CANCELED;
-            case "ABORTED", "EXPIRED" -> PaymentGatewayResult.PaymentStatus.FAILED;
-            default -> PaymentGatewayResult.PaymentStatus.UNKNOWN;
+            case "READY", "IN_PROGRESS", "WAITING_FOR_DEPOSIT" -> PaymentGatewayStatus.PENDING;
+            case "DONE" -> PaymentGatewayStatus.PAID;
+            case "CANCELED", "PARTIAL_CANCELED" -> PaymentGatewayStatus.CANCELED;
+            case "ABORTED", "EXPIRED" -> PaymentGatewayStatus.FAILED;
+            default -> PaymentGatewayStatus.UNKNOWN;
         };
     }
 

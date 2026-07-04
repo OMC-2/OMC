@@ -5,6 +5,7 @@ import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
+import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import org.junit.jupiter.api.BeforeEach;
@@ -103,7 +104,7 @@ class TossPaymentAdapterWireMockTest {
 
         assertThat(result.providerPaymentId()).isEqualTo("toss-payment-key");
         assertThat(result.orderId()).isEqualTo("order-id");
-        assertThat(result.status()).isEqualTo(PaymentGatewayResult.PaymentStatus.PAID);
+        assertThat(result.status()).isEqualTo(PaymentGatewayStatus.PAID);
         assertThat(result.totalAmount()).isEqualTo(10000L);
         assertThat(result.cancelableAmount()).isEqualTo(10000L);
         assertThat(result.providerTransactionId()).isEqualTo("confirm-transaction-key");

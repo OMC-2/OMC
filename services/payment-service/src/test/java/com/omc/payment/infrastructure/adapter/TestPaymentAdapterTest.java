@@ -2,6 +2,7 @@ package com.omc.payment.infrastructure.adapter;
 
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
+import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +35,7 @@ class TestPaymentAdapterTest {
 
         assertThat(result.providerPaymentId()).isEqualTo("test-payment-key");
         assertThat(result.orderId()).isEqualTo("test-order-id");
-        assertThat(result.status()).isEqualTo(PaymentGatewayResult.PaymentStatus.PAID);
+        assertThat(result.status()).isEqualTo(PaymentGatewayStatus.PAID);
         assertThat(result.totalAmount()).isEqualTo(10000L);
         assertThat(result.cancelableAmount()).isEqualTo(10000L);
     }
