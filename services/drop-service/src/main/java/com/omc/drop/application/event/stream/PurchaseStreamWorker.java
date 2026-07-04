@@ -49,7 +49,13 @@ public class PurchaseStreamWorker {
         try {
             return "consumer-" + InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
-            return "consumer-" + UUID.randomUUID().toString().substring(0, 8);
+            String fallbackId = "consumer-" + UUID.randomUUID().toString().substring(0, 8);
+            // SLF4J 백엔드가 아직 초기화 전일 수 있으므로 System.err 사용.
+            // 재시작 후 consumerId가 바뀌면 기존 PEL(Pending Entry List)을 자신의 것으로 인식하지 못해
+            // reclaimStalePending()의 XCLAIM이 필요해진다. HOSTNAME 환경변수 설정을 확인할 것.
+            System.err.printf("[PurchaseStreamWorker] WARN: hostname 조회 실패 — 랜덤 consumerId 사용: %s. " +
+                    "재시작 시 PEL 복구 불가. HOSTNAME 환경변수 설정을 확인하세요.%n", fallbackId);
+            return fallbackId;
         }
     }
 
