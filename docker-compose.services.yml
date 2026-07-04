@@ -62,6 +62,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SENTRY_DSN: ${SENTRY_DSN:-}
+      JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:MaxRAMPercentage=70.0 -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m"
     depends_on:
       config-server:
         condition: service_healthy
@@ -80,7 +81,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 1G
 
   user-service:
     build:
@@ -346,7 +347,7 @@ services:
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
       SENTRY_DSN: ${SENTRY_DSN:-}
-      JAVA_TOOL_OPTIONS: "-Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m"
+      JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:MaxRAMPercentage=70.0 -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m"
     depends_on:
       config-server:
         condition: service_healthy
@@ -367,7 +368,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 1G
 
   notification-service:
     build:
