@@ -25,8 +25,9 @@ export function ProductsPage() {
             <Link key={product.productId} to={`/products/${product.productId}`} className="group">
               <div className="relative aspect-square overflow-hidden bg-gray-100">
                 <img
-                  src={product.imageUrl ?? getPlaceholderImage(i)}
+                  src={product.imageUrl || getPlaceholderImage(i)}
                   alt={product.name}
+                  onError={(e) => { const t = e.currentTarget; t.onerror = null; t.src = getPlaceholderImage(i) }}
                   className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>

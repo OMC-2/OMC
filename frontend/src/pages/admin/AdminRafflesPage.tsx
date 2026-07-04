@@ -34,8 +34,11 @@ export function AdminRafflesPage() {
       productId: form.productId,
       name: form.name,
       winnerCount: Number(form.winnerCount),
-      startedAt: new Date(form.startedAt).toISOString().slice(0, 19),
-      endedAt: new Date(form.endedAt).toISOString().slice(0, 19),
+      // 백엔드(Spring)는 KST 로컬 시간 기준으로 @Future 검증.
+      // toISOString()은 KST→UTC 변환(-9h)으로 과거 시간이 되어 검증 실패하므로
+      // datetime-local 값(YYYY-MM-DDTHH:MM)에 ':00'만 붙여 KST 로컬 시간 그대로 전송.
+      startedAt: form.startedAt + ':00',
+      endedAt: form.endedAt + ':00',
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-raffles'] }); setShowForm(false); setForm(INIT) },
     onError: (e: any) => alert(e?.response?.data?.message ?? '생성 실패'),

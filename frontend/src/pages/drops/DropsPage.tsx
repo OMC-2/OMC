@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { dropsApi } from '../../api/drops'
 import { productsApi } from '../../api/products'
 import { Spinner } from '../../components/ui/Spinner'
-import { formatPrice } from '../../lib/utils'
+import { formatPrice, getDropDisplayStatus } from '../../lib/utils'
 import { getPlaceholderImage } from '../../lib/images'
 
 export function DropsPage() {
@@ -35,19 +35,25 @@ export function DropsPage() {
             const product = productMap[drop.productId]
             const name = product?.name ?? drop.productId
             const price = product?.price ?? 0
-            const imageUrl = product?.imageUrl ?? getPlaceholderImage(i + 1)
+            const imageUrl = product?.imageUrl || getPlaceholderImage(i + 1)
             return (
               <Link key={drop.dropId} to={`/drops/${drop.dropId}`} className="group">
                 <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
                   <img
                     src={imageUrl}
+                    onError={(e) => { const t = e.currentTarget; t.onerror = null; t.src = getPlaceholderImage(i + 1) }}
                     alt={name}
                     className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-700"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                  <span className={`absolute top-4 left-4 px-2.5 py-1 text-[9px] font-black tracking-[0.25em] ${drop.status === 'OPEN' ? 'bg-red-500 text-white' : 'bg-black/50 text-white/50'}`}>
-                    {drop.status === 'OPEN' ? 'ON DROP' : 'ENDED'}
-                  </span>
+                  {(() => {
+                    const ds = getDropDisplayStatus(drop)
+                    return (
+                      <span className={`absolute top-4 left-4 px-2.5 py-1 text-[9px] font-black tracking-[0.25em] ${ds === 'LIVE' ? 'bg-red-500 text-white' : ds === 'UPCOMING' ? 'bg-blue-600 text-white' : 'bg-black/50 text-white/50'}`}>
+                        {ds === 'LIVE' ? 'ON DROP' : ds === 'UPCOMING' ? '진행 예정' : 'ENDED'}
+                      </span>
+                    )
+                  })()}
                   <div className="absolute bottom-0 left-0 right-0 p-5">
                     <p className="text-sm font-black text-white line-clamp-1 group-hover:text-red-300 transition-colors">{name}</p>
                     <div className="mt-1.5 flex items-center justify-between">

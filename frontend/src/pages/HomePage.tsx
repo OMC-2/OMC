@@ -5,6 +5,7 @@ import { dropsApi } from '../api/drops'
 import { productsApi } from '../api/products'
 import { getPlaceholderImage, HERO_IMAGES } from '../lib/images'
 import { ArrowRight, Zap, ShoppingBag, Ticket } from 'lucide-react'
+import { RaffleCard } from '../components/RaffleCard'
 
 export function HomePage() {
   const { data: rafflesData } = useQuery({ queryKey: ['raffles-home'], queryFn: () => rafflesApi.getAll() })
@@ -85,27 +86,13 @@ export function HomePage() {
           </div>
 
           <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
-            {(raffles.length > 0 ? raffles : Array.from({ length: 4 })).map((raffle: any, i: number) => (
-              <Link key={raffle?.raffleId ?? i} to={raffle ? `/raffles/${raffle.raffleId}` : '/raffles'} className="group">
-                <div className="relative aspect-[3/4] overflow-hidden bg-gray-100">
-                  <img
-                    src={productMap[raffle?.productId]?.imageUrl || raffle?.imageUrl || getPlaceholderImage(i)}
-                    alt={raffle?.name ?? ''}
-                    onError={(e) => { const t = e.currentTarget; t.onerror = null; t.src = getPlaceholderImage(i) }}
-                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                  {raffle?.status === 'OPEN' && (
-                    <span className="absolute top-3 left-3 bg-red-500 px-2 py-1 text-[9px] font-black tracking-[0.2em] text-white">LIVE</span>
-                  )}
-                  {raffle && (
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <p className="text-xs font-black text-white line-clamp-2 group-hover:text-red-300 transition-colors">{raffle.name}</p>
-                      <p className="mt-1 text-[10px] text-white/40">당첨 {raffle.winnerCount}명</p>
-                    </div>
-                  )}
-                </div>
-              </Link>
+            {(raffles.length > 0 ? raffles : []).map((raffle: any, i: number) => (
+              <RaffleCard
+                key={raffle.raffleId}
+                raffle={raffle}
+                product={productMap[raffle.productId]}
+                index={i}
+              />
             ))}
           </div>
         </section>
