@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 
 /**
- * DropInternalClient FallbackFactory
+ * DropFeignClient FallbackFactory
  *
  * FallbackFactory를 사용하는 이유:
  * Feign fallback 인터페이스에서 예외를 throw하면 일부 버전에서 null로 처리
@@ -22,14 +22,14 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-public class DropInternalClientFallbackFactory implements FallbackFactory<DropInternalClient> {
+public class DropFeignClientFallbackFactory implements FallbackFactory<DropFeignClient> {
 
     @Override
-    public DropInternalClient create(Throwable cause) {
-        return new DropInternalClient() {
+    public DropFeignClient create(Throwable cause) {
+        return new DropFeignClient() {
             @Override
             public ApiResponse<ActiveDropResponse> hasActiveDrop(UUID productId) {
-                log.error("[DropInternalClientFallback] Drop Service 응답 없음. productId={}, cause={}",
+                log.error("[DropFeignClientFallback] Drop Service 응답 없음. productId={}, cause={}",
                         productId, cause.getMessage());
                 throw new DropServiceUnavailableException();
             }

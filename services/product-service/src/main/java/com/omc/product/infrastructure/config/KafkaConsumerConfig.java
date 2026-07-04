@@ -73,7 +73,7 @@ public class KafkaConsumerConfig {
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(kafkaCommonErrorHandler);
         // concurrency는 여기서 강제하지 않음 — 각 @KafkaListener의 concurrency 속성을 그대로 사용
-        // (PaymentCompletedConsumer는 명시적으로 concurrency="1" 고정, 근거는 해당 클래스 주석 참고)
+        // (PaymentCompletedConsumer는 명시적으로 concurrency="3" 고정, 근거는 해당 클래스 주석 참고)
         return factory;
     }
 

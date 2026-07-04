@@ -101,12 +101,14 @@ class OutboxEventAdminControllerTest extends AbstractIntegrationTest {
         event.publish();
         outboxEventRepository.save(event);
 
-        // FAILED 상태가 아니므로 재처리 불가 (500 또는 비즈니스 예외)
+        // FAILED 상태가 아니므로 재처리 불가 → 409 CONFLICT (OutboxEventNotFailedException)
         mockMvc.perform(post("/api/v1/admin/outbox-events/{eventId}/retry", event.getEventId())
                         .header("X-Gateway-Secret", GW_SECRET)
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ADMIN"))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().isConflict())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.errorCode").value("PRODUCT-031"));
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.omc.product.domain.entity;
 import com.omc.common.entity.BaseEntity;
 import com.omc.common.util.UuidV7Generator;
 import com.omc.product.domain.exception.InsufficientStockException;
+import com.omc.product.domain.exception.QuantityBelowSoldException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -15,9 +16,12 @@ import java.util.UUID;
  * 재고 (p_inventories)
  *
  * MVP: Product Service 내 패키지로 통합 관리
- * TODO: Inventory Service 분리 예정 (트러블슈팅 기간)
+ * 트러블슈팅 기간 중 Inventory Service 분리 타당성을 재검토했으나,
+ * 현재 트래픽 패턴(Kafka 컨슈머 동시성 3)에서는 CPU/Lag 모두 여유가 있어 분리를 보류함
+ * (재고 확정 차감 동시성 결함은 Semaphore·DLT로 완화 조치했으나, 근본 원인인
+ * HikariCP 커넥션 미반납 현상은 미해결 상태라 다음 스프린트에서 재논의 예정)
  *
- * productId: Inventory Service 분리 대비 논리 참조 (FK 없음)
+ * productId: 향후 분리 가능성을 대비한 논리 참조 (FK 없음)
  *
  * available_quantity: DB GENERATED ALWAYS AS (total - sold) STORED
  * → JPA @Column(insertable=false, updatable=false) 필수
@@ -78,9 +82,7 @@ public class Inventory extends BaseEntity {
 
     public void updateTotalQuantity(int newTotalQuantity) {
         if (newTotalQuantity < this.soldQuantity) {
-            throw new IllegalArgumentException(
-                    "총 재고는 판매 수량(" + this.soldQuantity + ")보다 적을 수 없습니다."
-            );
+            throw new QuantityBelowSoldException();
         }
         this.totalQuantity = newTotalQuantity;
     }

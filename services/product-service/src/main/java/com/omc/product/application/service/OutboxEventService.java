@@ -2,6 +2,7 @@ package com.omc.product.application.service;
 
 import com.omc.product.domain.entity.OutboxEvent;
 import com.omc.product.domain.enums.OutboxStatus;
+import com.omc.product.domain.exception.OutboxEventNotFailedException;
 import com.omc.product.domain.exception.OutboxEventNotFoundException;
 import com.omc.product.domain.repository.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +45,7 @@ public class OutboxEventService {
                 .orElseThrow(OutboxEventNotFoundException::new);
 
         if (event.getStatus() != OutboxStatus.FAILED) {
-            throw new IllegalStateException("FAILED 상태의 이벤트만 재처리 가능합니다.");
+            throw new OutboxEventNotFailedException();
         }
 
         event.resetToInit();
