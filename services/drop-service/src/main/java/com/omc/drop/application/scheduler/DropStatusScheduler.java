@@ -35,19 +35,19 @@ public class DropStatusScheduler {
                 DropStatus.SCHEDULED, LocalDateTime.now());
 
         for (Drop drop : candidates) {
-            try {
-                int availableQty = getAvailableQty(drop);
-                dropRedisStore.warmup(drop.getDropId(), availableQty, drop.getHoldTtlSec(), drop.getProductId());
-            } catch (Exception e) {
-                // Redis 워밍 실패 시 전이 생략 — 다음 폴링 주기에 재시도
-                log.error("Redis 워밍 실패로 OPEN 전이 생략: dropId={}", drop.getDropId(), e);
-                continue;
-            }
+            int availableQty = getAvailableQty(drop);
 
             int updated = dropRepository.updateStatusConditionally(
                     drop.getDropId(), DropStatus.SCHEDULED, DropStatus.OPEN);
             if (updated == 1) {
-                dropRedisStore.addOpenDrop(drop.getDropId());
+                try {
+                    dropRedisStore.warmup(drop.getDropId(), availableQty, drop.getHoldTtlSec(), drop.getProductId());
+                    dropRedisStore.addOpenDrop(drop.getDropId());
+                } catch (Exception e) {
+                    // DB는 OPEN 전이 완료 — Redis warmup 실패.
+                    // HoldExpireScheduler.recoverFromDb()가 다음 주기에 Redis 상태를 복구한다.
+                    log.error("Redis 워밍 실패 (DB는 OPEN 상태). dropId={}", drop.getDropId(), e);
+                }
                 dropEventProducer.publishDropOpened(DropOpenedEvent.from(drop));
                 log.info("드롭 OPEN 전이 완료: dropId={}", drop.getDropId());
             }
