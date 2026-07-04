@@ -24,12 +24,6 @@ spring:
           uri: lb://product-service
           predicates:
             - Path=/api/v1/admin/products/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@adminRateLimiter}"
-                deny-empty-key: false
 
         - id: product-service
           uri: lb://product-service
@@ -46,45 +40,21 @@ spring:
           uri: lb://drop-service
           predicates:
             - Path=/api/v1/admin/drops/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@adminRateLimiter}"
-                deny-empty-key: false
 
         - id: drop-service
           uri: lb://drop-service
           predicates:
             - Path=/api/v1/drops/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@dropRateLimiter}"
-                deny-empty-key: false
 
         - id: raffle-service
           uri: lb://raffle-service
           predicates:
             - Path=/api/v1/raffles/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@raffleRateLimiter}"
-                deny-empty-key: false
 
         - id: raffle-service-admin
           uri: lb://raffle-service
           predicates:
             - Path=/api/v1/admin/raffles/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@adminRateLimiter}"
-                deny-empty-key: false
 
         - id: order-service
           uri: lb://order-service
@@ -112,23 +82,11 @@ spring:
           uri: lb://notification-service
           predicates:
             - Path=/api/v1/notifications/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@notificationRateLimiter}"
-                deny-empty-key: false
 
         - id: coupon-service
           uri: lb://coupon-service
           predicates:
             - Path=/api/v1/coupons/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@couponRateLimiter}"
-                deny-empty-key: false
 
   security:
     oauth2:
