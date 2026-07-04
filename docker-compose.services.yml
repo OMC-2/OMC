@@ -346,6 +346,7 @@ services:
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
       SENTRY_DSN: ${SENTRY_DSN:-}
+      JAVA_TOOL_OPTIONS: "-Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m"
     depends_on:
       config-server:
         condition: service_healthy
