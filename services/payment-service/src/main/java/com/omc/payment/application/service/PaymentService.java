@@ -35,9 +35,8 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentGatewayPort paymentGatewayPort;
     private final PaymentCoreService paymentCoreService;
+    private final PaymentIdempotencyService paymentIdempotencyService;
 
-
-    @Transactional
     public PaymentResponse confirmPayment(ConfirmPaymentRequest request, UUID userId) {
         if (userId == null) {
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
@@ -45,16 +44,21 @@ public class PaymentService {
         if (request == null) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
         }
-        Payment payment = paymentCoreService.confirmPayment(
-                request.orderID(),
-                request.dropId(),
-                request.productId(),
-                request.couponID(),
-                userId,
-                request.originalAmount(),
-                request.discountAmount(),
-                request.finalAmount(),
-                request.providerPaymentId()
+        Payment payment = paymentIdempotencyService.execute(
+                paymentIdempotencyService.confirmKey(request.orderID()),
+                () -> paymentCoreService.confirmPayment(
+                        request.orderID(),
+                        request.dropId(),
+                        request.productId(),
+                        request.couponID(),
+                        userId,
+                        request.originalAmount(),
+                        request.discountAmount(),
+                        request.finalAmount(),
+                        request.providerPaymentId()
+                ),
+                () -> paymentRepository.findByOrderId(request.orderID())
+                        .orElseThrow(() -> new BusinessException(PaymentErrorCode.PAYMENT_NOT_FOUND))
         );
         return PaymentResponse.from(payment);
     }

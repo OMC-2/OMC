@@ -26,12 +26,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -64,11 +65,32 @@ class PaymentCoreServiceTest {
     @Mock private CouponServiceClient couponServiceClient;
     @Mock private PaymentIdempotencyService paymentIdempotencyService;
 
-    @InjectMocks
+    private PaymentTransactionService paymentTransactionService;
     private PaymentCoreService paymentCoreService;
+    private Map<UUID, Payment> savedPayments;
 
     @BeforeEach
     void setUp() {
+        savedPayments = new HashMap<>();
+        paymentTransactionService = new PaymentTransactionService(paymentRepository, paymentOutboxService);
+        paymentCoreService = new PaymentCoreService(
+                paymentRepository,
+                paymentGatewayPort,
+                paymentOutboxService,
+                couponServiceClient,
+                paymentIdempotencyService,
+                paymentTransactionService
+        );
+
+        lenient().when(paymentRepository.save(any(Payment.class)))
+                .thenAnswer(invocation -> {
+                    Payment payment = invocation.getArgument(0);
+                    savedPayments.put(payment.getPaymentId(), payment);
+                    return payment;
+                });
+        lenient().when(paymentRepository.findById(any(UUID.class)))
+                .thenAnswer(invocation -> Optional.ofNullable(savedPayments.get(invocation.getArgument(0))));
+
         lenient().when(paymentIdempotencyService.confirmKey(any(UUID.class)))
                 .thenAnswer(invocation -> "payment:confirm:" + invocation.getArgument(0));
         lenient().when(paymentIdempotencyService.cancelKey(any(UUID.class)))
@@ -83,7 +105,6 @@ class PaymentCoreServiceTest {
         @DisplayName("드롭 결제를 승인하고 완료 아웃박스를 적재한다")
         void confirmPayment_success() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
             given(paymentGatewayPort.confirmPayment(any(PaymentGatewayCommand.Confirm.class)))
                     .willReturn(new PaymentGatewayResult.Confirm("결제 승인 아이디"));
 
@@ -135,7 +156,6 @@ class PaymentCoreServiceTest {
         @DisplayName("쿠폰 없이 할인 금액이 있으면 결제를 실패 처리한다")
         void confirmPayment_invalidCouponWithoutCouponId() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
             Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
@@ -164,7 +184,6 @@ class PaymentCoreServiceTest {
         @DisplayName("결제 금액이 일치하지 않으면 실패 아웃박스를 적재한다")
         void confirmPayment_amountMismatch() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
             Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
@@ -193,7 +212,6 @@ class PaymentCoreServiceTest {
         @DisplayName("PG 요청이 거절되면 결제를 실패 처리하고 실패 아웃박스를 적재한다")
         void confirmPayment_gatewayRequestFailure() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
             given(paymentGatewayPort.confirmPayment(any(PaymentGatewayCommand.Confirm.class)))
                     .willThrow(new PaymentGatewayRequestException("TOSS-400", "카드 승인이 거절되었습니다"));
 
@@ -220,7 +238,6 @@ class PaymentCoreServiceTest {
         @DisplayName("PG 연결이 실패하면 결제를 알 수 없음 상태로 처리한다")
         void confirmPayment_gatewayConnectionFailure() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
             given(paymentGatewayPort.confirmPayment(any(PaymentGatewayCommand.Confirm.class)))
                     .willThrow(new PaymentGatewayConnectionException("게이트웨이 타임아웃", new RuntimeException("입출력 오류")));
 
@@ -236,11 +253,8 @@ class PaymentCoreServiceTest {
                     "결제 승인 아이디"
             );
 
-            ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
-            verify(paymentRepository).save(paymentCaptor.capture());
-            assertThat(payment).isSameAs(paymentCaptor.getValue());
-            assertThat(paymentCaptor.getValue().getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
-            assertThat(paymentCaptor.getValue().getProviderPaymentId()).isNotBlank();
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
+            assertThat(payment.getProviderPaymentId()).isNotBlank();
             verify(paymentOutboxService, never()).savePaymentFailed(any(Payment.class));
             verify(paymentOutboxService, never()).savePaymentCompleted(any(Payment.class));
         }
@@ -254,7 +268,6 @@ class PaymentCoreServiceTest {
         @DisplayName("래플 빌링키 결제를 승인하고 쿠폰을 재검증한다")
         void confirmBillingPayment_success() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
             given(couponServiceClient.reserveCoupon(any(CouponReserveRequest.class)))
                     .willReturn(ApiResponse.success(rateCoupon("RESERVED", "15", "3000")));
             given(paymentGatewayPort.confirmBillingPayment(any(PaymentGatewayCommand.ConfirmBilling.class)))
