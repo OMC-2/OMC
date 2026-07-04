@@ -8,6 +8,7 @@ import com.omc.drop.infrastructure.client.ProductServiceClient;
 import com.omc.drop.infrastructure.client.InventorySnapshotResponse;
 import com.omc.drop.application.event.producer.DropClosedEvent;
 import com.omc.drop.application.event.producer.DropOpenedEvent;
+import com.omc.drop.infrastructure.metrics.DropMetrics;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class DropStatusScheduler {
     private final DropRedisStore dropRedisStore;
     private final DropEventProducer dropEventProducer;
     private final ProductServiceClient productServiceClient;
+    private final DropMetrics dropMetrics;
 
     @Scheduled(fixedDelay = 5000)
     @Transactional
@@ -60,6 +62,7 @@ public class DropStatusScheduler {
             return snapshot.availableQuantity();
         } catch (Exception e) {
             log.warn("product-service 재고 조회 실패, totalQty 폴백. dropId={}", drop.getDropId(), e);
+            dropMetrics.incrementInventoryFallback(drop.getDropId());
             return drop.getTotalQty();
         }
     }

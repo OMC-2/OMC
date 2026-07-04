@@ -2,13 +2,13 @@ package com.omc.drop.application.scheduler;
 
 import com.omc.common.response.ApiResponse;
 import com.omc.drop.application.event.producer.DropEventProducer;
+import com.omc.drop.application.event.producer.DropOpenedEvent;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
-import com.omc.drop.infrastructure.client.ProductServiceClient;
 import com.omc.drop.infrastructure.client.InventorySnapshotResponse;
-import com.omc.drop.application.event.producer.DropClosedEvent;
-import com.omc.drop.application.event.producer.DropOpenedEvent;
+import com.omc.drop.infrastructure.client.ProductServiceClient;
+import com.omc.drop.infrastructure.metrics.DropMetrics;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,6 +44,9 @@ class DropStatusSchedulerTest {
 
     @Mock
     private ProductServiceClient productServiceClient;
+
+    @Mock
+    private DropMetrics dropMetrics;
 
     @InjectMocks
     private DropStatusScheduler dropStatusScheduler;
@@ -90,6 +93,7 @@ class DropStatusSchedulerTest {
             verify(dropRedisStore).warmup(drop.getDropId(), drop.getTotalQty(), drop.getHoldTtlSec(), drop.getProductId());
             verify(dropRedisStore).addOpenDrop(drop.getDropId());
             verify(dropEventProducer).publishDropOpened(argThat(e -> e.dropId().equals(drop.getDropId())));
+            verify(dropMetrics).incrementInventoryFallback(drop.getDropId());
         }
 
         @Test
