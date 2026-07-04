@@ -5,17 +5,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.PendingMessage;
 import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.stream.StreamReadOptions;
+import org.springframework.data.redis.connection.RedisStreamCommands;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Predicate;
 
 @Slf4j
 @Component
@@ -29,6 +32,7 @@ public class PurchaseStreamStore {
 
     // 이 횟수를 초과하면 파싱/처리 불가능한 메시지로 간주하고 강제 ACK (무한 PEL 루프 방지)
     private static final int MAX_DELIVERY_COUNT = 5;
+    private static final Duration STALE_CLAIM_AGE = Duration.ofMinutes(5);
 
     /**
      * MKSTREAM=true: stream이 없으면 stream과 group을 함께 생성.
@@ -37,7 +41,7 @@ public class PurchaseStreamStore {
     public void createConsumerGroupIfAbsent() {
         try {
             redisTemplate.execute((RedisCallback<Object>) conn ->
-                    conn.xGroupCreate(
+                    conn.streamCommands().xGroupCreate(
                             STREAM_KEY.getBytes(java.nio.charset.StandardCharsets.UTF_8),
                             GROUP_NAME,
                             ReadOffset.latest(),
@@ -49,10 +53,6 @@ public class PurchaseStreamStore {
                 log.warn("[PurchaseStream] Consumer group 생성 실패: {}", e.getMessage());
             }
         }
-    }
-
-    public Long getStreamSize() {
-        return redisTemplate.opsForStream().size(STREAM_KEY);
     }
 
     /** ReadOffset.lastConsumed() = ">" (새 메시지), ReadOffset.from("0") = pending 재처리 */
@@ -75,16 +75,7 @@ public class PurchaseStreamStore {
         PendingMessages pending = redisTemplate.opsForStream()
                 .pending(STREAM_KEY, GROUP_NAME, Range.unbounded(), 500L);
 
-        List<RecordId> poisonIds = pending.stream()
-                .filter(msg -> msg.getConsumerName().equals(consumerId))
-                .filter(msg -> msg.getTotalDeliveryCount() > MAX_DELIVERY_COUNT)
-                .map(msg -> RecordId.of(msg.getId().getValue()))
-                .toList();
-        if (!poisonIds.isEmpty()) {
-            log.error("[PurchaseStream] 재시도 한도({}) 초과 메시지 {}건 강제 ACK (poison): {}",
-                    MAX_DELIVERY_COUNT, poisonIds.size(), poisonIds);
-            acknowledge(poisonIds.toArray(RecordId[]::new));
-        }
+        forceAckPoison(pending, msg -> msg.getConsumerName().equals(consumerId));
 
         List<RecordId> staleIds = pending.stream()
                 .filter(msg -> msg.getConsumerName().equals(consumerId))
@@ -96,31 +87,22 @@ public class PurchaseStreamStore {
         if (staleIds.isEmpty()) return List.of();
 
         return (List<MapRecord<String, String, String>>) (List<?>) redisTemplate.opsForStream()
-                .claim(STREAM_KEY, GROUP_NAME, consumerId, minAge,
-                       staleIds.toArray(RecordId[]::new));
+                .claim(STREAM_KEY, GROUP_NAME, consumerId,
+                       RedisStreamCommands.XClaimOptions.minIdle(minAge).ids(staleIds));
     }
 
-    /** 5분 이상 ACK 안 된 다른 consumer의 메시지를 인수해서 반환.
+    /** STALE_CLAIM_AGE 이상 ACK 안 된 다른 consumer의 메시지를 인수해서 반환.
      *  MAX_DELIVERY_COUNT 초과 메시지는 포이즌 메시지로 간주하고 강제 ACK 처리. */
     @SuppressWarnings("unchecked")
     public List<MapRecord<String, String, String>> claimStaleMessages(String consumerId) {
         PendingMessages pending = redisTemplate.opsForStream()
                 .pending(STREAM_KEY, GROUP_NAME, Range.unbounded(), 100L);
 
-        List<RecordId> poisonIds = pending.stream()
-                .filter(msg -> !msg.getConsumerName().equals(consumerId))
-                .filter(msg -> msg.getTotalDeliveryCount() > MAX_DELIVERY_COUNT)
-                .map(msg -> RecordId.of(msg.getId().getValue()))
-                .toList();
-        if (!poisonIds.isEmpty()) {
-            log.error("[PurchaseStream] 재시도 한도({}) 초과 stale 메시지 {}건 강제 ACK (poison): {}",
-                    MAX_DELIVERY_COUNT, poisonIds.size(), poisonIds);
-            acknowledge(poisonIds.toArray(RecordId[]::new));
-        }
+        forceAckPoison(pending, msg -> !msg.getConsumerName().equals(consumerId));
 
         List<RecordId> staleIds = pending.stream()
                 .filter(msg -> !msg.getConsumerName().equals(consumerId))
-                .filter(msg -> msg.getElapsedTimeSinceLastDelivery().compareTo(Duration.ofMinutes(5)) > 0)
+                .filter(msg -> msg.getElapsedTimeSinceLastDelivery().compareTo(STALE_CLAIM_AGE) > 0)
                 .filter(msg -> msg.getTotalDeliveryCount() <= MAX_DELIVERY_COUNT)
                 .map(msg -> RecordId.of(msg.getId().getValue()))
                 .toList();
@@ -128,7 +110,26 @@ public class PurchaseStreamStore {
         if (staleIds.isEmpty()) return List.of();
 
         return (List<MapRecord<String, String, String>>) (List<?>) redisTemplate.opsForStream()
-                .claim(STREAM_KEY, GROUP_NAME, consumerId, Duration.ofMinutes(5),
-                       staleIds.toArray(RecordId[]::new));
+                .claim(STREAM_KEY, GROUP_NAME, consumerId,
+                       RedisStreamCommands.XClaimOptions.minIdle(STALE_CLAIM_AGE).ids(staleIds));
+    }
+
+    private void forceAckPoison(PendingMessages pending,
+                                Predicate<PendingMessage> ownerFilter) {
+        List<RecordId> poisonIds = pending.stream()
+                .filter(ownerFilter)
+                .filter(msg -> msg.getTotalDeliveryCount() > MAX_DELIVERY_COUNT)
+                .map(msg -> RecordId.of(msg.getId().getValue()))
+                .toList();
+        if (!poisonIds.isEmpty()) {
+            log.error("[PurchaseStream] 재시도 한도({}) 초과 메시지 {}건 강제 ACK (poison): {}",
+                    MAX_DELIVERY_COUNT, poisonIds.size(), poisonIds);
+            acknowledge(poisonIds.toArray(RecordId[]::new));
+        }
+    }
+
+    // ── 통합 테스트 전용 ──────────────────────────────────────
+    public Long getStreamSize() {
+        return redisTemplate.opsForStream().size(STREAM_KEY);
     }
 }
