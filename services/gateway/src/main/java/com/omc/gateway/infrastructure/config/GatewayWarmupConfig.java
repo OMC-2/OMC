@@ -11,6 +11,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -41,14 +42,19 @@ public class GatewayWarmupConfig {
     private String warmupUserPassword;
 
     private final WebClient webClient;
+    private final ReactiveStringRedisTemplate redisTemplate;
 
-    public GatewayWarmupConfig(@LoadBalanced WebClient.Builder loadBalancedWebClientBuilder) {
+    public GatewayWarmupConfig(
+            @LoadBalanced WebClient.Builder loadBalancedWebClientBuilder,
+            ReactiveStringRedisTemplate redisTemplate) {
         this.webClient = loadBalancedWebClientBuilder.build();
+        this.redisTemplate = redisTemplate;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void warmUp() {
         warmUpLoadBalancerAndNetty();
+        warmUpRedis();
         warmUpSecurityFilterChain();
     }
 
@@ -71,6 +77,18 @@ public class GatewayWarmupConfig {
                 .block(Duration.ofSeconds(15));
 
         log.info("[GatewayWarmup] LoadBalancer + Netty 워밍업 완료: {}개 서비스 응답", successCount != null ? successCount : 0);
+    }
+
+    private void warmUpRedis() {
+        try {
+            redisTemplate.opsForValue().get("warmup")
+                    .timeout(Duration.ofSeconds(5))
+                    .onErrorResume(e -> Mono.empty())
+                    .block();
+            log.info("[GatewayWarmup] Redis 연결 워밍업 완료");
+        } catch (Exception e) {
+            log.warn("[GatewayWarmup] Redis 연결 워밍업 실패 (무시): {}", e.getMessage());
+        }
     }
 
     // Keycloak password grant로 실 JWT 발급 → 자기 자신에 SECURITY_WARMUP_REPEAT회 요청
