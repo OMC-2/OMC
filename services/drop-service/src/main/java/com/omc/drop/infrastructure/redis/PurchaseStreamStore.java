@@ -27,6 +27,9 @@ public class PurchaseStreamStore {
     public static final String STREAM_KEY = "stream:purchase:confirmed";
     public static final String GROUP_NAME  = "purchase-workers";
 
+    // 이 횟수를 초과하면 파싱/처리 불가능한 메시지로 간주하고 강제 ACK (무한 PEL 루프 방지)
+    private static final int MAX_DELIVERY_COUNT = 5;
+
     /**
      * MKSTREAM=true: stream이 없으면 stream과 group을 함께 생성.
      * 앱 최초 기동 시 아직 XADD가 한 번도 없어도 group 생성이 성공한다.
@@ -65,15 +68,28 @@ public class PurchaseStreamStore {
         redisTemplate.opsForStream().acknowledge(STREAM_KEY, GROUP_NAME, recordIds);
     }
 
-    /** minAge 이상 ACK 안 된 자신의 pending 메시지를 반환 */
+    /** minAge 이상 ACK 안 된 자신의 pending 메시지를 반환.
+     *  MAX_DELIVERY_COUNT 초과 메시지는 포이즌 메시지로 간주하고 강제 ACK 처리. */
     @SuppressWarnings("unchecked")
     public List<MapRecord<String, String, String>> getOwnStalePending(String consumerId, Duration minAge) {
         PendingMessages pending = redisTemplate.opsForStream()
                 .pending(STREAM_KEY, GROUP_NAME, Range.unbounded(), 500L);
 
+        List<RecordId> poisonIds = pending.stream()
+                .filter(msg -> msg.getConsumerName().equals(consumerId))
+                .filter(msg -> msg.getTotalDeliveryCount() > MAX_DELIVERY_COUNT)
+                .map(msg -> RecordId.of(msg.getId().getValue()))
+                .toList();
+        if (!poisonIds.isEmpty()) {
+            log.error("[PurchaseStream] 재시도 한도({}) 초과 메시지 {}건 강제 ACK (poison): {}",
+                    MAX_DELIVERY_COUNT, poisonIds.size(), poisonIds);
+            acknowledge(poisonIds.toArray(RecordId[]::new));
+        }
+
         List<RecordId> staleIds = pending.stream()
                 .filter(msg -> msg.getConsumerName().equals(consumerId))
                 .filter(msg -> msg.getElapsedTimeSinceLastDelivery().compareTo(minAge) > 0)
+                .filter(msg -> msg.getTotalDeliveryCount() <= MAX_DELIVERY_COUNT)
                 .map(msg -> RecordId.of(msg.getId().getValue()))
                 .toList();
 
@@ -84,15 +100,28 @@ public class PurchaseStreamStore {
                        staleIds.toArray(RecordId[]::new));
     }
 
-    /** 5분 이상 ACK 안 된 다른 consumer의 메시지를 인수해서 반환 */
+    /** 5분 이상 ACK 안 된 다른 consumer의 메시지를 인수해서 반환.
+     *  MAX_DELIVERY_COUNT 초과 메시지는 포이즌 메시지로 간주하고 강제 ACK 처리. */
     @SuppressWarnings("unchecked")
     public List<MapRecord<String, String, String>> claimStaleMessages(String consumerId) {
         PendingMessages pending = redisTemplate.opsForStream()
                 .pending(STREAM_KEY, GROUP_NAME, Range.unbounded(), 100L);
 
-        List<RecordId> staleIds = pending.stream()
-                .filter(msg -> msg.getElapsedTimeSinceLastDelivery().compareTo(Duration.ofMinutes(5)) > 0)
+        List<RecordId> poisonIds = pending.stream()
                 .filter(msg -> !msg.getConsumerName().equals(consumerId))
+                .filter(msg -> msg.getTotalDeliveryCount() > MAX_DELIVERY_COUNT)
+                .map(msg -> RecordId.of(msg.getId().getValue()))
+                .toList();
+        if (!poisonIds.isEmpty()) {
+            log.error("[PurchaseStream] 재시도 한도({}) 초과 stale 메시지 {}건 강제 ACK (poison): {}",
+                    MAX_DELIVERY_COUNT, poisonIds.size(), poisonIds);
+            acknowledge(poisonIds.toArray(RecordId[]::new));
+        }
+
+        List<RecordId> staleIds = pending.stream()
+                .filter(msg -> !msg.getConsumerName().equals(consumerId))
+                .filter(msg -> msg.getElapsedTimeSinceLastDelivery().compareTo(Duration.ofMinutes(5)) > 0)
+                .filter(msg -> msg.getTotalDeliveryCount() <= MAX_DELIVERY_COUNT)
                 .map(msg -> RecordId.of(msg.getId().getValue()))
                 .toList();
 
