@@ -81,7 +81,7 @@ Feature: 알림 목록 조회
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userAccessToken
     When method post
-    Then status 201
+    Then status 202
     # 4단계: OutboxPoller(5s) + Kafka Consumer 처리 대기
     * eval java.lang.Thread.sleep(10000)
     # 5단계: 알림 목록 조회 → COUPON_ISSUED 알림 확인

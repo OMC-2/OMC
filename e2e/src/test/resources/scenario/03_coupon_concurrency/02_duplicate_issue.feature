@@ -56,17 +56,15 @@ Feature: [시나리오] 쿠폰 중복 발급 차단
     * def userToken = response.data.accessToken
 
   # ----------------------------------------------------------------
-  # 시나리오 1: 첫 발급은 성공하고 201과 userCouponId를 반환한다
+  # 시나리오 1: 첫 발급은 성공하고 202 Accepted를 반환한다
   # ----------------------------------------------------------------
-  Scenario: [정상] 첫 발급 성공 → 201, status=AVAILABLE
+  Scenario: [정상] 첫 발급 성공 → 202 Accepted
     Given path '/api/v1/coupons/' + couponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userToken
     When method post
-    Then status 201
-    And match response.data.userCouponId == '#uuid'
-    And match response.data.status == 'AVAILABLE'
-    And match response.data.couponId == couponId
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'
 
   # ----------------------------------------------------------------
   # 시나리오 2: 1회 성공 후 동일 쿠폰 4회 추가 시도 → 모두 409, COUPON-003
@@ -78,7 +76,7 @@ Feature: [시나리오] 쿠폰 중복 발급 차단
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userToken
     When method post
-    Then status 201
+    Then status 202
 
     # 2회차: 중복 시도 → 409
     Given path '/api/v1/coupons/' + couponId + '/issue'

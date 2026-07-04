@@ -78,12 +78,30 @@ sentry_disable() {
   while [ $i -lt 90 ]; do
     if curl -s "http://localhost:8087/actuator/health" 2>/dev/null | grep -q '"UP"'; then
       log "  ✅ coupon-service 준비 완료 (Sentry 비활성화됨)"
-      return 0
+      break
     fi
     sleep 3
     i=$((i+3))
   done
-  log "  ⚠️  health check 타임아웃 — 계속 진행합니다"
+  if [ $i -ge 90 ]; then
+    log "  ⚠️  health check 타임아웃 — 계속 진행합니다"
+  fi
+
+  # Eureka 등록 + 게이트웨이 캐시 갱신 대기 (최대 60초)
+  log "  ⏳ Gateway Eureka 캐시 갱신 대기 중..."
+  local gw_wait=0
+  while [ $gw_wait -lt 60 ]; do
+    local status
+    status=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/coupons/health-check" \
+      -H "X-Gateway-Secret: $GATEWAY_SECRET" 2>/dev/null)
+    if [ "$status" != "503" ] && [ "$status" != "000" ]; then
+      log "  ✅ Gateway → coupon-service 경로 정상 (${gw_wait}초 소요)"
+      return 0
+    fi
+    sleep 2
+    gw_wait=$((gw_wait + 2))
+  done
+  log "  ⚠️  Gateway Eureka 캐시 갱신 대기 타임아웃 (60초) — 계속 진행합니다"
 }
 
 sentry_restore() {
@@ -135,6 +153,26 @@ verify_and_save() {
 
   local db_status="N/A"
   local redis_status="N/A"
+
+  # Kafka consumer 처리 완료 대기 (최대 90초 폴링)
+  local max_wait=90
+  local poll_interval=3
+  local waited=0
+  log "  ⏳ Kafka consumer 대기 중... (최대 ${max_wait}초)"
+  while [ "$waited" -lt "$max_wait" ]; do
+    local _cnt
+    _cnt=$(docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA \
+      -c "SELECT COUNT(*) FROM coupon_db.p_user_coupons WHERE coupon_id = '$coupon_id';" 2>/dev/null | tr -d '[:space:]')
+    if [ -n "$_cnt" ] && [ "$_cnt" -ge "$expected_count" ] 2>/dev/null; then
+      log "  ✅ Kafka consumer 완료 (${_cnt}/${expected_count}건, ${waited}초 소요)"
+      break
+    fi
+    sleep "$poll_interval"
+    waited=$((waited + poll_interval))
+    if [ $((waited % 15)) -eq 0 ]; then
+      log "  ⏳ Kafka consumer 대기 중... DB=${_cnt:-?}/${expected_count} (${waited}초)"
+    fi
+  done
 
   DB_COUNT=$(docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA \
     -c "SELECT COUNT(*) FROM coupon_db.p_user_coupons WHERE coupon_id = '$coupon_id';" 2>/dev/null || true)

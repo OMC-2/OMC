@@ -46,12 +46,10 @@ Feature: 쿠폰 발급 성공 (Zipkin 확인용)
     Then status 200
     * def userAccessToken = response.data.accessToken
 
-  Scenario: [정상] 쿠폰 발급 성공 → 201
+  Scenario: [정상] 쿠폰 발급 성공 → 202 Accepted
     Given path '/api/v1/coupons/' + couponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userAccessToken
     When method post
-    Then status 201
-    And match response.data.userCouponId == '#uuid'
-    And match response.data.status == 'AVAILABLE'
-    And match response.data.couponId == couponId
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'

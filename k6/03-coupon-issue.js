@@ -123,9 +123,9 @@ export function setup() {
 }
 
 export default function (data) {
-  // 201(발급 성공), 409(재고 소진/중복)은 정상 비즈니스 응답 → http_req_failed 카운트 제외
+  // 202(발급 성공), 409(재고 소진/중복)은 정상 비즈니스 응답 → http_req_failed 카운트 제외
   // VU별로 설정해야 하므로 default 함수 안에서 호출
-  setResponseCallback(http.expectedStatuses(201, 409));
+  setResponseCallback(http.expectedStatuses(202, 409));
 
   // load: iteration 기반 순환 (1인 1회, 중복 없음)
   // smoke/stress/spike: VU 기반 (기존 동작 유지)
@@ -147,11 +147,11 @@ export default function (data) {
   );
 
   check(res, {
-    '201 Created (발급 성공)':       (r) => r.status === 201,
+    '202 Accepted (발급 성공)':       (r) => r.status === 202,
     '409 Conflict (재고 소진/중복)':  (r) => r.status === 409,
     '500 에러 없음':                  (r) => r.status !== 500,
   });
 
-  issueSuccessRate.add(res.status === 201 || res.status === 409);
+  issueSuccessRate.add(res.status === 202 || res.status === 409);
   issueDuration.add(res.timings.duration);
 }
