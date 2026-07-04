@@ -1,6 +1,7 @@
 package com.omc.payment.application.service;
 
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
+import com.omc.payment.application.processor.PaymentOutboxTransactionProcessor;
 import com.omc.payment.domain.enums.OutboxAggregateType;
 import com.omc.payment.domain.enums.OutboxEventStatus;
 import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
@@ -37,10 +38,10 @@ class PaymentOutboxPublishServiceTest {
 
     @BeforeEach
     void setUp() {
-        PaymentOutboxTransactionService paymentOutboxTransactionService =
-                new PaymentOutboxTransactionService(paymentOutboxEventRepository);
+        PaymentOutboxTransactionProcessor paymentOutboxTransactionProcessor =
+                new PaymentOutboxTransactionProcessor(paymentOutboxEventRepository);
         paymentOutboxPublishService = new PaymentOutboxPublishService(
-                paymentOutboxTransactionService,
+                paymentOutboxTransactionProcessor,
                 kafkaTemplate
         );
     }

@@ -1,16 +1,12 @@
 package com.omc.payment.application.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.payment.application.processor.PaymentOutboxTransactionProcessor;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
-import com.omc.payment.domain.enums.OutboxEventStatus;
-import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -18,7 +14,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PaymentOutboxPublishService {
 
-    private final PaymentOutboxTransactionService paymentOutboxTransactionService;
+    private final PaymentOutboxTransactionProcessor paymentOutboxTransactionProcessor;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     /*
@@ -26,7 +22,7 @@ public class PaymentOutboxPublishService {
     * 스케줄러는 트랜잭션에 포함되지 않기 때문에 객체가 아닌 eventId를 인자로 전달
     * */
     public void publish(UUID eventId, int maxRetryCount) {
-        PaymentOutboxEvent outboxEvent = paymentOutboxTransactionService.claimForPublishing(eventId, maxRetryCount);
+        PaymentOutboxEvent outboxEvent = paymentOutboxTransactionProcessor.claimForPublishing(eventId, maxRetryCount);
         if (outboxEvent == null) {
             return;
         }
@@ -38,12 +34,12 @@ public class PaymentOutboxPublishService {
                     outboxEvent.getPayload()
             ).get(); // 동기 대기
 
-            paymentOutboxTransactionService.markPublished(eventId);
+            paymentOutboxTransactionProcessor.markPublished(eventId);
         } catch (InterruptedException e) { // Future.get() 과정에서 스레드 인터럽트 예외
-            paymentOutboxTransactionService.markFailed(eventId, maxRetryCount);
+            paymentOutboxTransactionProcessor.markFailed(eventId, maxRetryCount);
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            paymentOutboxTransactionService.markFailed(eventId, maxRetryCount);
+            paymentOutboxTransactionProcessor.markFailed(eventId, maxRetryCount);
             log.warn("결제 아웃박스 이벤트 payload 역직렬화 또는 발행에 실패했습니다. eventId={}", eventId, e);
         }
     }

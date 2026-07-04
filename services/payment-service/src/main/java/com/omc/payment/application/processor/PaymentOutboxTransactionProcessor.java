@@ -1,19 +1,19 @@
-package com.omc.payment.application.service;
+package com.omc.payment.application.processor;
 
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.OutboxEventStatus;
 import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
 
-@Service
+@Component
 @RequiredArgsConstructor
-public class PaymentOutboxTransactionService {
+public class PaymentOutboxTransactionProcessor {
 
     private final PaymentOutboxEventRepository paymentOutboxEventRepository;
 

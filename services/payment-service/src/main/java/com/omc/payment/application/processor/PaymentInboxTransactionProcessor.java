@@ -1,17 +1,17 @@
-package com.omc.payment.application.service;
+package com.omc.payment.application.processor;
 
 import com.omc.payment.domain.entity.PaymentInboxEvent;
 import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.repository.PaymentInboxEventRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-@Service
+@Component
 @RequiredArgsConstructor
-public class PaymentInboxTransactionService {
+public class PaymentInboxTransactionProcessor {
 
     private final PaymentInboxEventRepository paymentInboxEventRepository;
 
