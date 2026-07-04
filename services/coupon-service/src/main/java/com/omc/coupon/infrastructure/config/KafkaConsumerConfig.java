@@ -60,6 +60,7 @@ public class KafkaConsumerConfig {
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(kafkaCommonErrorHandler);
         factory.setConcurrency(concurrency);
+        factory.setBatchListener(true); // 배치 리스너 명시적 활성화
 
         // MANUAL_IMMEDIATE: listener 내부에서 acknowledge() 호출 시점에 바로 offset 커밋
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
