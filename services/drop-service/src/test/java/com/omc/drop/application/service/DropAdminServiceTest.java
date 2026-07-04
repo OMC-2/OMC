@@ -5,6 +5,8 @@ import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.InvalidDropDateRangeException;
+import com.omc.drop.domain.exception.InvalidDropHoldTtlException;
+import com.omc.drop.domain.exception.InvalidDropQuantityException;
 import com.omc.drop.domain.exception.InvalidDropStatusException;
 import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
@@ -229,6 +231,32 @@ class DropAdminServiceTest {
 
             assertThatThrownBy(() -> dropAdminService.update(dropId, validUpdateRequest()))
                     .isInstanceOf(InvalidDropStatusException.class);
+        }
+
+        @Test
+        @DisplayName("totalQty가 0 이하이면 예외가 발생한다")
+        void throwsWhenTotalQtyIsZero() {
+            UUID dropId = UUID.randomUUID();
+            Drop drop = createScheduledDrop(dropId);
+            when(dropRepository.getByIdOrThrow(dropId)).thenReturn(drop);
+            LocalDateTime startAt = LocalDateTime.now().plusDays(1);
+            DropUpdateRequest request = new DropUpdateRequest(startAt, startAt.plusDays(2), 0, 600);
+
+            assertThatThrownBy(() -> dropAdminService.update(dropId, request))
+                    .isInstanceOf(InvalidDropQuantityException.class);
+        }
+
+        @Test
+        @DisplayName("holdTtlSec가 0 이하이면 예외가 발생한다")
+        void throwsWhenHoldTtlSecIsZero() {
+            UUID dropId = UUID.randomUUID();
+            Drop drop = createScheduledDrop(dropId);
+            when(dropRepository.getByIdOrThrow(dropId)).thenReturn(drop);
+            LocalDateTime startAt = LocalDateTime.now().plusDays(1);
+            DropUpdateRequest request = new DropUpdateRequest(startAt, startAt.plusDays(2), 100, 0);
+
+            assertThatThrownBy(() -> dropAdminService.update(dropId, request))
+                    .isInstanceOf(InvalidDropHoldTtlException.class);
         }
     }
 

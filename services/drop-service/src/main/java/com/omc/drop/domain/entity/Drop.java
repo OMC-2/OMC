@@ -107,6 +107,12 @@ public class Drop extends BaseEntity {
             throw new InvalidDropStatusException();
         }
         validateDateRange(startAt, endAt);
+        if (totalQty <= 0) {
+            throw new InvalidDropQuantityException();
+        }
+        if (holdTtlSec <= 0) {
+            throw new InvalidDropHoldTtlException();
+        }
         this.startAt = startAt;
         this.endAt = endAt;
         this.totalQty = totalQty;
