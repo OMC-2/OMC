@@ -823,6 +823,285 @@
       ],
       "title": "GC 종류별 (Minor / Major)",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 106,
+      "title": "Netty 커넥션 풀",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 44
+      },
+      "id": 18,
+      "targets": [
+        {
+          "expr": "sum(reactor_netty_connection_provider_active_connections{job=~\"$service\"}) by (job, id)",
+          "legendFormat": "{{job}} - {{id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Netty 활성 커넥션 (Active)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 44
+      },
+      "id": 19,
+      "targets": [
+        {
+          "expr": "sum(reactor_netty_connection_provider_idle_connections{job=~\"$service\"}) by (job, id)",
+          "legendFormat": "{{job}} - {{id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Netty 대기 커넥션 (Idle)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 44
+      },
+      "id": 20,
+      "targets": [
+        {
+          "expr": "sum(reactor_netty_connection_provider_pending_connections{job=~\"$service\"}) by (job, id)",
+          "legendFormat": "{{job}} - {{id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Netty 대기열 커넥션 (Pending)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 107,
+      "title": "JVM 스레드 상세",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 53
+      },
+      "id": 21,
+      "targets": [
+        {
+          "expr": "sum(jvm_threads_states_threads{job=~\"$service\"}) by (job, state)",
+          "legendFormat": "{{job}} - {{state}}",
+          "refId": "A"
+        }
+      ],
+      "title": "JVM 스레드 상태별 추이 (Runnable/Blocked/Waiting)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 53
+      },
+      "id": 22,
+      "targets": [
+        {
+          "expr": "sum(jvm_threads_live_threads{job=~\"$service\"}) by (job)",
+          "legendFormat": "{{job}} - Live Threads",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(jvm_threads_daemon_threads{job=~\"$service\"}) by (job)",
+          "legendFormat": "{{job}} - Daemon Threads",
+          "refId": "B"
+        }
+      ],
+      "title": "JVM 활성 스레드 수 (Live vs Daemon)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 61
+      },
+      "id": 108,
+      "title": "가상 스레드 튜닝 지표",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 62
+      },
+      "id": 23,
+      "targets": [
+        {
+          "expr": "sum(jdk_virtual_thread_pinning{job=~\"$service\"}) by (job)",
+          "legendFormat": "{{job}} - Pinning Count",
+          "refId": "A"
+        }
+      ],
+      "title": "가상 스레드 Pinning 누적 횟수 (synchronized 락 병목)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 62
+      },
+      "id": 24,
+      "targets": [
+        {
+          "expr": "sum(executor_queued_tasks{job=~\"$service\"}) by (job)",
+          "legendFormat": "{{job}} - Queued Tasks",
+          "refId": "A"
+        }
+      ],
+      "title": "ForkJoinPool 대기 큐 태스크 수 (Queued)",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",
