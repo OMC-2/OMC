@@ -70,6 +70,24 @@ log() {
   echo "[$(date +%H:%M:%S)] $*"
 }
 
+wait_gateway_route() {
+  log "  ⏳ Gateway → coupon-service 경로 활성화 대기 중..."
+  local gw_wait=0
+  while [ $gw_wait -lt 60 ]; do
+    local status
+    status=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/coupons/health-check" \
+      -H "X-Gateway-Secret: $GATEWAY_SECRET" 2>/dev/null)
+    if [ "$status" != "503" ] && [ "$status" != "000" ] && [ "$status" != "404" ]; then
+      log "  ✅ Gateway → coupon-service 경로 정상 (${gw_wait}초 소요)"
+      return 0
+    fi
+    sleep 2
+    gw_wait=$((gw_wait + 2))
+  done
+  log "  ⚠️  Gateway → coupon-service 경로 갱신 타임아웃"
+  return 1
+}
+
 sentry_disable() {
   log "▶ Sentry 비활성화 (부하 테스트 중 에러 알림 차단)"
   SENTRY_DSN="" $COMPOSE up -d --force-recreate --no-deps coupon-service > /dev/null 2>&1
@@ -88,20 +106,7 @@ sentry_disable() {
   fi
 
   # Eureka 등록 + 게이트웨이 캐시 갱신 대기 (최대 60초)
-  log "  ⏳ Gateway Eureka 캐시 갱신 대기 중..."
-  local gw_wait=0
-  while [ $gw_wait -lt 60 ]; do
-    local status
-    status=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/coupons/health-check" \
-      -H "X-Gateway-Secret: $GATEWAY_SECRET" 2>/dev/null)
-    if [ "$status" != "503" ] && [ "$status" != "000" ]; then
-      log "  ✅ Gateway → coupon-service 경로 정상 (${gw_wait}초 소요)"
-      return 0
-    fi
-    sleep 2
-    gw_wait=$((gw_wait + 2))
-  done
-  log "  ⚠️  Gateway Eureka 캐시 갱신 대기 타임아웃 (60초) — 계속 진행합니다"
+  wait_gateway_route
 }
 
 sentry_restore() {
@@ -449,6 +454,9 @@ run_stage() {
     exit 1
   fi
   log "  쿠폰 생성 완료: $coupon_id"
+
+  # k6 실행 전 게이트웨이 경로 대기
+  wait_gateway_route
 
   # k6 실행
   local k6_exit=0
