@@ -78,16 +78,16 @@ public class CouponService {
             validateSpan.end();
         }
 
-        // Redis key 없으면 DB COUNT로 즉시 복구 (Redis 재시작 등)
-        if (!couponRedisRepository.hasStock(couponId.toString())) {
-            couponStockRecoveryService.syncCouponStock(couponId);
-        }
-
-        // 중복 확인 + 재고 차감 + 발급 마킹을 Lua 스크립트로 원자적 처리 (1 round-trip)
+        // EXISTS + 중복 확인 + 재고 차감 + 발급 마킹을 Lua 스크립트로 원자적 처리 (1 round-trip)
+        // -3: stock 키 없음(Redis 재시작) → DB 복구 후 재시도
         long result = couponMetrics.recordRedisDuration(
                 couponId.toString(),
-                () -> couponRedisRepository.tryIssue(couponId.toString(), userId.toString())
+                () -> couponRedisRepository.tryIssueWithStockCheck(couponId.toString(), userId.toString())
         );
+        if (result == -3) {
+            couponStockRecoveryService.syncCouponStock(couponId);
+            result = couponRedisRepository.tryIssue(couponId.toString(), userId.toString());
+        }
         if (result == -2) {
             couponMetrics.incrementDuplicate(couponId.toString());
             throw new CouponAlreadyIssuedException();
