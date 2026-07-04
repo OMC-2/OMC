@@ -91,6 +91,25 @@ public class PurchaseStreamWorker {
         }
     }
 
+    /** MAX_DELIVERY_COUNT 초과 메시지를 stream:purchase:failed 에 보관 후 ACK */
+    @Scheduled(fixedDelay = 30_000)
+    void handlePoisonMessages() {
+        List<MapRecord<String, String, String>> poisonRecords =
+                purchaseStreamStore.claimPoisonMessages(consumerId);
+        if (poisonRecords.isEmpty()) return;
+        log.error("[PurchaseStream] poison 메시지 {}건 failed 스트림으로 이동: {}",
+                poisonRecords.size(),
+                poisonRecords.stream().map(r -> r.getId().toString()).toList());
+        for (MapRecord<String, String, String> record : poisonRecords) {
+            try {
+                purchaseStreamStore.publishToFailed(record);
+                purchaseStreamStore.acknowledge(record.getId());
+            } catch (Exception ex) {
+                log.error("[PurchaseStream] failed 스트림 저장 실패 — pending 유지: messageId={}", record.getId(), ex);
+            }
+        }
+    }
+
     /** 죽은 인스턴스의 stale pending 인수 (멀티 인스턴스 대응) */
     @Scheduled(fixedDelay = 60_000)
     void reclaimStalePending() {
