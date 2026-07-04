@@ -32,18 +32,20 @@ stateDiagram-v2
     CLOSED --> [*] : 정산 후 Redis 키 정리
 ```
 
-OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으로 바꾸지 않고 다음 주기에 재시도한다.
+OPEN 전이는 반드시 다음 순서를 지킨다. DB 업데이트를 먼저 수행해 멀티 인스턴스 중복 전이를 차단하고, Redis 워밍은 이후에 진행한다.
 
 ```
 ① product-service 재고 스냅샷 조회 (GET /internal/v1/products/{productId}/inventories/snapshot)
    → availableQuantity 사용 / product-service 장애 시 드롭 생성 시 저장한 totalQty로 폴백
-② Redis 워밍 — warmup.lua로 4개 키를 원자적으로 초기화
+   → 폴백 발생 시 drop.open.inventory.fallback 메트릭 기록
+② 조건부 UPDATE (WHERE status='SCHEDULED')  ← 인스턴스가 여러 대여도 전이는 1회
+③ Redis 워밍 — warmup.lua로 4개 키를 원자적으로 초기화
    status 키 EXISTS 체크 → 이미 OPEN이면 덮어쓰지 않음 (멱등, 멀티 인스턴스 재고 보호)
    stock:{dropId}      = availableQuantity
    drop:{dropId}:status = "OPEN"
    hold_ttl:{dropId}   = holdTtlSec   ← 진입 경로 DB 무접촉을 위한 캐싱
    product_id:{dropId} = productId    ← purchase.confirmed 이벤트 조립용 캐싱
-③ 조건부 UPDATE (WHERE status='SCHEDULED')  ← 인스턴스가 여러 대여도 전이는 1회
+   → 워밍 실패 시 DB는 이미 OPEN — HoldExpireScheduler.recoverFromDb()가 다음 주기에 Redis 복구
 ④ open_drops SADD {dropId}  ← HoldExpireScheduler가 DB 조회 없이 참조
 ⑤ drop.opened 발행
 ```
