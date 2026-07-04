@@ -1,10 +1,9 @@
 package com.omc.coupon.unit.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.exception.BusinessException;
 import com.omc.coupon.application.service.CouponService;
+import com.omc.coupon.application.service.CouponStockRecoveryService;
 import com.omc.coupon.domain.entity.Coupon;
-import com.omc.coupon.domain.entity.OutboxEvent;
 import com.omc.coupon.domain.entity.UserCoupon;
 import com.omc.coupon.domain.enums.DiscountType;
 import com.omc.coupon.domain.enums.UserCouponStatus;
@@ -14,20 +13,20 @@ import com.omc.coupon.domain.exception.CouponNotFoundException;
 import com.omc.coupon.domain.exception.CouponOutOfStockException;
 import com.omc.coupon.domain.exception.UserCouponNotFoundException;
 import com.omc.coupon.domain.repository.CouponRepository;
-import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
-import com.omc.coupon.application.service.CouponStockRecoveryService;
+import com.omc.coupon.infrastructure.kafka.CouponIssueProducer;
 import com.omc.coupon.infrastructure.metrics.CouponMetrics;
+import com.omc.coupon.infrastructure.redis.CouponCacheDto;
+import com.omc.coupon.infrastructure.redis.CouponCacheRepository;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
 import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.dao.DataIntegrityViolationException;
-
-import java.util.function.Supplier;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -38,10 +37,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -50,25 +51,41 @@ class CouponServiceTest {
 
     @Mock private CouponRepository couponRepository;
     @Mock private UserCouponRepository userCouponRepository;
-    @Mock private OutboxEventRepository outboxEventRepository;
     @Mock private CouponRedisRepository couponRedisRepository;
-    @Mock private ObjectMapper objectMapper;
+    @Mock private CouponCacheRepository couponCacheRepository;
     @Mock private CouponMetrics couponMetrics;
     @Mock private CouponStockRecoveryService couponStockRecoveryService;
+    @Mock private CouponIssueProducer couponIssueProducer;
+    @Mock private Tracer tracer;
+    @Mock private Span mockSpan;
+    @Mock private Tracer.SpanInScope mockSpanInScope;
 
     @InjectMocks private CouponService couponService;
+
+    private final UUID couponId = UUID.randomUUID();
+    private final UUID userId = UUID.randomUUID();
+    private final UUID userCouponId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         lenient().doAnswer(inv -> ((Supplier<Long>) inv.getArgument(1)).get())
                  .when(couponMetrics).recordRedisDuration(any(), any());
-        // 기본적으로 Redis key가 존재한다고 설정 → 기존 테스트에서 syncCouponStock 미호출
         lenient().when(couponRedisRepository.hasStock(any())).thenReturn(true);
+
+        // Tracer 체인 목업
+        lenient().when(tracer.nextSpan()).thenReturn(mockSpan);
+        lenient().when(mockSpan.name(any())).thenReturn(mockSpan);
+        lenient().when(mockSpan.start()).thenReturn(mockSpan);
+        lenient().when(tracer.withSpan(any())).thenReturn(mockSpanInScope);
     }
 
-    private final UUID couponId = UUID.randomUUID();
-    private final UUID userId = UUID.randomUUID();
-    private final UUID userCouponId = UUID.randomUUID();
+    private CouponCacheDto validCouponCacheDto() {
+        return new CouponCacheDto(
+                couponId, "테스트 쿠폰", DiscountType.AMOUNT,
+                new BigDecimal("1000"), null, 100,
+                LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(7)
+        );
+    }
 
     // =========================================================================
     // [시나리오 1] 쿠폰 생성 성공
@@ -76,7 +93,6 @@ class CouponServiceTest {
 
     @Test
     void createCoupon_success() {
-        // given
         CouponCreateRequest request = new CouponCreateRequest(
                 "테스트 쿠폰", DiscountType.AMOUNT, new BigDecimal("1000"),
                 null, 100,
@@ -87,42 +103,26 @@ class CouponServiceTest {
         given(couponMock.getTotalQuantity()).willReturn(100);
         given(couponRepository.save(any(Coupon.class))).willReturn(couponMock);
 
-        // when
         CouponResponse response = couponService.createCoupon(request);
 
-        // then
         assertThat(response).isNotNull();
         verify(couponRedisRepository).initStock(couponId.toString(), 100);
     }
 
     // =========================================================================
-    // [시나리오 2] 쿠폰 발급 성공: Redis 차감 → DB 저장 → Outbox 등록 → Redis 마크
+    // [시나리오 2] 쿠폰 발급 성공: Redis 차감 → markIssued → Kafka 발행
     // =========================================================================
 
     @Test
     void issueCoupon_success() {
-        // given
-        Coupon couponMock = mock(Coupon.class);
-        UserCoupon userCouponMock = mock(UserCoupon.class);
-
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
-        given(couponMock.isIssuable()).willReturn(true);
+        given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
-        given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.empty());
-        given(userCouponRepository.saveAndFlush(any(UserCoupon.class))).willReturn(userCouponMock);
-        given(userCouponMock.getUserCouponId()).willReturn(userCouponId);
-        given(userCouponMock.getCoupon()).willReturn(couponMock); // NPE 방지
-        given(userCouponMock.getStatus()).willReturn(UserCouponStatus.AVAILABLE);
 
-        // when
-        UserCouponResponse response = couponService.issueCoupon(couponId, userId);
+        couponService.issueCoupon(couponId, userId);
 
-        // then
-        assertThat(response.userCouponId()).isEqualTo(userCouponId);
-        assertThat(response.status()).isEqualTo(UserCouponStatus.AVAILABLE);
-        verify(outboxEventRepository).save(any(OutboxEvent.class));
         verify(couponRedisRepository).markIssued(couponId.toString(), userId.toString());
+        verify(couponIssueProducer).publish(couponId, userId);
     }
 
     // =========================================================================
@@ -131,89 +131,31 @@ class CouponServiceTest {
 
     @Test
     void issueCoupon_outOfStock_throwsException() {
-        // given
-        Coupon couponMock = mock(Coupon.class);
-
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
-        given(couponMock.isIssuable()).willReturn(true);
+        given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
-        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(-1L); // 재고 없음
+        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(-1L);
 
-        // when & then
         assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
                 .isInstanceOf(CouponOutOfStockException.class);
 
-        verify(couponRedisRepository).incrementStock(couponId.toString()); // Redis 롤백
-        verify(userCouponRepository, never()).save(any());
+        verify(couponRedisRepository).incrementStock(couponId.toString());
+        verify(couponIssueProducer, never()).publish(any(), any());
     }
 
     // =========================================================================
-    // [시나리오 4-1] Redis 발급 이력(Set) 에 이미 존재 → 예외
+    // [시나리오 4] Redis 발급 이력(Set) 에 이미 존재 → 예외
     // =========================================================================
 
     @Test
     void issueCoupon_alreadyIssuedInRedis_throwsException() {
-        // given
-        Coupon couponMock = mock(Coupon.class);
-
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
-        given(couponMock.isIssuable()).willReturn(true);
+        given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(true);
 
-        // when & then
         assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
                 .isInstanceOf(CouponAlreadyIssuedException.class);
 
         verify(couponRedisRepository, never()).decrementStock(any());
-    }
-
-    // =========================================================================
-    // [시나리오 4-2] Redis 차감 후 DB 중복 체크에서 발견 → Redis 롤백 + 예외
-    // =========================================================================
-
-    @Test
-    void issueCoupon_alreadyIssuedInDb_rollbacksRedisAndThrows() {
-        // given
-        Coupon couponMock = mock(Coupon.class);
-        UserCoupon existingMock = mock(UserCoupon.class);
-
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
-        given(couponMock.isIssuable()).willReturn(true);
-        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
-        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
-        given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.of(existingMock));
-
-        // when & then
-        assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
-                .isInstanceOf(CouponAlreadyIssuedException.class);
-
-        verify(couponRedisRepository).incrementStock(couponId.toString()); // Redis 롤백
-        verify(userCouponRepository, never()).save(any());
-    }
-
-    // =========================================================================
-    // [시나리오 4-3] saveAndFlush에서 UNIQUE 위반 → Redis 재고 롤백 + 예외
-    // =========================================================================
-
-    @Test
-    void issueCoupon_uniqueViolationOnFlush_rollbacksRedisAndThrows() {
-        // given
-        Coupon couponMock = mock(Coupon.class);
-
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
-        given(couponMock.isIssuable()).willReturn(true);
-        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
-        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
-        given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.empty());
-        given(userCouponRepository.saveAndFlush(any(UserCoupon.class)))
-                .willThrow(new DataIntegrityViolationException("UNIQUE constraint violation"));
-
-        // when & then
-        assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
-                .isInstanceOf(CouponAlreadyIssuedException.class);
-
-        verify(couponRedisRepository).incrementStock(couponId.toString()); // Redis 재고 롤백
-        verify(outboxEventRepository, never()).save(any());                 // Outbox 저장 안 됨
+        verify(couponIssueProducer, never()).publish(any(), any());
     }
 
     // =========================================================================
@@ -222,15 +164,13 @@ class CouponServiceTest {
 
     @Test
     void issueCoupon_expired_throwsException() {
-        // given
-        Coupon couponMock = mock(Coupon.class);
+        CouponCacheDto expiredDto = new CouponCacheDto(
+                couponId, "만료 쿠폰", DiscountType.AMOUNT,
+                new BigDecimal("1000"), null, 100,
+                LocalDateTime.now().minusDays(10), LocalDateTime.now().minusDays(1)
+        );
+        given(couponCacheRepository.get(couponId)).willReturn(Optional.of(expiredDto));
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
-        given(couponMock.isIssuable()).willReturn(false);
-        given(couponMock.getExpiredAt()).willReturn(LocalDateTime.now().minusDays(1)); // 만료됨
-        // getStartedAt() 은 expiredAt 체크가 먼저 통과하면 호출되지 않음 — 스텁 불필요
-
-        // when & then
         assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
@@ -243,15 +183,13 @@ class CouponServiceTest {
 
     @Test
     void issueCoupon_notStarted_throwsException() {
-        // given
-        Coupon couponMock = mock(Coupon.class);
+        CouponCacheDto notStartedDto = new CouponCacheDto(
+                couponId, "시작 전 쿠폰", DiscountType.AMOUNT,
+                new BigDecimal("1000"), null, 100,
+                LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(30)
+        );
+        given(couponCacheRepository.get(couponId)).willReturn(Optional.of(notStartedDto));
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
-        given(couponMock.isIssuable()).willReturn(false);
-        given(couponMock.getExpiredAt()).willReturn(LocalDateTime.now().plusDays(7)); // 미래
-        given(couponMock.getStartedAt()).willReturn(LocalDateTime.now().plusDays(1)); // 아직 시작 안 됨
-
-        // when & then
         assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
@@ -265,7 +203,6 @@ class CouponServiceTest {
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
     void getMyCoupons_success() {
-        // given
         Pageable pageable = mock(Pageable.class);
         Page<UserCoupon> userCouponPage = mock(Page.class);
         Page<UserCouponResponse> responsePage = mock(Page.class);
@@ -273,10 +210,8 @@ class CouponServiceTest {
         given(userCouponRepository.findByUserId(userId, pageable)).willReturn(userCouponPage);
         given(userCouponPage.map(any())).willReturn((Page) responsePage);
 
-        // when
         Page<UserCouponResponse> result = couponService.getMyCoupons(userId, pageable);
 
-        // then
         assertThat(result).isEqualTo(responsePage);
     }
 
@@ -286,7 +221,6 @@ class CouponServiceTest {
 
     @Test
     void getMyCoupon_success() {
-        // given
         UserCoupon userCouponMock = mock(UserCoupon.class);
         Coupon couponMock = mock(Coupon.class);
 
@@ -295,74 +229,9 @@ class CouponServiceTest {
         given(userCouponMock.getCoupon()).willReturn(couponMock);
         given(userCouponMock.getStatus()).willReturn(UserCouponStatus.AVAILABLE);
 
-        // when
         UserCouponResponse response = couponService.getMyCoupon(userId, userCouponId);
 
-        // then
         assertThat(response.status()).isEqualTo(UserCouponStatus.AVAILABLE);
-    }
-
-    // =========================================================================
-    // [시나리오 9] Redis key 없을 때 → syncCouponStock 호출 후 정상 발급
-    // plan 테스트 1: key 없을 때 DB COUNT로 복구 후 정상 DECR
-    // 구현 전 RED: CouponService에 hasStock 체크 없음 → syncCouponStock 미호출
-    // 구현 후 GREEN: syncCouponStock 호출 후 DECR 진행
-    // =========================================================================
-
-    @Test
-    void issueCoupon_redisKeyMissing_syncsThenIssues() {
-        // given
-        Coupon couponMock = mock(Coupon.class);
-        UserCoupon userCouponMock = mock(UserCoupon.class);
-
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
-        given(couponMock.isIssuable()).willReturn(true);
-        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
-        given(couponRedisRepository.hasStock(couponId.toString())).willReturn(false); // key 없음 (기본 true 오버라이드)
-        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(69L);
-        given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.empty());
-        given(userCouponRepository.saveAndFlush(any(UserCoupon.class))).willReturn(userCouponMock);
-        given(userCouponMock.getUserCouponId()).willReturn(userCouponId);
-        given(userCouponMock.getCoupon()).willReturn(couponMock);
-        given(userCouponMock.getStatus()).willReturn(UserCouponStatus.AVAILABLE);
-
-        // when
-        UserCouponResponse response = couponService.issueCoupon(couponId, userId);
-
-        // then: syncCouponStock 호출됐는지 확인
-        verify(couponStockRecoveryService).syncCouponStock(couponId);
-        assertThat(response.userCouponId()).isEqualTo(userCouponId);
-    }
-
-    // =========================================================================
-    // [시나리오 10] Redis key 있을 때 → syncCouponStock 호출하지 않음
-    // plan 테스트 2: key 있을 때 복구 로직 호출 없음 (불필요한 DB 부하 방지)
-    // 구현 전 RED: CouponService에 hasStock 체크 없음
-    // 구현 후 GREEN: syncCouponStock 미호출 확인
-    // =========================================================================
-
-    @Test
-    void issueCoupon_redisKeyExists_skipsSync() {
-        // given
-        Coupon couponMock = mock(Coupon.class);
-        UserCoupon userCouponMock = mock(UserCoupon.class);
-
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
-        given(couponMock.isIssuable()).willReturn(true);
-        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
-        given(couponRedisRepository.hasStock(couponId.toString())).willReturn(true); // key 있음
-        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
-        given(userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId)).willReturn(Optional.empty());
-        given(userCouponRepository.saveAndFlush(any(UserCoupon.class))).willReturn(userCouponMock);
-        given(userCouponMock.getUserCouponId()).willReturn(userCouponId);
-        given(userCouponMock.getCoupon()).willReturn(couponMock);
-        given(userCouponMock.getStatus()).willReturn(UserCouponStatus.AVAILABLE);
-
-        // when
-        couponService.issueCoupon(couponId, userId);
-
-        // then: syncCouponStock 미호출 확인
-        verify(couponStockRecoveryService, never()).syncCouponStock(any());
     }
 
     // =========================================================================
@@ -371,15 +240,46 @@ class CouponServiceTest {
 
     @Test
     void getMyCoupon_notOwner_throwsException() {
-        // given
         UserCoupon userCouponMock = mock(UserCoupon.class);
         UUID anotherUserId = UUID.randomUUID();
 
         given(userCouponRepository.findById(userCouponId)).willReturn(Optional.of(userCouponMock));
-        given(userCouponMock.getUserId()).willReturn(anotherUserId); // 다른 유저 소유
+        given(userCouponMock.getUserId()).willReturn(anotherUserId);
 
-        // when & then
         assertThatThrownBy(() -> couponService.getMyCoupon(userId, userCouponId))
                 .isInstanceOf(UserCouponNotFoundException.class);
+    }
+
+    // =========================================================================
+    // [시나리오 9] Redis key 없을 때 → syncCouponStock 호출 후 정상 발급
+    // =========================================================================
+
+    @Test
+    void issueCoupon_redisKeyMissing_syncsThenIssues() {
+        given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
+        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
+        given(couponRedisRepository.hasStock(couponId.toString())).willReturn(false);
+        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(69L);
+
+        couponService.issueCoupon(couponId, userId);
+
+        verify(couponStockRecoveryService).syncCouponStock(couponId);
+        verify(couponIssueProducer).publish(couponId, userId);
+    }
+
+    // =========================================================================
+    // [시나리오 10] Redis key 있을 때 → syncCouponStock 호출하지 않음
+    // =========================================================================
+
+    @Test
+    void issueCoupon_redisKeyExists_skipsSync() {
+        given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
+        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
+        given(couponRedisRepository.hasStock(couponId.toString())).willReturn(true);
+        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
+
+        couponService.issueCoupon(couponId, userId);
+
+        verify(couponStockRecoveryService, never()).syncCouponStock(any());
     }
 }

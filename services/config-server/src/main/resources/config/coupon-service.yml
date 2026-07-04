@@ -7,8 +7,6 @@ spring:
     username: ${DB_USERNAME:omc}
     password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
-    hikari:
-      initialization-fail-timeout: 30000
 
   flyway:
     enabled: true
@@ -18,15 +16,15 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: coupon_db
         jdbc:
           time_zone: Asia/Seoul
-        generate_statistics: true
+        generate_statistics: false
 
   data:
     redis:
@@ -39,8 +37,8 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       properties:
-        delivery.timeout.ms: 10000
-        request.timeout.ms: 5000
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
     consumer:
       group-id: coupon-service
       auto-offset-reset: earliest
@@ -53,7 +51,7 @@ spring:
 
 logging:
   level:
-    org.hibernate.stat: DEBUG
+    org.hibernate.stat: WARN
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}

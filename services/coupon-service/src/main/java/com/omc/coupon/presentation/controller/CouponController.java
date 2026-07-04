@@ -51,12 +51,13 @@ public class CouponController {
 
     // USER: 선착순 쿠폰 발급
     @PostMapping("/{couponId}/issue")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     @PreAuthorize("hasRole('USER')")
-    public ApiResponse<UserCouponResponse> issueCoupon(@PathVariable UUID couponId) {
+    public ApiResponse<Void> issueCoupon(@PathVariable UUID couponId) {
         UUID userId = SecurityUtil.getCurrentUserId()
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
-        return ApiResponse.success(couponService.issueCoupon(couponId, userId));
+        couponService.issueCoupon(couponId, userId);
+        return ApiResponse.success("쿠폰이 발급되었습니다.", null);
     }
 
     // USER: 내 쿠폰 목록 조회

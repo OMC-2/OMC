@@ -3,10 +3,8 @@ package com.omc.coupon.unit.controller;
 import com.omc.common.config.GatewaySecurityAutoConfiguration;
 import com.omc.coupon.application.service.CouponService;
 import com.omc.coupon.domain.enums.DiscountType;
-import com.omc.coupon.domain.enums.UserCouponStatus;
 import com.omc.coupon.presentation.controller.CouponController;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
-import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -142,27 +140,22 @@ class CouponControllerTest {
     }
 
     // =========================================================================
-    // [시나리오 4] USER 권한으로 쿠폰 발급 → 201 Created
+    // [시나리오 4] USER 권한으로 쿠폰 발급 → 202 Accepted
     // =========================================================================
 
     @Test
     void issueCoupon_user_success() throws Exception {
         // given
         UUID couponId = UUID.randomUUID();
-        UserCouponResponse userCouponResponse = new UserCouponResponse(
-                UUID.randomUUID(), couponId, "테스트 쿠폰", DiscountType.AMOUNT,
-                new BigDecimal("1000"), null, UserCouponStatus.AVAILABLE, null
-        );
-        given(couponService.issueCoupon(any(UUID.class), any(UUID.class)))
-                .willReturn(userCouponResponse);
+        // issueCoupon()은 void — stubbing 불필요 (Mockito default: no-op)
 
         // when & then
         mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", couponId)
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", USER_ID.toString())
                         .header("X-User-Role", "USER"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("AVAILABLE"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value("쿠폰이 발급되었습니다."));
     }
 
     // =========================================================================

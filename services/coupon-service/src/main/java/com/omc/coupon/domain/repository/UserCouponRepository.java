@@ -28,6 +28,8 @@ public interface UserCouponRepository extends JpaRepository<UserCoupon, UUID> {
 
     long countByCoupon_CouponId(UUID couponId);
 
+    List<UserCoupon> findByCoupon_CouponId(UUID couponId);
+
     @Modifying
     @Query("DELETE FROM UserCoupon uc WHERE uc.coupon.couponId = :couponId")
     void deleteByCoupon_CouponId(@Param("couponId") UUID couponId);

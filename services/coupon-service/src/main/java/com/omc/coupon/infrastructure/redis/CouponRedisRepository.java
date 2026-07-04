@@ -41,6 +41,10 @@ public class CouponRedisRepository {
         redisTemplate.opsForSet().add(ISSUED_KEY_PREFIX + couponId, userId);
     }
 
+    public void removeIssued(String couponId, String userId) {
+        redisTemplate.opsForSet().remove(ISSUED_KEY_PREFIX + couponId, userId);
+    }
+
     public boolean hasStock(String couponId) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(STOCK_KEY_PREFIX + couponId));
     }

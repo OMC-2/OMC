@@ -68,10 +68,11 @@ public class KafkaConsumerConfig {
 
     private String resolveDltTopic(ConsumerRecord<?, ?> record) {
         return switch (record.topic()) {
-            case KafkaTopics.PAYMENT_COMPLETED -> KafkaTopics.PAYMENT_COMPLETED_DLT;
-            case KafkaTopics.PAYMENT_FAILED    -> KafkaTopics.PAYMENT_FAILED_DLT;
-            case KafkaTopics.HOLD_EXPIRED      -> KafkaTopics.HOLD_EXPIRED_DLT;
-            case KafkaTopics.REFUND_DONE       -> KafkaTopics.REFUND_DONE_DLT;
+            case KafkaTopics.PAYMENT_COMPLETED        -> KafkaTopics.PAYMENT_COMPLETED_DLT;
+            case KafkaTopics.PAYMENT_FAILED           -> KafkaTopics.PAYMENT_FAILED_DLT;
+            case KafkaTopics.HOLD_EXPIRED             -> KafkaTopics.HOLD_EXPIRED_DLT;
+            case KafkaTopics.REFUND_DONE              -> KafkaTopics.REFUND_DONE_DLT;
+            case KafkaTopics.COUPON_ISSUE_REQUESTED   -> KafkaTopics.COUPON_ISSUE_REQUESTED_DLT;
             default -> record.topic() + ".DLT";
         };
     }

@@ -1,4 +1,4 @@
-package com.omc.coupon.infrastructure.config;
+package com.omc.coupon.application.warmup;
 
 import com.omc.coupon.application.service.CouponService;
 import com.omc.coupon.domain.entity.Coupon;
@@ -9,19 +9,18 @@ import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
 import com.omc.coupon.infrastructure.redis.CouponCacheRepository;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
-import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestTemplate;
@@ -31,14 +30,13 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @Slf4j
-@Configuration
+@Component
 @RequiredArgsConstructor
-public class DataSourceWarmupConfig {
+public class CouponWarmupListener {
 
     private static final int POOL_SIZE = 10;
     private static final int WARMUP_ISSUE_COUNT = 3;
@@ -123,7 +121,6 @@ public class DataSourceWarmupConfig {
         }
     }
 
-    // Lettuce 커넥션 초기화: 첫 요청 전에 Redis 연결을 미리 맺어둠
     private void warmUpLettuce() {
         try {
             redisTemplate.execute((RedisCallback<String>) connection -> connection.ping());
@@ -133,16 +130,13 @@ public class DataSourceWarmupConfig {
         }
     }
 
-    // Spring Security 필터체인 초기화: 자기 자신에게 HTTP 요청을 보내 필터 프록시와 인증 경로를 미리 실행
     private void warmUpSecurityFilterChain() {
         try {
             RestTemplate restTemplate = new RestTemplate();
             String base = "http://localhost:" + serverPort;
 
-            // 1단계: actuator 경로 → 기본 Security 필터체인(SecurityContextHolder, FilterProxy 등) 초기화
             restTemplate.getForObject(base + "/actuator/health", String.class);
 
-            // 2단계: 인증 경로 → GatewayHeaderAuthFilter + @PreAuthorize 초기화
             HttpHeaders headers = new HttpHeaders();
             headers.set("X-Gateway-Secret", gatewaySecret);
             headers.set("X-User-Id", "00000000-0000-0000-0000-000000000001");
@@ -155,7 +149,6 @@ public class DataSourceWarmupConfig {
         }
     }
 
-    // 실제 쿠폰 발급 전체 경로(Redis + Tracer + AOP + ObjectMapper)를 JIT이 컴파일하도록 유도
     private void warmUpFullIssuePath() {
         LocalDateTime now = LocalDateTime.now();
         Coupon warmupCoupon = couponRepository.save(
@@ -165,28 +158,32 @@ public class DataSourceWarmupConfig {
         UUID couponId = warmupCoupon.getCouponId();
         couponRedisRepository.initStock(couponId.toString(), WARMUP_ISSUE_COUNT);
 
-        List<UUID> issuedUserCouponIds = new ArrayList<>();
+        int issued = 0;
         for (int i = 0; i < WARMUP_ISSUE_COUNT; i++) {
             try {
-                UserCouponResponse response = couponService.issueCoupon(couponId, UUID.randomUUID());
-                issuedUserCouponIds.add(response.userCouponId());
+                couponService.issueCoupon(couponId, UUID.randomUUID());
+                issued++;
             } catch (Exception e) {
                 log.warn("[JvmWarmup] 발급 경로 워밍업 실패 ({}/{}): {}", i + 1, WARMUP_ISSUE_COUNT, e.getMessage());
             }
         }
 
-        cleanupWarmupData(couponId, issuedUserCouponIds);
-        log.info("[JvmWarmup] 전체 발급 경로 워밍업 완료: {}회 발급 후 정리", issuedUserCouponIds.size());
+        cleanupWarmupData(couponId);
+        log.info("[JvmWarmup] 전체 발급 경로 워밍업 완료: {}회 발급 후 정리", issued);
     }
 
-    private void cleanupWarmupData(UUID couponId, List<UUID> userCouponIds) {
+    private void cleanupWarmupData(UUID couponId) {
         try {
             TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
             txTemplate.execute(status -> {
-                if (!userCouponIds.isEmpty()) {
+                List<UserCoupon> warmupUserCoupons = userCouponRepository.findByCoupon_CouponId(couponId);
+                if (!warmupUserCoupons.isEmpty()) {
+                    List<UUID> userCouponIds = warmupUserCoupons.stream()
+                            .map(UserCoupon::getUserCouponId)
+                            .toList();
                     outboxEventRepository.deleteByAggregateIdIn(userCouponIds);
-                    userCouponRepository.deleteByCoupon_CouponId(couponId);
                 }
+                userCouponRepository.deleteByCoupon_CouponId(couponId);
                 couponRepository.deleteById(couponId);
                 return null;
             });

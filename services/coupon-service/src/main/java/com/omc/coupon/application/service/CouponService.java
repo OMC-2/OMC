@@ -1,18 +1,14 @@
 package com.omc.coupon.application.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.coupon.domain.entity.Coupon;
-import com.omc.coupon.domain.entity.OutboxEvent;
 import com.omc.coupon.domain.entity.UserCoupon;
-import com.omc.coupon.domain.enums.OutboxEventType;
 import com.omc.coupon.domain.exception.CouponAlreadyIssuedException;
 import com.omc.coupon.domain.exception.CouponErrorCode;
 import com.omc.coupon.domain.exception.CouponNotFoundException;
 import com.omc.coupon.domain.exception.CouponOutOfStockException;
 import com.omc.coupon.domain.repository.CouponRepository;
-import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
+import com.omc.coupon.infrastructure.kafka.CouponIssueProducer;
 import com.omc.coupon.infrastructure.metrics.CouponMetrics;
 import com.omc.coupon.infrastructure.redis.CouponCacheDto;
 import com.omc.coupon.infrastructure.redis.CouponCacheRepository;
@@ -21,20 +17,15 @@ import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import com.omc.common.exception.BusinessException;
-import com.omc.common.util.UuidV7Generator;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -44,12 +35,11 @@ public class CouponService {
 
     private final CouponRepository couponRepository;
     private final UserCouponRepository userCouponRepository;
-    private final OutboxEventRepository outboxEventRepository;
     private final CouponRedisRepository couponRedisRepository;
     private final CouponCacheRepository couponCacheRepository;
-    private final ObjectMapper objectMapper;
     private final CouponMetrics couponMetrics;
     private final CouponStockRecoveryService couponStockRecoveryService;
+    private final CouponIssueProducer couponIssueProducer;
     private final Tracer tracer;
 
     @Transactional
@@ -71,10 +61,7 @@ public class CouponService {
         return CouponResponse.from(findCoupon(couponId));
     }
 
-    @Transactional
-    public UserCouponResponse issueCoupon(UUID couponId, UUID userId) {
-        registerTxCommitSpan();
-
+    public void issueCoupon(UUID couponId, UUID userId) {
         CouponCacheDto couponDto = findCouponDto(couponId);
 
         // [validate] 날짜 유효성 검사 — 재고는 Redis DECR이 제어
@@ -113,86 +100,11 @@ public class CouponService {
             throw new CouponOutOfStockException();
         }
 
-        // [pre-db-check] decrementStock 직후 ~ DB 쿼리 직전 갭 구간
-        Span preDbCheckSpan = tracer.nextSpan().name("coupon.issue.pre-db-check").start();
-        try (Tracer.SpanInScope ws = tracer.withSpan(preDbCheckSpan)) {
-            userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId).ifPresent(uc -> {
-                preDbCheckSpan.end();
-                couponRedisRepository.incrementStock(couponId.toString());
-                couponRedisRepository.markIssued(couponId.toString(), userId.toString());
-                couponMetrics.incrementDuplicate(couponId.toString());
-                throw new CouponAlreadyIssuedException();
-            });
-        } finally {
-            preDbCheckSpan.end();
-        }
-
-        // [entity-create] UserCoupon 객체 생성 — DB 중복 체크 이후 갭 구간
-        // couponRef: JPA 프록시(DB 조회 없음), expiredAt은 캐시에서 가져옴
-        UserCoupon newUserCoupon;
-        Span entitySpan = tracer.nextSpan().name("coupon.issue.entity-create").start();
-        try (Tracer.SpanInScope ws = tracer.withSpan(entitySpan)) {
-            Coupon couponRef = couponRepository.getReferenceById(couponId);
-            newUserCoupon = UserCoupon.create(userId, couponRef, couponDto.getExpiredAt());
-        } finally {
-            entitySpan.end();
-        }
-
-        // UserCoupon 저장 (saveAndFlush로 즉시 INSERT → UNIQUE 위반 시 여기서 예외 발생, 재고 롤백)
-        UserCoupon userCoupon;
-        try {
-            userCoupon = userCouponRepository.saveAndFlush(newUserCoupon);
-        } catch (DataIntegrityViolationException e) {
-            couponRedisRepository.incrementStock(couponId.toString());
-            couponMetrics.incrementDuplicate(couponId.toString());
-            throw new CouponAlreadyIssuedException();
-        }
-
-        // [outbox-build] UUID 생성 + JSON 직렬화 — saveAndFlush 이후 갭 구간
-        UUID outboxEventId;
-        String payload;
-        Span outboxBuildSpan = tracer.nextSpan().name("coupon.issue.outbox-build").start();
-        try (Tracer.SpanInScope ws = tracer.withSpan(outboxBuildSpan)) {
-            outboxEventId = UuidV7Generator.generate();
-            payload = toJson(Map.of(
-                    "eventId", outboxEventId.toString(),
-                    "couponId", couponId.toString(),
-                    "userId", userId.toString()
-            ));
-        } finally {
-            outboxBuildSpan.end();
-        }
-
-        outboxEventRepository.save(OutboxEvent.create(
-                outboxEventId, "UserCoupon", userCoupon.getUserCouponId(), OutboxEventType.COUPON_ISSUED, payload
-        ));
-
         couponRedisRepository.markIssued(couponId.toString(), userId.toString());
+        couponIssueProducer.publish(couponId, userId); // 비동기 발행 — 실패 시 whenComplete에서 Redis 롤백
 
-        // [response-build] tx-commit 이후 ~ connection 종료 사이 갭 구간
-        Span responseBuildSpan = tracer.nextSpan().name("coupon.issue.response-build").start();
-        try (Tracer.SpanInScope ws = tracer.withSpan(responseBuildSpan)) {
-            couponMetrics.incrementIssueSuccess(couponId.toString());
-            log.info("[CouponService] 쿠폰 발급 완료. couponId={}, userId={}", couponId, userId);
-            return UserCouponResponse.from(userCoupon);
-        } finally {
-            responseBuildSpan.end();
-        }
-    }
-
-    private void registerTxCommitSpan() {
-        Span commitSpan = tracer.nextSpan().name("coupon.issue.tx-commit");
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void beforeCommit(boolean readOnly) {
-                commitSpan.start();
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-                commitSpan.end();
-            }
-        });
+        couponMetrics.incrementIssueSuccess(couponId.toString());
+        log.info("[CouponService] 쿠폰 발급 요청 완료. couponId={}, userId={}", couponId, userId);
     }
 
     @Transactional(readOnly = true)
@@ -222,11 +134,4 @@ public class CouponService {
                 });
     }
 
-    private String toJson(Object obj) {
-        try {
-            return objectMapper.writeValueAsString(obj);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("JSON 직렬화 실패", e);
-        }
-    }
 }
