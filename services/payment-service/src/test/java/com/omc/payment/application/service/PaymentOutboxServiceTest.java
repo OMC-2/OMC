@@ -165,6 +165,7 @@ class PaymentOutboxServiceTest {
                 1000L,
                 9000L,
                 Provider.TOSS,
+                "결제 승인 아이디",
                 PaymentMethod.CARD
         );
         ReflectionTestUtils.setField(payment, "paymentId", PAYMENT_ID);

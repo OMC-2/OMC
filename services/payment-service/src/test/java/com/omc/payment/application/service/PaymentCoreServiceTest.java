@@ -12,26 +12,26 @@ import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.enums.Provider;
 import com.omc.payment.domain.enums.SalesType;
-import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.repository.PaymentRepository;
 import com.omc.payment.infrastructure.client.CouponReserveRequest;
 import com.omc.payment.infrastructure.client.CouponServiceClient;
-import com.omc.payment.infrastructure.client.CouponUserCouponResponse;
+import com.omc.payment.infrastructure.client.UserCouponResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -64,11 +64,30 @@ class PaymentCoreServiceTest {
     @Mock private CouponServiceClient couponServiceClient;
     @Mock private PaymentIdempotencyService paymentIdempotencyService;
 
-    @InjectMocks
+    private PaymentTransactionService paymentTransactionService;
     private PaymentCoreService paymentCoreService;
+    private Map<UUID, Payment> savedPayments;
 
     @BeforeEach
     void setUp() {
+        savedPayments = new HashMap<>();
+        paymentTransactionService = new PaymentTransactionService(paymentRepository, paymentOutboxService);
+        paymentCoreService = new PaymentCoreService(
+                paymentGatewayPort,
+                couponServiceClient,
+                paymentIdempotencyService,
+                paymentTransactionService
+        );
+
+        lenient().when(paymentRepository.save(any(Payment.class)))
+                .thenAnswer(invocation -> {
+                    Payment payment = invocation.getArgument(0);
+                    savedPayments.put(payment.getPaymentId(), payment);
+                    return payment;
+                });
+        lenient().when(paymentRepository.findById(any(UUID.class)))
+                .thenAnswer(invocation -> Optional.ofNullable(savedPayments.get(invocation.getArgument(0))));
+
         lenient().when(paymentIdempotencyService.confirmKey(any(UUID.class)))
                 .thenAnswer(invocation -> "payment:confirm:" + invocation.getArgument(0));
         lenient().when(paymentIdempotencyService.cancelKey(any(UUID.class)))
@@ -83,7 +102,6 @@ class PaymentCoreServiceTest {
         @DisplayName("드롭 결제를 승인하고 완료 아웃박스를 적재한다")
         void confirmPayment_success() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
             given(paymentGatewayPort.confirmPayment(any(PaymentGatewayCommand.Confirm.class)))
                     .willReturn(new PaymentGatewayResult.Confirm("결제 승인 아이디"));
 
@@ -135,7 +153,6 @@ class PaymentCoreServiceTest {
         @DisplayName("쿠폰 없이 할인 금액이 있으면 결제를 실패 처리한다")
         void confirmPayment_invalidCouponWithoutCouponId() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
             Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
@@ -164,7 +181,6 @@ class PaymentCoreServiceTest {
         @DisplayName("결제 금액이 일치하지 않으면 실패 아웃박스를 적재한다")
         void confirmPayment_amountMismatch() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
 
             Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
@@ -193,11 +209,10 @@ class PaymentCoreServiceTest {
         @DisplayName("PG 요청이 거절되면 결제를 실패 처리하고 실패 아웃박스를 적재한다")
         void confirmPayment_gatewayRequestFailure() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
             given(paymentGatewayPort.confirmPayment(any(PaymentGatewayCommand.Confirm.class)))
                     .willThrow(new PaymentGatewayRequestException("TOSS-400", "카드 승인이 거절되었습니다"));
 
-            assertThatThrownBy(() -> paymentCoreService.confirmPayment(
+            Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
                     DROP_ID,
                     PRODUCT_ID,
@@ -207,16 +222,10 @@ class PaymentCoreServiceTest {
                     0L,
                     10000L,
                     "결제 승인 아이디"
-            ))
-                    .isInstanceOf(NonRetryablePaymentException.class)
-                    .satisfies(exception -> {
-                        BusinessException businessException = (BusinessException) exception;
-                        assertThat(businessException.getErrorCode()).isEqualTo(PaymentErrorCode.PAYMENT_FAILED);
-                        assertThat(businessException).hasMessage("카드 승인이 거절되었습니다");
-                    });
-
+            );
             ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
             verify(paymentOutboxService).savePaymentFailed(paymentCaptor.capture());
+            assertThat(payment).isSameAs(paymentCaptor.getValue());
             assertThat(paymentCaptor.getValue().getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
             assertThat(paymentCaptor.getValue().getFailureCode()).isEqualTo("TOSS-400");
             assertThat(paymentCaptor.getValue().getFailureMessage()).isEqualTo("카드 승인이 거절되었습니다");
@@ -226,11 +235,10 @@ class PaymentCoreServiceTest {
         @DisplayName("PG 연결이 실패하면 결제를 알 수 없음 상태로 처리한다")
         void confirmPayment_gatewayConnectionFailure() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
             given(paymentGatewayPort.confirmPayment(any(PaymentGatewayCommand.Confirm.class)))
                     .willThrow(new PaymentGatewayConnectionException("게이트웨이 타임아웃", new RuntimeException("입출력 오류")));
 
-            assertThatThrownBy(() -> paymentCoreService.confirmPayment(
+            Payment payment = paymentCoreService.confirmPayment(
                     ORDER_ID,
                     DROP_ID,
                     PRODUCT_ID,
@@ -240,14 +248,10 @@ class PaymentCoreServiceTest {
                     0L,
                     10000L,
                     "결제 승인 아이디"
-            ))
-                    .isInstanceOf(BusinessException.class)
-                    .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
-                            .isEqualTo(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED));
+            );
 
-            ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
-            verify(paymentRepository).save(paymentCaptor.capture());
-            assertThat(paymentCaptor.getValue().getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
+            assertThat(payment.getProviderPaymentId()).isNotBlank();
             verify(paymentOutboxService, never()).savePaymentFailed(any(Payment.class));
             verify(paymentOutboxService, never()).savePaymentCompleted(any(Payment.class));
         }
@@ -261,7 +265,6 @@ class PaymentCoreServiceTest {
         @DisplayName("래플 빌링키 결제를 승인하고 쿠폰을 재검증한다")
         void confirmBillingPayment_success() {
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
-            given(paymentRepository.save(any(Payment.class))).willAnswer(invocation -> invocation.getArgument(0));
             given(couponServiceClient.reserveCoupon(any(CouponReserveRequest.class)))
                     .willReturn(ApiResponse.success(rateCoupon("RESERVED", "15", "3000")));
             given(paymentGatewayPort.confirmBillingPayment(any(PaymentGatewayCommand.ConfirmBilling.class)))
@@ -378,6 +381,7 @@ class PaymentCoreServiceTest {
                 discountAmount,
                 originalAmount - discountAmount,
                 Provider.TOSS,
+                "결제 승인 아이디",
                 PaymentMethod.CARD
         );
         ReflectionTestUtils.setField(payment, "paymentId", PAYMENT_ID);
@@ -399,8 +403,8 @@ class PaymentCoreServiceTest {
         return payment;
     }
 
-    private CouponUserCouponResponse rateCoupon(String status, String discountValue, String maxDiscountAmount) {
-        return new CouponUserCouponResponse(
+    private UserCouponResponse rateCoupon(String status, String discountValue, String maxDiscountAmount) {
+        return new UserCouponResponse(
                 COUPON_ID,
                 UUID.randomUUID(),
                 "정률 쿠폰",

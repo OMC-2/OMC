@@ -36,7 +36,7 @@ public class PaymentInternalController {
     }
 
     // 클라이언트가 결제창/SDK 리다이렉트로 받은 customerKey, authKey
-    @PostMapping("/payments/billing-keys")
+    @PostMapping("/payments/pre-auth")
     public RegisterBillingKeyResponse registerBillingKey(
             @RequestBody RegisterBillingKeyRequest request
     ) {

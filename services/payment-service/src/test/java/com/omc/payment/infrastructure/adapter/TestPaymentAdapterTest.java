@@ -2,6 +2,7 @@ package com.omc.payment.infrastructure.adapter;
 
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
+import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +27,20 @@ class TestPaymentAdapterTest {
     }
 
     @Test
+    @DisplayName("결제 조회 요청은 결제 완료 상태를 반환한다")
+    void getPayment_success() {
+        PaymentGatewayResult.Payment result = testPaymentAdapter.getPayment(
+                new PaymentGatewayCommand.GetPayment("test-payment-key")
+        );
+
+        assertThat(result.providerPaymentId()).isEqualTo("test-payment-key");
+        assertThat(result.orderId()).isEqualTo("test-order-id");
+        assertThat(result.status()).isEqualTo(PaymentGatewayStatus.PAID);
+        assertThat(result.totalAmount()).isEqualTo(10000L);
+        assertThat(result.cancelableAmount()).isEqualTo(10000L);
+    }
+
+    @Test
     @DisplayName("카드 한도 초과 식별자는 PG 요청 실패를 발생시킨다")
     void confirmPayment_cardLimitExceeded() {
         assertThatThrownBy(() -> testPaymentAdapter.confirmPayment(
@@ -34,7 +49,7 @@ class TestPaymentAdapterTest {
                 .isInstanceOf(PaymentGatewayRequestException.class)
                 .hasMessage("카드 한도를 초과했습니다")
                 .satisfies(exception -> assertThat(
-                        ((PaymentGatewayRequestException) exception).getProviderCode()
+                        ((PaymentGatewayRequestException) exception).getProviderErrorCode()
                 ).isEqualTo("EXCEED_MAX_CARD_LIMIT"));
     }
 

@@ -9,6 +9,7 @@ import com.omc.payment.application.scheduler.PaymentOutboxPublisher;
 import com.omc.payment.application.service.PaymentEventService;
 import com.omc.payment.domain.entity.Payment;
 import com.omc.payment.domain.enums.CancellationCode;
+import com.omc.payment.domain.enums.PaymentInboxStatus;
 import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.repository.PaymentInboxEventRepository;
 import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
@@ -153,7 +154,8 @@ class PaymentKafkaIntegrationTest {
         send(KafkaTopics.ORDER_CREATED, dropOrderCreatedEvent(eventId, orderId));
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+            assertThat(payment).isNotNull();
             assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
             assertThat(payment.getProviderPaymentId()).isEqualTo("test-payment-" + orderId);
             assertThat(paymentInboxEventRepository.existsById(eventId)).isTrue();
@@ -204,7 +206,8 @@ class PaymentKafkaIntegrationTest {
         );
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+            assertThat(payment).isNotNull();
             assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.CANCELED);
             assertThat(payment.getCancelledMessage()).isEqualTo("구매자 환불 요청");
             assertThat(paymentInboxEventRepository.existsById(refundEventId)).isTrue();
@@ -225,7 +228,8 @@ class PaymentKafkaIntegrationTest {
         send(KafkaTopics.STOCK_FAILED, new StockFailedEvent(stockFailedEventId, orderId));
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+            assertThat(payment).isNotNull();
             assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.CANCELED);
             assertThat(payment.getCancellationCode()).isEqualTo(CancellationCode.STOCK_DEDUCT_FAILED);
             assertThat(paymentInboxEventRepository.existsById(stockFailedEventId)).isTrue();
@@ -236,6 +240,46 @@ class PaymentKafkaIntegrationTest {
         });
     }
 
+    @Test
+    @DisplayName("취소할 결제가 없는 재고 실패 이벤트는 DLT로 전송된다")
+    void stockFailed_withoutPayment_publishesToDlt() throws JsonProcessingException {
+        UUID orderId = UUID.randomUUID();
+        StockFailedEvent event = new StockFailedEvent(UUID.randomUUID().toString(), orderId);
+        String payload = objectMapper.writeValueAsString(event);
+
+        Map<String, Object> consumerProperties = KafkaTestUtils.consumerProps(
+                "재고실패-결제없음-DLT-테스트-" + UUID.randomUUID(),
+                "true",
+                embeddedKafkaBroker
+        );
+        DefaultKafkaConsumerFactory<String, String> consumerFactory = new DefaultKafkaConsumerFactory<>(
+                consumerProperties,
+                new StringDeserializer(),
+                new StringDeserializer()
+        );
+
+        try (Consumer<String, String> consumer = consumerFactory.createConsumer()) {
+            embeddedKafkaBroker.consumeFromAnEmbeddedTopic(consumer, KafkaTopics.STOCK_FAILED_DLT);
+            kafkaTemplate.send(KafkaTopics.STOCK_FAILED, payload);
+
+            ConsumerRecord<String, String> dltRecord = KafkaTestUtils.getSingleRecord(
+                    consumer,
+                    KafkaTopics.STOCK_FAILED_DLT,
+                    Duration.ofSeconds(10)
+            );
+
+            assertThat(dltRecord.value()).isEqualTo(payload);
+
+            await().atMost(10, SECONDS).untilAsserted(() -> {
+                assertThat(paymentRepository.findByOrderId(orderId)).isEmpty();
+                assertThat(paymentOutboxEventRepository.count()).isZero();
+                assertThat(paymentInboxEventRepository.findById(event.eventId()))
+                        .get()
+                        .extracting(inboxEvent -> inboxEvent.getStatus())
+                        .isEqualTo(PaymentInboxStatus.FAILED);
+            });
+        }
+    }
     @Test
     @DisplayName("보상 필수값이 없는 주문 생성 이벤트는 결제를 생성하지 않고 DLT로 전송된다")
     void missingCompensationKey_consumed_publishesToDlt() throws JsonProcessingException {
@@ -311,7 +355,8 @@ class PaymentKafkaIntegrationTest {
         send(KafkaTopics.ORDER_CREATED, invalidEvent);
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+            assertThat(payment).isNotNull();
             assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
             assertThat(payment.getFailureCode()).isEqualTo("PAYMENT-002");
             assertThat(payment.getFailureMessage()).isEqualTo("상품 ID는 필수입니다.");
@@ -353,7 +398,8 @@ class PaymentKafkaIntegrationTest {
                 .handleOrderCreated(any(OrderCreatedEvent.class));
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+            assertThat(payment).isNotNull();
             assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
             assertThat(payment.getFailureCode()).isEqualTo("PAYMENT-006");
             assertThat(payment.getFailureMessage()).isEqualTo("결제 금액이 일치하지 않습니다.");
@@ -393,7 +439,8 @@ class PaymentKafkaIntegrationTest {
         send(KafkaTopics.ORDER_CREATED, invalidEvent);
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
-            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+            assertThat(payment).isNotNull();
             assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
             assertThat(payment.getFailureCode()).isEqualTo("PAYMENT-006");
             assertThat(payment.getFailureMessage()).isEqualTo("결제 금액은 필수입니다.");

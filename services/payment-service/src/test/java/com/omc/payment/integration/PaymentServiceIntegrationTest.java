@@ -34,6 +34,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 
@@ -150,6 +151,8 @@ class PaymentServiceIntegrationTest {
                             .content(confirmPaymentBody(orderId, DROP_ID, PRODUCT_ID, null, 10000L, 0L, 10000L)))
                     .andExpect(status().isCreated());
 
+            assertThat(stringRedisTemplate.opsForValue().get("payment:confirm:" + orderId)).isEqualTo("SUCCEEDED");
+
             mockMvc.perform(post("/internal/v1/payments/confirm")
                             .header("X-User-Id", USER_ID.toString())
                             .contentType(MediaType.APPLICATION_JSON)
@@ -163,14 +166,37 @@ class PaymentServiceIntegrationTest {
         }
 
         @Test
+        @DisplayName("같은 주문이 처리 중이면 중복 결제를 차단한다")
+        void confirmPayment_processingKey_returns409() throws Exception {
+            UUID orderId = UUID.randomUUID();
+            stringRedisTemplate.opsForValue().set(
+                    "payment:confirm:" + orderId,
+                    "PROCESSING:다른 요청 토큰",
+                    Duration.ofSeconds(30)
+            );
+
+            mockMvc.perform(post("/internal/v1/payments/confirm")
+                            .header("X-User-Id", USER_ID.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(confirmPaymentBody(orderId, DROP_ID, PRODUCT_ID, null, 10000L, 0L, 10000L)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.errorCode").value("PAYMENT-007"));
+
+            assertThat(paymentRepository.count()).isZero();
+            assertThat(paymentOutboxEventRepository.count()).isZero();
+            assertThat(stringRedisTemplate.opsForValue().get("payment:confirm:" + orderId))
+                    .isEqualTo("PROCESSING:다른 요청 토큰");
+        }
+
+        @Test
         @DisplayName("결제 금액이 맞지 않으면 실패 아웃박스를 저장하고 실패 결제를 반환한다")
         void confirmPayment_invalidAmount_returnsFailedPayment() throws Exception {
             UUID orderId = UUID.randomUUID();
 
             mockMvc.perform(post("/internal/v1/payments/confirm")
                             .header("X-User-Id", USER_ID.toString())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(confirmPaymentBody(orderId, DROP_ID, PRODUCT_ID, null, 10000L, 1000L, 10000L)))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(confirmPaymentBody(orderId, DROP_ID, PRODUCT_ID, null, 10000L, 1000L, 10000L)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.paymentStatus").value("FAILED"));
 
@@ -202,8 +228,8 @@ class PaymentServiceIntegrationTest {
                                     10000L,
                                     "E2E_CARD_LIMIT_EXCEEDED"
                             )))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.errorCode").value("PAYMENT-002"));
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.paymentStatus").value("FAILED"));
 
             Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
             assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
@@ -233,8 +259,8 @@ class PaymentServiceIntegrationTest {
                             .header("X-User-Id", USER_ID.toString())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestBody))
-                    .andExpect(status().isServiceUnavailable())
-                    .andExpect(jsonPath("$.errorCode").value("PAYMENT-005"));
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.paymentStatus").value("UNKNOWN"));
 
             Payment unknownPayment = paymentRepository.findByOrderId(orderId).orElseThrow();
             assertThat(unknownPayment.getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
@@ -312,8 +338,8 @@ class PaymentServiceIntegrationTest {
                             .header("X-Gateway-Secret", GATEWAY_SECRET)
                             .header("X-User-Id", OTHER_USER_ID.toString())
                             .header("X-User-Role", "USER")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(cancelPaymentBody()))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(cancelPaymentBody()))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.errorCode").value("COMMON-002"));
 

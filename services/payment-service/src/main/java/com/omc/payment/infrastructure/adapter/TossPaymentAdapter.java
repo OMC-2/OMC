@@ -6,6 +6,7 @@ import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
+import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -66,6 +67,24 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
         return new PaymentGatewayResult.Confirm(response.paymentKey());
     }
 
+    // Toss 결제 조회
+    @Override
+    public PaymentGatewayResult.Payment getPayment(PaymentGatewayCommand.GetPayment command) {
+        PaymentResponse response = get(
+                "/v1/payments/{paymentKey}",
+                PaymentResponse.class,
+                command.providerPaymentID()
+        );
+        return new PaymentGatewayResult.Payment(
+                response.paymentKey(),
+                response.orderId(),
+                toPaymentStatus(response.status()),
+                response.totalAmount(),
+                response.balanceAmount(),
+                response.lastTransactionKey()
+        );
+    }
+
     // Toss 결제 취소
     @Override
     public PaymentGatewayResult.Cancel cancelPayment(PaymentGatewayCommand.Cancel command) {
@@ -77,11 +96,48 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
                 command.providerPaymentId()
         );
         // lastTransactionKey가 없을 경우 paymentKey 폴백
-        String providerCancellationKey = response.lastTransactionKey() == null
+        String providerCancellationId = response.lastTransactionKey() == null
                 ? command.providerPaymentId()
                 : response.lastTransactionKey();
 
-        return new PaymentGatewayResult.Cancel(providerCancellationKey);
+        return new PaymentGatewayResult.Cancel(providerCancellationId);
+    }
+
+    // Toss 응답의 문자열 상태값을 서비스 내 Enum 상태값으로 매칭
+    private PaymentGatewayStatus toPaymentStatus(String tossStatus) {
+        if (tossStatus == null || tossStatus.isBlank()) {
+            return PaymentGatewayStatus.UNKNOWN;
+        }
+        return switch (tossStatus) {
+            case "READY", "IN_PROGRESS", "WAITING_FOR_DEPOSIT" -> PaymentGatewayStatus.PENDING;
+            case "DONE" -> PaymentGatewayStatus.PAID;
+            case "CANCELED", "PARTIAL_CANCELED" -> PaymentGatewayStatus.CANCELED;
+            case "ABORTED", "EXPIRED" -> PaymentGatewayStatus.FAILED;
+            default -> PaymentGatewayStatus.UNKNOWN;
+        };
+    }
+
+    // Toss Get 호출 공통 로직
+    private <T> T get(
+            String uri,
+            Class<T> responseType,
+            Object... uriVariables
+    ) {
+        try {
+            T response = tossPaymentRestClient.get()
+                    .uri(uri, uriVariables)
+                    .retrieve()
+                    .body(responseType);
+            if (response == null) {
+                throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 응답이 비어 있습니다.");
+            }
+            return response;
+        } catch (RestClientResponseException e) {
+            throw toBusinessException(e);
+        } catch (RestClientException e) {
+            log.error("Toss API 통신에 실패했습니다.", e);
+            throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 통신에 실패했습니다.", e);
+        }
     }
 
     // Toss Post 호출 공통 로직
@@ -99,10 +155,14 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
                 requestBodySpec.header("Idempotency-Key", idempotencyKey);
             }
 
-            return requestBodySpec
+            T response = requestBodySpec
                     .body(body)
                     .retrieve()
                     .body(responseType);
+            if (response == null) {
+                throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 응답이 비어 있습니다.");
+            }
+            return response;
         } catch (RestClientResponseException e) {
             throw toBusinessException(e);
         } catch (RestClientException e) {
@@ -163,6 +223,10 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
     // 승인, 취소 응답
     private record PaymentResponse(
             String paymentKey, // 결제 식별키
+            String orderId,
+            String status,
+            Long totalAmount,
+            Long balanceAmount,
             String lastTransactionKey // 마지막 거래의 키값
     ) {}
 
