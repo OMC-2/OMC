@@ -53,21 +53,25 @@ OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으�
 ```mermaid
 sequenceDiagram
     participant U as 사용자
+    participant G as Gateway
     participant D as drop-service
     participant R as Redis
     participant S as Redis Stream
     participant K as Kafka
 
-    U->>D: POST /drops/{id}/purchase
-    D->>R: ① OPEN 플래그 검사 (fail-fast)
-    D->>R: ② holdTtlSec·productId 조회 (워밍 캐시, DB 무접촉)
-    D->>R: ③ Lua 원자 처리 (중복·재고·hold·순번 + XADD Stream)
+    U->>G: POST /drops/{id}/purchase
+    G->>G: Rate Limiter (dropId 기준 200 req/s)
+    alt 한도 초과
+        G-->>U: 429 Too Many Requests
+    end
+    G->>D: 전달
+    D->>R: Lua 원자 처리 1회 (OPEN 확인·holdTtlSec·productId 조회·중복·재고·hold·순번·XADD 통합)
     alt OK
-        Note over R,S: ③번 Lua 안에서 선점과 Stream 기록이 원자적으로 처리됨
+        Note over R,S: 선점과 Stream 기록이 Lua 한 블록 안에서 원자적으로 처리됨
         D-->>U: 202 Accepted (orderId, queueNumber)
         Note over S,K: PurchaseStreamWorker(100ms)가 XREADGROUP → Kafka 발행 → XACK
         S->>K: purchase.confirmed 발행 (key=orderId)
-    else SOLD_OUT / DUPLICATE
+    else SOLD_OUT / DUPLICATE / NOT_OPEN
         D-->>U: 409
     end
     Note over K: 주문 생성·DB 차감은 비동기 (order / product)
@@ -251,68 +255,77 @@ processed_events (
 | 7 | order-service에 **no-op 처리 협의** | 인메모리 아웃박스 사용으로 극히 드문 경우 purchase.confirmed 유실 가능. order-service가 ① purchase.confirmed 멱등 처리 ② hold.expired 수신 시 주문 없으면 no-op 처리하도록 협의 완료 |
 | 8 | **DROP / RAFFLE 테이블 분리** | drop_type 컬럼으로 통합 시 RAFFLE 전용 컬럼(winner_count 등)이 DROP 행에 NULL로 쌓이고, 래플 담당자(raffle-service)와 스키마 소유권이 충돌. 드롭서비스는 DROP 전용 `drops` 테이블만 소유하고, 래플은 raffle-service의 `raffles` 테이블로 완전 분리 |
 | 9 | **product-service 호출에 Feign + Resilience4j + FallbackFactory** 적용 | 드롭 오픈 스케줄러가 재고 스냅샷 조회 시 product-service 장애가 드롭 오픈을 막지 않도록 설계. 서킷 오픈 시 FallbackFactory가 예외 throw → 스케줄러 catch → totalQty 폴백으로 드롭 오픈 유지 |
+| 10 | **진입 API Redis 호출을 Lua 1회로 통합** | 기존 isOpen GET + holdTtlSec GET + productId GET + EVALSHA = 4 round-trips. Redis 단일 스레드 특성상 400 스레드 동시 접근 시 직렬화 대기가 avg 200ms까지 누적됨. 3개의 개별 GET을 Lua 내부로 이동해 1 round-trip으로 축소 |
+| 11 | **Gateway Rate Limiter (dropId 기준 200 req/s)** 추가 | 1000 VU 동시 유입 시 Tomcat thread pool(200) 포화로 p99가 30~37s까지 치솟는 문제 확인. Redis Token Bucket 기반 Rate Limiter로 유입량을 thread pool 이내로 억제. 초과 요청은 Tomcat 도달 전 게이트웨이에서 즉시 429 반환 |
+| 12 | **Gateway SoldOutCheckFilter — 품절 후 즉시 409 차단** | 재고 소진 후에도 요청이 Tomcat 큐까지 도달해 ~28s 대기 후 409를 받는 문제 확인. purchase.lua에서 DECR 후 재고 0 도달 시 `sold_out:{dropId}` 플래그 SET. Gateway GlobalFilter(order=-10)가 플래그 확인 → drop-service 호출 없이 56ms 즉시 409 반환. hold 만료·결제 취소 시 재고 복구와 함께 플래그 DEL |
 
 ---
 
 ## 7. 부하 테스트
 
 - 대상: `POST /drops/{dropId}/purchase`
-- 측정 환경: `(기입: 로컬/Docker, CPU n코어, 메모리 nGB, DB·Kafka 동일 머신 여부)`
+- 측정 환경: 로컬 Docker (MacBook, DB·Redis·Kafka 동일 머신)
+- 도구: JMeter (초기 검증) → k6 (시나리오 자동화)
 
-### 7-1. 사전 준비
+### 7-1. JMeter (초기 검증)
 
-**인증 우회**
-실제 API는 JWT/X-User-Id 헤더에서 userId를 꺼내며 body는 없다.
-JMeter는 JWT 대량 발급이 비현실적이므로 X-User-Id 헤더로 직접 주입한다.
-CSV Data Set으로 userId 목록을 준비하고, 각 스레드가 순번에 맞는 userId를 헤더에 설정한다.
+JWT 대량 발급이 비현실적이므로 X-User-Id 헤더로 userId를 직접 주입하는 방식으로 인증을 우회한다.
 
-```
-X-User-Id: {csv에서 읽은 userId}
-```
-
-**Redis 리셋 스크립트**
-매 테스트 실행 전 Redis를 초기 상태로 복원해야 한다.
-리셋 없이 2회차를 돌리면 stock이 이미 0이라 전부 SOLD_OUT으로 의미 없는 결과가 나온다.
-
+**사전 준비**
 ```bash
+# 매 테스트 전 Redis 리셋
 redis-cli DEL stock:{dropId} purchased:{dropId} holds:{dropId} queue:{dropId}
 redis-cli SET stock:{dropId} 100
 redis-cli SET drop:{dropId}:status OPEN
 ```
 
-**409 처리**
-SOLD_OUT(409), DUPLICATE_PURCHASE(409)는 정상 응답이다.
-JMeter Response Assertion을 202·409만 성공으로 설정하고, 5xx만 에러로 처리한다.
+**시나리오**
 
-### 7-2. 시나리오
+| 시나리오 | 스레드 | 검증 |
+| --- | --- | --- |
+| 재고 정확성 | 1,000 (Ramp-up 0초) | 202 == 100, 409 == 900 |
+| 중복 방지 | 10스레드 × 10루프 | userId당 202 == 1 |
 
-**시나리오 1 — 재고 정확성**
-고유 userId 1,000개가 동시에 진입, 재고 100개면 정확히 100명만 성공하는지 검증
+**성능 측정 결과**
 
+| 버전 | 구현 | TPS | p99 (ms) |
+| --- | --- | --- | --- |
+| v1 | DB 비관적 락 | `(측정)` | `(측정)` |
+| v2 | Redis Lua | `(측정)` | `(측정)` |
+
+### 7-2. k6 (시나리오 자동화)
+
+실제 JWT 토큰을 사용하며 시나리오별 검증 지표가 자동으로 출력된다.
+
+**파일 구조**
 ```
-스레드: 1,000 · Ramp-up: 0초 (순간 동시)
-요청: POST /drops/{dropId}/purchase (body 없음, X-User-Id 헤더)
-기대: 202 응답 == 100, 409(SOLD_OUT) == 900
-검증: Redis stock:{dropId} == 0, purchased SCARD == 100
+k6/
+├── users.json              # 테스트 유저 토큰 목록
+├── refresh-tokens.js       # 토큰 갱신
+├── 02-product-inventory.js # A(구매 선점) · B(재고 차감) · C(중복 방지) · D(캐시) 시나리오
+└── 03-hold-expire.js       # Hold TTL 만료 후 재고 복구 2-Phase 검증
 ```
 
-**시나리오 2 — 중복 방지**
-동일 userId가 반복 요청해도 1번만 성공하는지 검증
+**실행**
+```bash
+# 시나리오 A — 구매 선점 (1,000 VU)
+k6 run -e DROP_ID=<id> k6/02-product-inventory.js
 
+# 시나리오 C — 중복 방지
+k6 run -e SCENARIO=duplicate -e DROP_ID=<id> k6/02-product-inventory.js
+
+# 시나리오 E — Hold 만료 재고 복구
+k6 run -e DROP_ID=<id> -e HOLD_TTL_SEC=15 -e HOLD_COUNT=50 k6/03-hold-expire.js
 ```
-스레드: 10 · 루프: 10 (userId 10개 × 10회 반복)
-기대: userId당 202 == 1, 나머지 409(DUPLICATE_PURCHASE)
-```
 
-**시나리오 3 — 성능 측정**
-시나리오 1 기반으로 TPS·응답시간 측정
+**성능 측정 결과 (1,000 VU · 재고 100개)**
 
-| 버전 | 구현 | TPS | 평균 응답 (ms) | p99 (ms) | 에러율 |
-| --- | --- | --- | --- | --- | --- |
-| v1 | DB 비관적 락 | `(측정)` | `(측정)` | `(측정)` | `(측정)` |
-| v2 | Redis Lua | `(측정)` | `(측정)` | `(측정)` | `(측정)` |
-
-> 개선 요약: `(무엇을 바꿔서 어떤 지표가 어떻게 변했는지 1~3줄)`
+| 최적화 단계 | 성공 avg | 전체 p(90) | req/s |
+| --- | --- | --- | --- |
+| Redis Lua 기본 | 12s | 37s | 26 |
+| Lua 4→1 round-trip 통합 | 5s | 30s | 48 |
+| + Gateway Rate Limiter (200 req/s) | 4~5s | 23~28s | 48~168 |
+| + Gateway 품절 조기 차단 (SoldOutCheckFilter) | 1s | 8.5s | 297 |
 
 ---
 

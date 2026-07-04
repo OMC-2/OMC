@@ -15,6 +15,9 @@ public class RateLimiterConfig {
     @Bean public RedisRateLimiter productRateLimiter()      { return new RedisRateLimiter(30, 60); }
     @Bean public RedisRateLimiter dropRateLimiter()         { return new RedisRateLimiter(30, 60); }
 
+    // 드롭 구매 선점 — dropId 기준 전체 처리량 제한 (Tomcat thread pool 이내로 유입 제어)
+    @Bean public RedisRateLimiter dropPurchaseRateLimiter() { return new RedisRateLimiter(200, 200); }
+
     // 인증 필수 API — UUID 기준, 타이트하게
     @Bean public RedisRateLimiter raffleRateLimiter()       { return new RedisRateLimiter(2, 5); }
     @Bean public RedisRateLimiter orderRateLimiter()        { return new RedisRateLimiter(5, 10); }
