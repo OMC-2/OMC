@@ -78,29 +78,25 @@ public class CouponService {
             validateSpan.end();
         }
 
-        // Redis 이중 방어: 이미 발급 여부 확인
-        if (couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())) {
-            couponMetrics.incrementDuplicate(couponId.toString());
-            throw new CouponAlreadyIssuedException();
-        }
-
-        // Redis key 없으면 DB COUNT로 즉시 복구 (케이스 1: Redis만 죽은 경우)
+        // Redis key 없으면 DB COUNT로 즉시 복구 (Redis 재시작 등)
         if (!couponRedisRepository.hasStock(couponId.toString())) {
             couponStockRecoveryService.syncCouponStock(couponId);
         }
 
-        // Redis 원자적 재고 차감
-        long remaining = couponMetrics.recordRedisDuration(
+        // 중복 확인 + 재고 차감 + 발급 마킹을 Lua 스크립트로 원자적 처리 (1 round-trip)
+        long result = couponMetrics.recordRedisDuration(
                 couponId.toString(),
-                () -> couponRedisRepository.decrementStock(couponId.toString())
+                () -> couponRedisRepository.tryIssue(couponId.toString(), userId.toString())
         );
-        if (remaining < 0) {
-            couponRedisRepository.incrementStock(couponId.toString()); // 롤백
+        if (result == -2) {
+            couponMetrics.incrementDuplicate(couponId.toString());
+            throw new CouponAlreadyIssuedException();
+        }
+        if (result == -1) {
             couponMetrics.incrementOutOfStock(couponId.toString());
             throw new CouponOutOfStockException();
         }
 
-        couponRedisRepository.markIssued(couponId.toString(), userId.toString());
         couponIssueProducer.publish(couponId, userId); // 비동기 발행 — 실패 시 whenComplete에서 Redis 롤백
 
         couponMetrics.incrementIssueSuccess(couponId.toString());

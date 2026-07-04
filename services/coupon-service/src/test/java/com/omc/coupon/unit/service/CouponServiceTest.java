@@ -110,51 +110,46 @@ class CouponServiceTest {
     }
 
     // =========================================================================
-    // [시나리오 2] 쿠폰 발급 성공: Redis 차감 → markIssued → Kafka 발행
+    // [시나리오 2] 쿠폰 발급 성공: Lua 원자 처리 → Kafka 발행
     // =========================================================================
 
     @Test
     void issueCoupon_success() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
-        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
+        given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(5L);
 
         couponService.issueCoupon(couponId, userId);
 
-        verify(couponRedisRepository).markIssued(couponId.toString(), userId.toString());
         verify(couponIssueProducer).publish(couponId, userId);
     }
 
     // =========================================================================
-    // [시나리오 3] Redis 재고 차감 시 음수 반환 → 롤백 후 예외
+    // [시나리오 3] Lua 스크립트 재고 소진 반환(-1) → 예외 (롤백은 Lua 내부)
     // =========================================================================
 
     @Test
     void issueCoupon_outOfStock_throwsException() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
-        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(-1L);
+        given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(-1L);
 
         assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
                 .isInstanceOf(CouponOutOfStockException.class);
 
-        verify(couponRedisRepository).incrementStock(couponId.toString());
         verify(couponIssueProducer, never()).publish(any(), any());
     }
 
     // =========================================================================
-    // [시나리오 4] Redis 발급 이력(Set) 에 이미 존재 → 예외
+    // [시나리오 4] Lua 스크립트 이미 발급 반환(-2) → 예외
     // =========================================================================
 
     @Test
     void issueCoupon_alreadyIssuedInRedis_throwsException() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(true);
+        given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(-2L);
 
         assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
                 .isInstanceOf(CouponAlreadyIssuedException.class);
 
-        verify(couponRedisRepository, never()).decrementStock(any());
         verify(couponIssueProducer, never()).publish(any(), any());
     }
 
@@ -257,9 +252,8 @@ class CouponServiceTest {
     @Test
     void issueCoupon_redisKeyMissing_syncsThenIssues() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.hasStock(couponId.toString())).willReturn(false);
-        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(69L);
+        given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(69L);
 
         couponService.issueCoupon(couponId, userId);
 
@@ -274,9 +268,8 @@ class CouponServiceTest {
     @Test
     void issueCoupon_redisKeyExists_skipsSync() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.hasStock(couponId.toString())).willReturn(true);
-        given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
+        given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(5L);
 
         couponService.issueCoupon(couponId, userId);
 
