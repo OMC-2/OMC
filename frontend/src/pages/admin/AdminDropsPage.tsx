@@ -25,6 +25,9 @@ export function AdminDropsPage() {
   const createMutation = useMutation({
     mutationFn: () => adminDropsApi.create({
       productId: form.productId,
+      // 백엔드(Spring)는 KST 로컬 시간 기준으로 @Future 검증.
+      // toISOString()은 KST→UTC 변환(-9h)으로 과거 시간이 되어 검증 실패하므로
+      // datetime-local 값(YYYY-MM-DDTHH:MM)에 ':00'만 붙여 KST 로컬 시간 그대로 전송.
       startAt: form.startAt + ':00',
       endAt: form.endAt + ':00',
       totalQty: Number(form.totalQty),
