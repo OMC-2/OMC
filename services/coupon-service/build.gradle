@@ -9,6 +9,9 @@ dependencies {
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+    // Local cache
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+
     // Flyway
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

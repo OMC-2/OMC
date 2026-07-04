@@ -348,7 +348,7 @@ services:
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
       SENTRY_DSN: ${SENTRY_DSN:-}
-      JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:MaxRAMPercentage=70.0 -XX:-ExplicitGCInvokesConcurrent -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m -Djdk.tracePinnedThreads=full"
+      JAVA_TOOL_OPTIONS: "-XX:+UseZGC -XX:MaxRAMPercentage=70.0 -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m -Djdk.tracePinnedThreads=full"
       TRACING_SAMPLING_PROBABILITY: "0.0"
       MANAGEMENT_TRACING_ENABLED: "false"
     depends_on:
