@@ -27,9 +27,7 @@ public class SecurityConfig {
             .addFilterBefore(new GatewayHeaderAuthFilter(gatewaySecret), UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/actuator/**").permitAll()
-                // Spring Security는 인증을 생략하지만, 실제 접근 제한은 네트워크 레이어에서 수행해야 함.
-                // Kubernetes NetworkPolicy 또는 API Gateway 라우팅 규칙으로 /internal/** 를
-                // 클러스터 내부 트래픽(service-to-service)으로만 허용하고 외부에서 직접 호출 불가하게 설정할 것.
+                // permitAll()은 인증 생략일 뿐 — 외부 접근은 NetworkPolicy/Gateway 라우팅으로 차단할 것.
                 .requestMatchers("/internal/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/drops", "/api/v1/drops/*").permitAll()
                 .anyRequest().authenticated()
