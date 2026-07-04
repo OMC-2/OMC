@@ -2,12 +2,11 @@ package com.omc.payment.application.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.payment.domain.entity.Payment;
-import com.omc.payment.domain.enums.PaymentMethod;
-import com.omc.payment.domain.enums.Provider;
-import com.omc.payment.domain.enums.SalesType;
+import com.omc.payment.domain.enums.*;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +23,11 @@ public class PaymentTransactionService {
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
     public Payment findByOrderId(UUID orderId){
         return paymentRepository.findByOrderId(orderId).orElse(null);
+    }
+
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public Payment findById(UUID paymentId) {
+        return paymentRepository.findById(paymentId).orElse(null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -117,6 +121,23 @@ public class PaymentTransactionService {
     public Payment markUnknown(UUID paymentId) {
         Payment payment = getPayment(paymentId);
         payment.markUnknown();
+        return payment;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Payment cancelAndSaveOutbox(
+            UUID paymentId,
+            String providerCancellationId,
+            CancellationCode cancellationCode,
+            String reason
+    ) {
+        Payment payment = getPayment(paymentId);
+        if (payment.getPaymentStatus() == PaymentStatus.CANCELED
+                || payment.getPaymentStatus() == PaymentStatus.FAILED) {
+            return payment;
+        }
+        payment.cancel(providerCancellationId, cancellationCode, reason);
+        paymentOutboxService.saveRefundDone(payment);
         return payment;
     }
 

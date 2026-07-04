@@ -20,8 +20,6 @@ import com.omc.payment.infrastructure.client.UserCouponResponse;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -69,7 +67,7 @@ public class PaymentCoreService {
 
         try {
             validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
-            validateDropPaymentReferences(dropId, productId);
+            validateDropPayment(dropId, productId);
             reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
 
             Payment confirmingPayment = paymentTransactionService.markConfirming(payment.getPaymentId());
@@ -83,10 +81,6 @@ public class PaymentCoreService {
         }
     }
 
-    @Transactional(
-            propagation = Propagation.REQUIRES_NEW,
-            noRollbackFor = BusinessException.class
-    )
     public Payment confirmBillingPayment(
             UUID orderId,
             UUID entryId,
@@ -123,7 +117,7 @@ public class PaymentCoreService {
 
         try {
             validatePaymentAmounts(originalAmount, discountAmount, finalAmount);
-            validateRafflePaymentReferences(raffleId, entryId, productId, billingKeyId);
+            validateRafflePayment(raffleId, entryId, productId, billingKeyId);
             reserveAndValidateCoupon(couponId, orderId, userId, originalAmount, discountAmount);
 
             Payment confirmingPayment = paymentTransactionService.markConfirming(payment.getPaymentId());
@@ -140,36 +134,44 @@ public class PaymentCoreService {
     /*
     * 외부 동기 호출 API 전용
     * */
-    @Transactional
     public Payment cancelPaymentByPaymentId(
             UUID paymentId,
-            UUID requesterId,
-            String requesterRole,
+            UUID userId,
+            String userRole,
             CancellationCode cancellationCode,
             String reason
     ) {
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new BusinessException(PaymentErrorCode.PAYMENT_NOT_FOUND));
-
+        Payment payment = paymentTransactionService.findById(paymentId);
+        if (payment == null) {
+            throw new BusinessException(PaymentErrorCode.PAYMENT_NOT_FOUND);
+        }
         if (payment.getPaymentStatus() == PaymentStatus.CANCELED
                 || payment.getPaymentStatus() == PaymentStatus.FAILED) {
             return payment;
         }
 
-        return switch (requesterRole) {
-            case "ADMIN" -> cancel(payment, CancellationCode.ADMIN_CANCEL, reason);
-            case "USER" -> cancelByUser(payment, requesterId, reason);
-            default -> throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
-        };
+        CancellationCode resolvedCancellationCode = resolveCancellationCode(payment, userId, userRole);
+        String resolvedReason = reason == null || reason.isBlank()
+                ? resolveCancellationReason(cancellationCode)
+                : reason;
+
+        String providerCancellationId = cancelWithGateway(payment, resolvedReason);
+        return paymentTransactionService.cancelAndSaveOutbox(
+                payment.getPaymentId(),
+                providerCancellationId,
+                resolvedCancellationCode,
+                resolvedReason
+        );
     }
 
     /*
      * 이벤트 비동기 호출 전용
      * */
-    @Transactional
     public void cancelPaymentByOrderId(UUID orderId, CancellationCode cancellationCode, String reason) {
-        Payment payment = paymentRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new BusinessException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+        Payment payment = paymentTransactionService.findByOrderId(orderId);
+        if (payment == null) {
+            throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_NOT_FOUND);
+        }
 
         if (payment.getPaymentStatus() == PaymentStatus.CANCELED
                 || payment.getPaymentStatus() == PaymentStatus.FAILED) {
@@ -177,25 +179,33 @@ public class PaymentCoreService {
         }
 
         String resolvedReason = reason == null || reason.isBlank()
-                ? cancellationCode.name()
+                ? resolveCancellationReason(cancellationCode)
                 : reason;
 
-        cancel(payment, cancellationCode, resolvedReason);
+        String providerCancellationId = cancelWithGateway(payment, resolvedReason);
+        paymentTransactionService.cancelAndSaveOutbox(
+                payment.getPaymentId(),
+                providerCancellationId,
+                cancellationCode,
+                resolvedReason
+        );
     }
 
-    private Payment cancelByUser(Payment payment, UUID requesterId, String reason) {
-        if (requesterId == null || !requesterId.equals(payment.getUserId())) {
-            throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
-        }
-
-        return cancel(payment, CancellationCode.USER_CANCEL, reason);
+    private CancellationCode resolveCancellationCode(Payment payment, UUID userId, String userRole) {
+        return switch (userRole) {
+            case "ADMIN" -> CancellationCode.ADMIN_CANCEL;
+            case "USER" -> {
+                if (userId == null || !userId.equals(payment.getUserId())) {
+                    throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
+                }
+                yield CancellationCode.USER_CANCEL;
+            }
+            default -> throw new BusinessException(CommonErrorCode.ACCESS_DENIED);
+        };
     }
 
-    private Payment cancel(Payment payment, CancellationCode cancellationCode, String reason) {
-        String providerCancellationId = cancelWithGateway(payment, reason);
-        payment.cancel(providerCancellationId, cancellationCode, reason);
-        paymentOutboxService.saveRefundDone(payment);
-        return payment;
+    private String resolveCancellationReason(CancellationCode cancellationCode) {
+        return cancellationCode == null ? "결제 취소" : cancellationCode.name();
     }
 
     // confirmPayment PG 연동 로직 분리
@@ -300,7 +310,7 @@ public class PaymentCoreService {
         }
     }
 
-    private void validateDropPaymentReferences(UUID dropId, UUID productId) {
+    private void validateDropPayment(UUID dropId, UUID productId) {
         if (dropId == null) {
             throw new NonRetryablePaymentException(PaymentErrorCode.PAYMENT_FAILED, "드롭 ID는 필수입니다.");
         }
@@ -309,7 +319,7 @@ public class PaymentCoreService {
         }
     }
 
-    private void validateRafflePaymentReferences(
+    private void validateRafflePayment(
             UUID raffleId,
             UUID entryId,
             UUID productId,
