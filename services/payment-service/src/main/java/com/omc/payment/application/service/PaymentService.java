@@ -90,7 +90,6 @@ public class PaymentService {
         }
     }
 
-    @Transactional
     public PaymentResponse cancelPayment(UUID paymentId, CancelPaymentRequest request) {
         if (request == null) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
