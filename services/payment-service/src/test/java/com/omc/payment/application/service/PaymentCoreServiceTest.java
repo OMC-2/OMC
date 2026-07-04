@@ -12,7 +12,6 @@ import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.enums.Provider;
 import com.omc.payment.domain.enums.SalesType;
-import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
@@ -74,9 +73,7 @@ class PaymentCoreServiceTest {
         savedPayments = new HashMap<>();
         paymentTransactionService = new PaymentTransactionService(paymentRepository, paymentOutboxService);
         paymentCoreService = new PaymentCoreService(
-                paymentRepository,
                 paymentGatewayPort,
-                paymentOutboxService,
                 couponServiceClient,
                 paymentIdempotencyService,
                 paymentTransactionService

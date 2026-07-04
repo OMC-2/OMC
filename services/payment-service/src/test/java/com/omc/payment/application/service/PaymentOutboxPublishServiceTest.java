@@ -1,15 +1,14 @@
 package com.omc.payment.application.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.payment.domain.entity.PaymentOutboxEvent;
 import com.omc.payment.domain.enums.OutboxAggregateType;
 import com.omc.payment.domain.enums.OutboxEventStatus;
 import com.omc.payment.domain.repository.PaymentOutboxEventRepository;
 import com.omc.payment.infrastructure.config.KafkaTopics;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -33,10 +32,18 @@ class PaymentOutboxPublishServiceTest {
 
     @Mock private PaymentOutboxEventRepository paymentOutboxEventRepository;
     @Mock private KafkaTemplate<String, Object> kafkaTemplate;
-    @Mock private ObjectMapper objectMapper;
 
-    @InjectMocks
     private PaymentOutboxPublishService paymentOutboxPublishService;
+
+    @BeforeEach
+    void setUp() {
+        PaymentOutboxTransactionService paymentOutboxTransactionService =
+                new PaymentOutboxTransactionService(paymentOutboxEventRepository);
+        paymentOutboxPublishService = new PaymentOutboxPublishService(
+                paymentOutboxTransactionService,
+                kafkaTemplate
+        );
+    }
 
     @Test
     @DisplayName("Outbox 이벤트 claim 성공 후 Kafka 발행에 성공하면 PUBLISHED로 변경한다")

@@ -29,9 +29,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PaymentCoreService {
 
-    private final PaymentRepository paymentRepository;
     private final PaymentGatewayPort paymentGatewayPort;
-    private final PaymentOutboxService paymentOutboxService;
     private final CouponServiceClient couponServiceClient;
     private final PaymentIdempotencyService paymentIdempotencyService;
     private final PaymentTransactionService paymentTransactionService;
@@ -377,11 +375,6 @@ public class PaymentCoreService {
                     "쿠폰 할인 금액이 일치하지 않습니다."
             );
         }
-    }
-
-    private void failValidation(Payment payment, NonRetryablePaymentException exception) {
-        payment.fail(exception.getErrorCode().getCode(), exception.getMessage());
-        paymentOutboxService.savePaymentFailed(payment);
     }
 
     // coupon-service에서 쿠폰을 선점하고 응답을 결제 검증에 사용
