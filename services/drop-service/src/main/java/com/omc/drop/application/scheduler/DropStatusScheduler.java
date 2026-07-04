@@ -71,12 +71,12 @@ public class DropStatusScheduler {
                 DropStatus.OPEN, LocalDateTime.now());
 
         for (Drop drop : candidates) {
+            // 신규 구매 진입을 DB 업데이트보다 먼저 차단 (DB CLOSED 전 구매창 gap 방지)
+            // hold_ttl, product_id, stock, purchased, holds, queue는 정산 후 배치 정리
+            dropRedisStore.deleteStatus(drop.getDropId());
             int updated = dropRepository.updateStatusConditionally(
                     drop.getDropId(), DropStatus.OPEN, DropStatus.CLOSED);
             if (updated == 1) {
-                // status만 즉시 삭제 (신규 진입 차단)
-                // hold_ttl, product_id, stock, purchased, holds, queue는 정산 후 배치 정리
-                dropRedisStore.deleteStatus(drop.getDropId());
                 dropEventProducer.publishDropClosed(DropClosedEvent.from(drop));
                 log.info("드롭 CLOSE 전이 완료: dropId={}", drop.getDropId());
             }

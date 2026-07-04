@@ -62,9 +62,10 @@ public class DropAdminService {
     public void close(UUID dropId) {
         Drop drop = dropRepository.getByIdOrThrow(dropId);
         drop.validateOpen();
+        // 신규 구매 진입을 DB 업데이트보다 먼저 차단 (DB CLOSED 전 구매창 gap 방지)
+        dropRedisStore.deleteStatus(dropId);
         int updated = dropRepository.updateStatusConditionally(dropId, DropStatus.OPEN, DropStatus.CLOSED);
         if (updated == 1) {
-            dropRedisStore.deleteStatus(dropId);
             dropEventProducer.publishDropClosed(DropClosedEvent.from(drop));
             log.info("드롭 강제 종료 완료: dropId={}", dropId);
         }
