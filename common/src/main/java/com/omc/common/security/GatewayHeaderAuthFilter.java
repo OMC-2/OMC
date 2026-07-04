@@ -3,6 +3,8 @@ package com.omc.common.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.response.ErrorResponse;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import io.sentry.Sentry;
 import io.sentry.SentryEvent;
 import io.sentry.SentryLevel;
@@ -24,13 +26,19 @@ import java.util.Collections;
 import java.util.List;
 
 // 게이트웨이가 JWT 검증 후 주입한 헤더를 읽어 SecurityContext에 세팅하는 필터.
-// 각 서비스 SecurityConfig에서 addFilterBefore(new GatewayHeaderAuthFilter(gatewaySecret), ...) 로 등록.
+// 각 서비스 SecurityConfig에서 addFilterBefore(new GatewayHeaderAuthFilter(gatewaySecret, observationRegistry), ...) 로 등록.
 public class GatewayHeaderAuthFilter extends OncePerRequestFilter {
 
     private final String gatewaySecret;
+    private final ObservationRegistry observationRegistry;
 
     public GatewayHeaderAuthFilter(String gatewaySecret) {
+        this(gatewaySecret, ObservationRegistry.NOOP);
+    }
+
+    public GatewayHeaderAuthFilter(String gatewaySecret, ObservationRegistry observationRegistry) {
         this.gatewaySecret = gatewaySecret;
+        this.observationRegistry = observationRegistry;
     }
 
     @Override
@@ -46,43 +54,49 @@ public class GatewayHeaderAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        String requestSecret = request.getHeader("X-Gateway-Secret");
+        Observation obs = Observation.createNotStarted("spring.security.gateway.header.auth", observationRegistry)
+                .contextualName("gateway header auth")
+                .start();
+        try {
+            String requestSecret = request.getHeader("X-Gateway-Secret");
 
-        if (!gatewaySecret.equals(requestSecret)) {
-            // 게이트웨이 우회 시도 → 보안 이슈로 Sentry에 기록
-            SentryEvent event = new SentryEvent();
-            event.setLevel(SentryLevel.WARNING);
-            Message msg = new Message();
-            msg.setMessage("게이트웨이 우회 감지: X-Gateway-Secret 불일치 [" + request.getMethod() + " " + request.getRequestURI() + "]");
-            event.setMessage(msg);
-            Sentry.captureEvent(event);
+            if (!gatewaySecret.equals(requestSecret)) {
+                SentryEvent event = new SentryEvent();
+                event.setLevel(SentryLevel.WARNING);
+                Message msg = new Message();
+                msg.setMessage("게이트웨이 우회 감지: X-Gateway-Secret 불일치 [" + request.getMethod() + " " + request.getRequestURI() + "]");
+                event.setMessage(msg);
+                Sentry.captureEvent(event);
 
-            ErrorResponse<Void> errorResponse = ErrorResponse.of(
-                    HttpStatus.FORBIDDEN,
-                    CommonErrorCode.ACCESS_DENIED.getCode(),
-                    CommonErrorCode.ACCESS_DENIED.getMessage()
-            );
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.setCharacterEncoding("UTF-8");
-            response.getWriter().write(new ObjectMapper().writeValueAsString(errorResponse));
-            return;
-        }
+                ErrorResponse<Void> errorResponse = ErrorResponse.of(
+                        HttpStatus.FORBIDDEN,
+                        CommonErrorCode.ACCESS_DENIED.getCode(),
+                        CommonErrorCode.ACCESS_DENIED.getMessage()
+                );
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.setCharacterEncoding("UTF-8");
+                response.getWriter().write(new ObjectMapper().writeValueAsString(errorResponse));
+                return;
+            }
 
-        String userId = request.getHeader("X-User-Id");
-        String username = request.getHeader("X-Username");
-        String userRole = request.getHeader("X-User-Role");
+            String userId = request.getHeader("X-User-Id");
+            String username = request.getHeader("X-Username");
+            String userRole = request.getHeader("X-User-Role");
 
-        if (userId != null && userRole != null) {
-            SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + userRole);
-            List<SimpleGrantedAuthority> authorities = Collections.singletonList(authority);
+            if (userId != null && userRole != null) {
+                SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + userRole);
+                List<SimpleGrantedAuthority> authorities = Collections.singletonList(authority);
 
-            CustomUserDetails userDetails = new CustomUserDetails(userId, username, userRole, authorities);
+                CustomUserDetails userDetails = new CustomUserDetails(userId, username, userRole, authorities);
 
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
+        } finally {
+            obs.stop();
         }
 
         filterChain.doFilter(request, response);

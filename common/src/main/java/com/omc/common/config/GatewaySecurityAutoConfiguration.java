@@ -2,6 +2,7 @@ package com.omc.common.config;
 
 import com.omc.common.handler.GlobalExceptionHandler;
 import com.omc.common.security.GatewayHeaderAuthFilter;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -31,13 +32,13 @@ public class GatewaySecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(SecurityFilterChain.class)
-    public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http, ObservationRegistry observationRegistry) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(
-                        new GatewayHeaderAuthFilter(gatewaySecret),
+                        new GatewayHeaderAuthFilter(gatewaySecret, observationRegistry),
                         UsernamePasswordAuthenticationFilter.class
                 )
                 .authorizeHttpRequests(auth -> auth
