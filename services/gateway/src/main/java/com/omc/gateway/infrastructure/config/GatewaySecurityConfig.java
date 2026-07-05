@@ -3,33 +3,21 @@ package com.omc.gateway.infrastructure.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.exception.CommonErrorCode;
 import com.omc.common.exception.ErrorCode;
-import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationRegistry;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
-import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
-import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtReactiveAuthenticationManager;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
-import org.springframework.cloud.gateway.config.HttpClientCustomizer;
-import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
-import reactor.netty.Metrics;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 import org.springframework.web.server.ServerWebExchange;
-import org.springframework.web.server.WebFilter;
-import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.util.Arrays;
@@ -45,46 +33,6 @@ public class GatewaySecurityConfig {
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
 
-    @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
-    private String jwkSetUri;
-
-    @Autowired
-    private ObservationRegistry observationRegistry;
-
-    @Bean
-    public ReactiveJwtDecoder reactiveJwtDecoder() {
-        NimbusReactiveJwtDecoder delegate = NimbusReactiveJwtDecoder
-            .withJwkSetUri(jwkSetUri)
-            .build();
-        return token -> {
-            Observation obs = Observation.createNotStarted("spring.security.jwt.decode", observationRegistry)
-                .contextualName("jwt decode")
-                .start();
-            return delegate.decode(token)
-                .doOnError(obs::error)
-                .doFinally(signal -> obs.stop());
-        };
-    }
-
-    @Bean
-    public ReactiveAuthenticationManager observedJwtAuthManager() {
-        JwtReactiveAuthenticationManager delegate = new JwtReactiveAuthenticationManager(reactiveJwtDecoder());
-        return token -> {
-            Observation obs = Observation.createNotStarted("spring.security.jwt.authenticate", observationRegistry)
-                .contextualName("jwt authenticate")
-                .start();
-            return delegate.authenticate(token)
-                .doOnError(obs::error)
-                .doFinally(signal -> obs.stop());
-        };
-    }
-
-    @Bean
-    public HttpClientCustomizer observationHttpClientCustomizer() {
-        Metrics.observationRegistry(observationRegistry);
-        return httpClient -> httpClient.metrics(true, java.util.function.Function.identity());
-    }
-
     @Bean
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
         ServerAuthenticationEntryPoint authEntryPoint =
@@ -96,7 +44,6 @@ public class GatewaySecurityConfig {
         return http
             .csrf(csrf -> csrf.requireCsrfProtectionMatcher(exchange -> ServerWebExchangeMatcher.MatchResult.notMatch()))
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .addFilterBefore(new SecurityAuthObservationFilter(observationRegistry), SecurityWebFiltersOrder.AUTHENTICATION)
             .authorizeExchange(ex -> ex
                 .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .pathMatchers(HttpMethod.POST, "/api/v1/users/signup").permitAll()
@@ -108,12 +55,13 @@ public class GatewaySecurityConfig {
                 .pathMatchers(HttpMethod.GET, "/api/v1/drops", "/api/v1/drops/**").permitAll()
                 .pathMatchers(HttpMethod.GET, "/api/v1/raffles").permitAll()
                 .pathMatchers(HttpMethod.GET, "/api/v1/raffles/{raffleId:[0-9a-fA-F-]+}").permitAll()
+                .pathMatchers(HttpMethod.POST, "/api/v1/coupons/*/issue").permitAll()
                 .pathMatchers("/internal/**").denyAll()
                 .pathMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/webjars/**").permitAll()
                 .anyExchange().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.authenticationManager(observedJwtAuthManager()))
+                .jwt(jwt -> {})
                 .authenticationEntryPoint(authEntryPoint)
             )
             .exceptionHandling(ex -> ex
@@ -158,23 +106,5 @@ public class GatewaySecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
-    }
-
-    private static class SecurityAuthObservationFilter implements WebFilter {
-        private final ObservationRegistry registry;
-
-        public SecurityAuthObservationFilter(ObservationRegistry registry) {
-            this.registry = registry;
-        }
-
-        @Override
-        public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-            Observation obs = Observation.createNotStarted("spring.security.authentication.filter", registry)
-                .contextualName("security authentication filter")
-                .start();
-            return chain.filter(exchange)
-                .doOnError(obs::error)
-                .doFinally(signal -> obs.stop());
-        }
     }
 }

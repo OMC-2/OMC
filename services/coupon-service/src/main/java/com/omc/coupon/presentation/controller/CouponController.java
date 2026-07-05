@@ -6,8 +6,10 @@ import com.omc.common.response.ApiResponse;
 import com.omc.common.response.PageResponse;
 import com.omc.common.security.SecurityUtil;
 import com.omc.coupon.application.service.CouponService;
+import com.omc.coupon.application.service.CouponTicketService;
 import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
+import com.omc.coupon.presentation.dto.response.CouponTicketResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import java.util.UUID;
 public class CouponController {
 
     private final CouponService couponService;
+    private final CouponTicketService couponTicketService;
 
     // ADMIN: 쿠폰 생성
     @PostMapping
@@ -47,6 +50,16 @@ public class CouponController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<CouponResponse> getCoupon(@PathVariable UUID couponId) {
         return ApiResponse.success(couponService.getCoupon(couponId));
+    }
+
+    // USER: 이벤트용 AES 사전 인증 티켓 발급 (스파이크 전 미리 발급, Gateway ES256 검증 대체)
+    @PostMapping("/{couponId}/ticket")
+    @PreAuthorize("hasRole('USER')")
+    public ApiResponse<CouponTicketResponse> issueTicket(@PathVariable UUID couponId) {
+        UUID userId = SecurityUtil.getCurrentUserId()
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
+        String ticket = couponTicketService.issueTicket(userId, couponId);
+        return ApiResponse.success(new CouponTicketResponse(ticket));
     }
 
     // USER: 선착순 쿠폰 발급

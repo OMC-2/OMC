@@ -1,12 +1,7 @@
 package com.omc.gateway.infrastructure.config;
 
-import brave.Tracer;
-import io.lettuce.core.tracing.MicrometerTracing;
 import io.micrometer.observation.ObservationPredicate;
-import io.micrometer.observation.ObservationRegistry;
 import java.net.InetSocketAddress;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.data.redis.ClientResourcesBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.server.reactive.observation.DefaultServerRequestObservationConvention;
@@ -15,9 +10,6 @@ import org.springframework.http.server.reactive.observation.ServerRequestObserva
 
 @Configuration
 public class TracingConfig {
-
-    @Autowired
-    private Tracer tracer;
 
     @Bean
     public ObservationPredicate noManagementServerObservations() {
@@ -34,12 +26,6 @@ public class TracingConfig {
             }
             if (name.startsWith("management.endpoint")) {
                 return false;
-            }
-            if ("http.client.requests".equals(name)) {
-                return tracer.currentSpan() != null;
-            }
-            if (name.startsWith("spring.security")) {
-                return tracer.currentSpan() != null;
             }
             return true;
         };
@@ -58,11 +44,5 @@ public class TracingConfig {
                 return method + " " + path;
             }
         };
-    }
-
-    // rate limiter 및 모든 Redis 커맨드를 현재 trace에 자식 span으로 추가
-    @Bean
-    public ClientResourcesBuilderCustomizer lettuceTracingCustomizer(ObservationRegistry observationRegistry) {
-        return builder -> builder.tracing(new MicrometerTracing(observationRegistry, "redis"));
     }
 }

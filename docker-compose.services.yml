@@ -59,11 +59,12 @@ services:
       EUREKA_URI: http://eureka-server:8761/eureka/
       GATEWAY_SECRET: local-secret
       KEYCLOAK_JWKS_URI: http://keycloak:8180/realms/omc/protocol/openid-connect/certs
+      COUPON_TICKET_AES_KEY: ${COUPON_TICKET_AES_KEY:-Y291cG9uLXRpY2tldC1hZXMtMjU2LXNlY3JldC1rZXk=}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SENTRY_DSN: ${SENTRY_DSN:-}
-      JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:MaxRAMPercentage=70.0 -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m"
-      TRACING_SAMPLING_PROBABILITY: "0.1"
+      JAVA_TOOL_OPTIONS: "-XX:+UseZGC -XX:+ZGenerational -XX:ConcGCThreads=1 -XX:MaxRAMPercentage=70.0 -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m"
+      TRACING_SAMPLING_PROBABILITY: "0.0"
     depends_on:
       config-server:
         condition: service_healthy
@@ -82,7 +83,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 2G
 
   user-service:
     build:
@@ -347,8 +348,9 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
+      COUPON_TICKET_AES_KEY: ${COUPON_TICKET_AES_KEY:-Y291cG9uLXRpY2tldC1hZXMtMjU2LXNlY3JldC1rZXk=}
       SENTRY_DSN: ${SENTRY_DSN:-}
-      JAVA_TOOL_OPTIONS: "-XX:+UseZGC -XX:MaxRAMPercentage=70.0 -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m -Djdk.tracePinnedThreads=full"
+      JAVA_TOOL_OPTIONS: "-XX:+UseZGC -XX:+ZGenerational -XX:ConcGCThreads=1 -XX:MaxRAMPercentage=80.0 -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m -Djdk.tracePinnedThreads=full"
       TRACING_SAMPLING_PROBABILITY: "0.0"
       MANAGEMENT_TRACING_ENABLED: "false"
     depends_on:
@@ -371,7 +373,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 2G
 
   notification-service:
     build:

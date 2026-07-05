@@ -93,6 +93,8 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8180/realms/omc/protocol/openid-connect/certs}
+          jwk-set-cache-duration: 3600s
+          jwk-set-cache-refresh-duration: 60s
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
