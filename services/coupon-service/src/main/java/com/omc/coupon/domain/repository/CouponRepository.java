@@ -1,6 +1,7 @@
 package com.omc.coupon.domain.repository;
 
 import com.omc.coupon.domain.entity.Coupon;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -12,4 +13,6 @@ import java.util.UUID;
 public interface CouponRepository extends JpaRepository<Coupon, UUID> {
 
     List<Coupon> findByExpiredAtAfterAndRemainingQuantityGreaterThan(LocalDateTime now, int quantity);
+
+    List<Coupon> findByExpiredAtAfterAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(LocalDateTime now, int quantity, Pageable pageable);
 }

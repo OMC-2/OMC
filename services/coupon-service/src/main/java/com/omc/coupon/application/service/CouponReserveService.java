@@ -40,9 +40,6 @@ public class CouponReserveService {
         userCoupon.reserve(request.orderId()); // 상태 검증 + AVAILABLE → RESERVED
 
         couponMetrics.incrementReserveSuccess();
-        log.info("[CouponReserveService] 쿠폰 선점 완료. userCouponId={}, orderId={}",
-                request.userCouponId(), request.orderId());
-
         return UserCouponResponse.from(userCoupon);
     }
 }

@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 @Component
@@ -14,32 +15,33 @@ public class CouponMetrics {
 
     private final MeterRegistry meterRegistry;
 
+    private final ConcurrentHashMap<String, Counter> issueSuccessCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Counter> outOfStockCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Counter> duplicateCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Timer> redisTimers = new ConcurrentHashMap<>();
+
     public void incrementIssueSuccess(String couponId) {
-        Counter.builder("coupon.issue.success")
-                .tag("couponId", couponId)
-                .register(meterRegistry)
-                .increment();
+        issueSuccessCounters.computeIfAbsent(couponId, id ->
+                Counter.builder("coupon.issue.success").tag("couponId", id).register(meterRegistry)
+        ).increment();
     }
 
     public void incrementOutOfStock(String couponId) {
-        Counter.builder("coupon.issue.out_of_stock")
-                .tag("couponId", couponId)
-                .register(meterRegistry)
-                .increment();
+        outOfStockCounters.computeIfAbsent(couponId, id ->
+                Counter.builder("coupon.issue.out_of_stock").tag("couponId", id).register(meterRegistry)
+        ).increment();
     }
 
     public void incrementDuplicate(String couponId) {
-        Counter.builder("coupon.issue.duplicate")
-                .tag("couponId", couponId)
-                .register(meterRegistry)
-                .increment();
+        duplicateCounters.computeIfAbsent(couponId, id ->
+                Counter.builder("coupon.issue.duplicate").tag("couponId", id).register(meterRegistry)
+        ).increment();
     }
 
     public long recordRedisDuration(String couponId, Supplier<Long> action) {
-        return Timer.builder("coupon.redis.decr.duration")
-                .tag("couponId", couponId)
-                .register(meterRegistry)
-                .record(action);
+        return redisTimers.computeIfAbsent(couponId, id ->
+                Timer.builder("coupon.redis.decr.duration").tag("couponId", id).register(meterRegistry)
+        ).record(action);
     }
 
     public void incrementReserveSuccess() {

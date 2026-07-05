@@ -10,6 +10,7 @@ import com.omc.coupon.domain.repository.UserCouponRepository;
 import com.omc.coupon.infrastructure.kafka.CouponIssueProducer;
 import com.omc.coupon.infrastructure.redis.CouponCacheRepository;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
+import com.omc.coupon.infrastructure.store.CouponLocalStore;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +50,7 @@ public class CouponWarmupListener {
     private static final int POOL_SIZE = 10;
     private static final int WARMUP_ISSUE_COUNT = 2000;
     private static final int WARMUP_LUA_COUNT = 15000;
+    private static final int WARMUP_COUPON_LIMIT = 50;
 
     @Value("${server.port:8087}")
     private int serverPort;
@@ -62,6 +64,7 @@ public class CouponWarmupListener {
     private final UserCouponRepository userCouponRepository;
     private final CouponRedisRepository couponRedisRepository;
     private final CouponCacheRepository couponCacheRepository;
+    private final CouponLocalStore couponLocalStore;
     private final RedisTemplate<String, String> redisTemplate;
     private final PlatformTransactionManager transactionManager;
     private final EntityManager entityManager;
@@ -139,10 +142,15 @@ public class CouponWarmupListener {
     private void warmUpCouponCache() {
         try {
             List<Coupon> active = couponRepository
-                    .findByExpiredAtAfterAndRemainingQuantityGreaterThan(LocalDateTime.now(), 0);
-            active.forEach(couponCacheRepository::put);
+                    .findByExpiredAtAfterAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(
+                            LocalDateTime.now(), 0,
+                            org.springframework.data.domain.PageRequest.of(0, WARMUP_COUPON_LIMIT));
+            active.forEach(coupon -> {
+                couponCacheRepository.put(coupon);
+                couponLocalStore.initCoupon(coupon.getCouponId().toString(), coupon.getRemainingQuantity());
+            });
             activeCouponIds = active.stream().map(Coupon::getCouponId).collect(java.util.stream.Collectors.toList());
-            log.info("[CouponCacheWarmup] 쿠폰 {}건 Redis 캐싱 완료", active.size());
+            log.info("[CouponCacheWarmup] 쿠폰 {}건 Redis 캐싱 + LocalStore 초기화 완료", active.size());
         } catch (Exception e) {
             log.warn("[CouponCacheWarmup] 쿠폰 캐싱 실패 (무시): {}", e.getMessage());
         }

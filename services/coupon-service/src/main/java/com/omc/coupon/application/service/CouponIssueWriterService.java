@@ -56,8 +56,6 @@ public class CouponIssueWriterService {
                 outboxEventId, "UserCoupon", userCoupon.getUserCouponId(), OutboxEventType.COUPON_ISSUED, payload
         ));
 
-        log.info("[CouponIssueWriterService] 쿠폰 발급 저장 완료. couponId={}, userId={}, userCouponId={}",
-                couponId, userId, userCoupon.getUserCouponId());
     }
 
     @Transactional
@@ -116,8 +114,6 @@ public class CouponIssueWriterService {
 
         jdbcTemplate.batchUpdate(userCouponSql, userCouponArgs);
         jdbcTemplate.batchUpdate(outboxSql, outboxArgs);
-
-        log.info("[CouponIssueWriterService] 배치 발급 저장 완료. 건수={}", events.size());
     }
 
     private String toJson(Object obj) {

@@ -13,12 +13,11 @@ import com.omc.coupon.infrastructure.metrics.CouponMetrics;
 import com.omc.coupon.infrastructure.redis.CouponCacheDto;
 import com.omc.coupon.infrastructure.redis.CouponCacheRepository;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
+import com.omc.coupon.infrastructure.store.CouponLocalStore;
 import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import com.omc.common.exception.BusinessException;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -40,14 +39,14 @@ public class CouponService {
     private final CouponMetrics couponMetrics;
     private final CouponStockRecoveryService couponStockRecoveryService;
     private final CouponIssueProducer couponIssueProducer;
-    private final Tracer tracer;
+    private final CouponLocalStore couponLocalStore;
 
     @Transactional
     public CouponResponse createCoupon(CouponCreateRequest request) {
         Coupon coupon = couponRepository.save(request.toEntity());
         couponRedisRepository.initStock(coupon.getCouponId().toString(), coupon.getTotalQuantity());
         couponCacheRepository.put(coupon);
-        log.info("[CouponService] 쿠폰 생성 완료. couponId={}", coupon.getCouponId());
+        couponLocalStore.initCoupon(coupon.getCouponId().toString(), coupon.getTotalQuantity());
         return CouponResponse.from(coupon);
     }
 
@@ -64,29 +63,26 @@ public class CouponService {
     public void issueCoupon(UUID couponId, UUID userId) {
         CouponCacheDto couponDto = findCouponDto(couponId);
 
-        // [validate] 날짜 유효성 검사 — 재고는 Redis DECR이 제어
-        Span validateSpan = tracer.nextSpan().name("coupon.issue.validate").start();
-        try (Tracer.SpanInScope ws = tracer.withSpan(validateSpan)) {
-            java.time.LocalDateTime now = java.time.LocalDateTime.now();
-            if (couponDto.getExpiredAt().isBefore(now)) {
-                throw new BusinessException(CouponErrorCode.COUPON_EXPIRED);
-            }
-            if (couponDto.getStartedAt().isAfter(now)) {
-                throw new BusinessException(CouponErrorCode.COUPON_NOT_STARTED);
-            }
-        } finally {
-            validateSpan.end();
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        if (couponDto.getExpiredAt().isBefore(now)) {
+            throw new BusinessException(CouponErrorCode.COUPON_EXPIRED);
+        }
+        if (couponDto.getStartedAt().isAfter(now)) {
+            throw new BusinessException(CouponErrorCode.COUPON_NOT_STARTED);
         }
 
-        // EXISTS + 중복 확인 + 재고 차감 + 발급 마킹을 Lua 스크립트로 원자적 처리 (1 round-trip)
-        // -3: stock 키 없음(Redis 재시작) → DB 복구 후 재시도
-        long result = couponMetrics.recordRedisDuration(
-                couponId.toString(),
-                () -> couponRedisRepository.tryIssueWithStockCheck(couponId.toString(), userId.toString())
-        );
+        // 인메모리 CAS 기반 재고 차감 + 중복 확인 (Redis 왕복 없음)
+        // -3: LocalStore 미초기화 → Redis Lua fallback
+        long result = couponLocalStore.tryIssue(couponId.toString(), userId.toString());
         if (result == -3) {
-            couponStockRecoveryService.syncCouponStock(couponId);
-            result = couponRedisRepository.tryIssue(couponId.toString(), userId.toString());
+            result = couponMetrics.recordRedisDuration(
+                    couponId.toString(),
+                    () -> couponRedisRepository.tryIssueWithStockCheck(couponId.toString(), userId.toString())
+            );
+            if (result == -3) {
+                couponStockRecoveryService.syncCouponStock(couponId);
+                result = couponRedisRepository.tryIssue(couponId.toString(), userId.toString());
+            }
         }
         if (result == -2) {
             couponMetrics.incrementDuplicate(couponId.toString());
@@ -100,7 +96,6 @@ public class CouponService {
         couponIssueProducer.publish(couponId, userId); // 비동기 발행 — 실패 시 whenComplete에서 Redis 롤백
 
         couponMetrics.incrementIssueSuccess(couponId.toString());
-        log.info("[CouponService] 쿠폰 발급 요청 완료. couponId={}, userId={}", couponId, userId);
     }
 
     @Transactional(readOnly = true)
