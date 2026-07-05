@@ -73,16 +73,23 @@ log() {
 wait_gateway_route() {
   log "  ⏳ Gateway → coupon-service 경로 활성화 대기 중..."
   local gw_wait=0
+  local consecutive=0
   while [ $gw_wait -lt 60 ]; do
     local status
     status=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/coupons/health-check" \
       -H "X-Gateway-Secret: $GATEWAY_SECRET" 2>/dev/null)
     if [ "$status" != "503" ] && [ "$status" != "000" ] && [ "$status" != "404" ]; then
-      log "  ✅ Gateway → coupon-service 경로 정상 (${gw_wait}초 소요)"
-      return 0
+      consecutive=$((consecutive + 1))
+      if [ "$consecutive" -ge 3 ]; then
+        log "  ✅ Gateway → coupon-service 경로 정상 (${gw_wait}초 소요)"
+        sleep 2
+        return 0
+      fi
+    else
+      consecutive=0
     fi
-    sleep 2
-    gw_wait=$((gw_wait + 2))
+    sleep 1
+    gw_wait=$((gw_wait + 1))
   done
   log "  ⚠️  Gateway → coupon-service 경로 갱신 타임아웃"
   return 1
@@ -458,7 +465,12 @@ run_stage() {
   # k6 실행 전 게이트웨이 경로 대기
   wait_gateway_route
 
-  # k6 실행
+  # k6 실행 — load-round-* 는 k6 SCENARIO=load 로 변환
+  local k6_scenario="$stage"
+  if [[ "$stage" == load-round-* ]]; then
+    k6_scenario="load"
+  fi
+
   local k6_exit=0
   if [ "$vus" -gt 0 ]; then
     k6 run \
@@ -467,15 +479,17 @@ run_stage() {
       --env COUPON_ID="$coupon_id" \
       --env BASE_URL="$BASE_URL" \
       --env GATEWAY_SECRET="$GATEWAY_SECRET" \
+      --env SKIP_SLEEP="${SKIP_SETUP_SLEEP:-false}" \
       --out "json=$stage_dir/raw.json" \
       --summary-export "$stage_dir/k6-summary.json" \
       "$SCRIPT_DIR/03-coupon-issue.js" || k6_exit=$?
   else
     k6 run \
-      --env SCENARIO="$stage" \
+      --env SCENARIO="$k6_scenario" \
       --env COUPON_ID="$coupon_id" \
       --env BASE_URL="$BASE_URL" \
       --env GATEWAY_SECRET="$GATEWAY_SECRET" \
+      --env SKIP_SLEEP="${SKIP_SETUP_SLEEP:-false}" \
       --out "json=$stage_dir/raw.json" \
       --summary-export "$stage_dir/k6-summary.json" \
       "$SCRIPT_DIR/03-coupon-issue.js" || k6_exit=$?
@@ -589,9 +603,11 @@ coupon_run_stage() {
         rounds=$LOAD_REPEAT
       fi
       log "▶ load-repeat: ${rounds}회 반복 (쿠폰 ${COUPON_LOAD_QTY}개 × ${rounds}회)"
+      SKIP_SETUP_SLEEP=false
       for i in $(seq 1 "$rounds"); do
         log "  ▶ round ${i}/${rounds}"
         run_stage "load-round-${i}" "$COUPON_LOAD_QTY" || true
+        SKIP_SETUP_SLEEP=true
       done
       ;;
     stress-200)   run_stage "stress-200"  $COUPON_STRESS_QTY  200  || true ;;

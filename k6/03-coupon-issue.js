@@ -1,5 +1,5 @@
 import http, { setResponseCallback } from 'k6/http';
-import { check } from 'k6';
+import { check, sleep } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
 import exec from 'k6/execution';
 import { SharedArray } from 'k6/data';
@@ -7,7 +7,8 @@ import { SharedArray } from 'k6/data';
 // 쿠폰 동시 발급 부하 테스트
 //
 // 시나리오: 선착순 쿠폰 발급 (동시 N명 → 재고 M개)
-//   - 각 VU는 자신의 JWT 토큰으로 쿠폰 발급 요청
+//   - setup()에서 각 사용자 JWT로 AES 티켓 미리 발급
+//   - 부하 시 X-Coupon-Ticket 헤더로 요청 → Gateway ES256 검증 스킵
 //   - 201(발급 성공) 또는 409(재고 소진/중복) 외 응답은 에러로 기록
 //
 // 실행 방법 (run.sh 권장):
@@ -112,39 +113,88 @@ export const spikeOptions = {
   },
 };
 
-export const options =
+const baseOptions =
   SCENARIO === 'load'   ? loadOptions   :
   SCENARIO === 'stress' ? stressOptions :
   SCENARIO === 'spike'  ? spikeOptions  :
   smokeOptions;
 
+export const options = { ...baseOptions, setupTimeout: '3m' };
+
+// setup(): 각 사용자 JWT로 AES 티켓을 미리 발급받아 반환
+// 부하 테스트 시 JWT 검증(ES256) 없이 AES 복호화로 처리 → Gateway CPU 절약
 export function setup() {
-  return { tokens: userData.map(u => u.token) };
+  const tickets = [];
+  for (let i = 0; i < userData.length; i++) {
+    const u = userData[i];
+    const res = http.post(
+      `${BASE}/api/v1/coupons/${COUPON_ID}/ticket`,
+      null,
+      {
+        headers: {
+          'Authorization':    `Bearer ${u.token}`,
+          'X-Gateway-Secret': GW_SECRET,
+          'Content-Type':     'application/json',
+        },
+      }
+    );
+    if (res.status === 200) {
+      const body = JSON.parse(res.body);
+      tickets.push(body.data.ticket);
+    } else {
+      // 티켓 발급 실패 시 JWT 토큰으로 폴백
+      tickets.push(null);
+    }
+  }
+  // 첫 라운드에만 60초 대기 — Gateway CPU 냉각 + 실제 이벤트 시나리오 재현
+  // load-repeat 시 2번째 라운드부터는 SKIP_SLEEP=true로 스킵
+  if (__ENV.SKIP_SLEEP !== 'true') {
+    console.log('[setup] AES 티켓 발급 완료. 60초 대기 후 부하 시작...');
+    sleep(60);
+  }
+
+  return { tickets, tokens: userData.map(u => u.token) };
 }
 
 export default function (data) {
   // 202(발급 성공), 409(재고 소진/중복)은 정상 비즈니스 응답 → http_req_failed 카운트 제외
-  // VU별로 설정해야 하므로 default 함수 안에서 호출
   setResponseCallback(http.expectedStatuses(202, 409));
 
-  // load: iteration 기반 순환 (1인 1회, 중복 없음)
-  // smoke/stress/spike: VU 기반 (기존 동작 유지)
-  const idx   = SCENARIO === 'load'
-    ? exec.scenario.iterationInTest % data.tokens.length
+  const idx = SCENARIO === 'load'
+    ? exec.scenario.iterationInTest % data.tickets.length
     : exec.vu.idInTest - 1;
-  const token = data.tokens[idx % data.tokens.length];
 
-  const res = http.post(
-    `${BASE}/api/v1/coupons/${COUPON_ID}/issue`,
-    null,
-    {
-      headers: {
-        'Authorization':    `Bearer ${token}`,
-        'X-Gateway-Secret': GW_SECRET,
-        'Content-Type':     'application/json',
-      },
-    }
-  );
+  const ticket = data.tickets[idx % data.tickets.length];
+  const token  = data.tokens[idx % data.tokens.length];
+
+  let res;
+  if (ticket) {
+    // AES 티켓 방식: ES256 검증 없이 Gateway에서 AES 복호화로 처리
+    res = http.post(
+      `${BASE}/api/v1/coupons/${COUPON_ID}/issue`,
+      null,
+      {
+        headers: {
+          'X-Coupon-Ticket':  ticket,
+          'X-Gateway-Secret': GW_SECRET,
+          'Content-Type':     'application/json',
+        },
+      }
+    );
+  } else {
+    // 티켓 발급 실패 시 JWT 폴백
+    res = http.post(
+      `${BASE}/api/v1/coupons/${COUPON_ID}/issue`,
+      null,
+      {
+        headers: {
+          'Authorization':    `Bearer ${token}`,
+          'X-Gateway-Secret': GW_SECRET,
+          'Content-Type':     'application/json',
+        },
+      }
+    );
+  }
 
   check(res, {
     '202 Accepted (발급 성공)':       (r) => r.status === 202,
