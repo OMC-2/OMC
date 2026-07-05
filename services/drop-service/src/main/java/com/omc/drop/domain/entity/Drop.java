@@ -66,13 +66,7 @@ public class Drop extends BaseEntity {
     }
 
     public static Drop create(UUID productId, LocalDateTime startAt, LocalDateTime endAt, int totalQty, int holdTtlSec) {
-        validateDateRange(startAt, endAt);
-        if (totalQty <= 0) {
-            throw new InvalidDropQuantityException();
-        }
-        if (holdTtlSec <= 0) {
-            throw new InvalidDropHoldTtlException();
-        }
+        validateDropInputs(startAt, endAt, totalQty, holdTtlSec);
         return Drop.builder()
                 .productId(productId)
                 .startAt(startAt)
@@ -106,13 +100,7 @@ public class Drop extends BaseEntity {
         if (this.status != DropStatus.SCHEDULED) {
             throw new InvalidDropStatusException();
         }
-        validateDateRange(startAt, endAt);
-        if (totalQty <= 0) {
-            throw new InvalidDropQuantityException();
-        }
-        if (holdTtlSec <= 0) {
-            throw new InvalidDropHoldTtlException();
-        }
+        validateDropInputs(startAt, endAt, totalQty, holdTtlSec);
         this.startAt = startAt;
         this.endAt = endAt;
         this.totalQty = totalQty;
@@ -134,5 +122,11 @@ public class Drop extends BaseEntity {
         if (this.status != DropStatus.OPEN) {
             throw new InvalidDropStatusException();
         }
+    }
+
+    private static void validateDropInputs(LocalDateTime startAt, LocalDateTime endAt, int totalQty, int holdTtlSec) {
+        validateDateRange(startAt, endAt);
+        if (totalQty <= 0) throw new InvalidDropQuantityException();
+        if (holdTtlSec <= 0) throw new InvalidDropHoldTtlException();
     }
 }
