@@ -2,6 +2,7 @@ package com.omc.payment.application.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
+import com.omc.payment.domain.exception.RetryablePaymentException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -68,7 +69,7 @@ public class PaymentIdempotencyService {
             if (isSucceeded(idempotencyKey)) {
                 return alreadySucceeded.get();
             }
-            throw new BusinessException(PaymentErrorCode.PAYMENT_ALREADY_EXISTS, "동일한 결제 요청이 이미 처리 중입니다.");
+            throw new RetryablePaymentException(PaymentErrorCode.PAYMENT_ALREADY_EXISTS, "동일한 결제 요청이 이미 처리 중입니다.");
         }
         try {
             T result = action.get();

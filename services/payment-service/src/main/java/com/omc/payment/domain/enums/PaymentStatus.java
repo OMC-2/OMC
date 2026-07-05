@@ -6,14 +6,20 @@ public enum PaymentStatus {
     PAID,
     FAILED,
     CANCELED,
-    UNKNOWN; // 망 취소, 타임 아웃, 연동 장애
+    CONFIRM_UNKNOWN, // 망 취소, 타임 아웃, 연동 장애
+    CANCEL_UNKNOWN;
 
     public boolean canChangeTo(PaymentStatus next) {
         return switch (this) {
-            case READY -> next == CONFIRMING || next == FAILED || next == CANCELED;
-            case CONFIRMING -> next == PAID || next == FAILED || next == UNKNOWN;
-            case PAID -> next == CANCELED;
-            case UNKNOWN -> next == PAID || next == FAILED || next == CANCELED;
+            case READY -> next == CONFIRMING
+                    || next == FAILED
+                    || next == CANCELED
+                    || next == CONFIRM_UNKNOWN
+                    || next == CANCEL_UNKNOWN;
+            case CONFIRMING -> next == PAID || next == FAILED || next == CONFIRM_UNKNOWN;
+            case PAID -> next == CANCELED || next == CANCEL_UNKNOWN;
+            case CONFIRM_UNKNOWN -> next == PAID || next == FAILED || next == CANCELED || next == CANCEL_UNKNOWN;
+            case CANCEL_UNKNOWN -> next == PAID || next == CANCELED;
             case FAILED, CANCELED -> false;
         };
     }

@@ -207,8 +207,14 @@ public class Payment extends BaseEntity {
     }
 
     // PG 응답 지연 또는 확인 불가 이벤트 반영
-    public void markUnknown() {
-        transitTo(PaymentStatus.UNKNOWN);
+    // PG 승인 결과를 확인할 수 없는 상태로 변경
+    public void markConfirmUnknown() {
+        transitTo(PaymentStatus.CONFIRM_UNKNOWN);
+    }
+
+    // PG 취소 결과를 확인할 수 없는 상태로 변경
+    public void markCancelUnknown() {
+        transitTo(PaymentStatus.CANCEL_UNKNOWN);
     }
 
     // 결제 취소 또는 환불 이벤트 반영

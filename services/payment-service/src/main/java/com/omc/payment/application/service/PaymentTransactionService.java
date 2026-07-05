@@ -4,9 +4,9 @@ import com.omc.common.exception.BusinessException;
 import com.omc.payment.domain.entity.Payment;
 import com.omc.payment.domain.enums.*;
 import com.omc.payment.domain.exception.PaymentErrorCode;
+import com.omc.payment.domain.exception.RetryablePaymentException;
 import com.omc.payment.domain.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -97,6 +97,18 @@ public class PaymentTransactionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Payment markConfirming(UUID paymentId) {
         Payment payment = getPayment(paymentId);
+        // 이미 승인 처리 중이면 중복 PG 호출을 막고 재시도
+        // 처리 결과부터 확정
+        if (payment.getPaymentStatus() == PaymentStatus.CONFIRMING) {
+            throw new RetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_ALREADY_EXISTS,
+                    "이미 결제 승인 처리가 진행 중입니다."
+            );
+        }
+
+        if (payment.getPaymentStatus() != PaymentStatus.READY) {
+            return payment;
+        }
         payment.startConfirming();
         return payment;
     }
@@ -104,6 +116,12 @@ public class PaymentTransactionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Payment approveAndSaveOutbox(UUID paymentId, String providerPaymentId) {
         Payment payment = getPayment(paymentId);
+        // 종료 상태 시 Outbox 중복 저장 방지
+        if (payment.getPaymentStatus() == PaymentStatus.PAID
+                || payment.getPaymentStatus() == PaymentStatus.FAILED
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
+            return payment;
+        }
         payment.approve(providerPaymentId);
         paymentOutboxService.savePaymentCompleted(payment);
         return payment;
@@ -112,15 +130,49 @@ public class PaymentTransactionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Payment failAndSaveOutbox(UUID paymentId, String failureCode, String failureMessage) {
         Payment payment = getPayment(paymentId);
+
+        if (payment.getPaymentStatus() == PaymentStatus.PAID
+                || payment.getPaymentStatus() == PaymentStatus.FAILED
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
+            return payment;
+        }
         payment.fail(failureCode, failureMessage);
         paymentOutboxService.savePaymentFailed(payment);
         return payment;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Payment markUnknown(UUID paymentId) {
+    public Payment markConfirmUnknown(UUID paymentId) {
         Payment payment = getPayment(paymentId);
-        payment.markUnknown();
+
+        if (payment.getPaymentStatus() == PaymentStatus.CONFIRM_UNKNOWN
+                || payment.getPaymentStatus() == PaymentStatus.CANCEL_UNKNOWN
+                || payment.getPaymentStatus() == PaymentStatus.PAID
+                || payment.getPaymentStatus() == PaymentStatus.FAILED
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
+            return payment;
+        }
+        payment.markConfirmUnknown();
+        return payment;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Payment markCancelUnknown(UUID paymentId) {
+        Payment payment = getPayment(paymentId);
+
+        if (payment.getPaymentStatus() == PaymentStatus.CANCEL_UNKNOWN
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED
+                || payment.getPaymentStatus() == PaymentStatus.FAILED) {
+            return payment;
+        }
+
+        if (payment.getPaymentStatus() == PaymentStatus.CONFIRMING) {
+            throw new RetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_ALREADY_EXISTS,
+                    "이미 결제 승인 처리가 진행 중입니다."
+            );
+        }
+        payment.markCancelUnknown();
         return payment;
     }
 
@@ -132,6 +184,14 @@ public class PaymentTransactionService {
             String reason
     ) {
         Payment payment = getPayment(paymentId);
+
+        if (payment.getPaymentStatus() == PaymentStatus.CONFIRMING) {
+            throw new RetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_ALREADY_EXISTS,
+                    "이미 결제 승인 처리가 진행 중입니다."
+            );
+        }
+
         if (payment.getPaymentStatus() == PaymentStatus.CANCELED
                 || payment.getPaymentStatus() == PaymentStatus.FAILED) {
             return payment;

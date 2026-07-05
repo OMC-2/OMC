@@ -12,9 +12,11 @@ import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.enums.Provider;
 import com.omc.payment.domain.enums.SalesType;
+import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
+import com.omc.payment.domain.exception.RetryablePaymentException;
 import com.omc.payment.domain.repository.PaymentRepository;
 import com.omc.payment.infrastructure.client.CouponReserveRequest;
 import com.omc.payment.infrastructure.client.CouponServiceClient;
@@ -129,6 +131,8 @@ class PaymentCoreServiceTest {
         @DisplayName("같은 주문의 결제가 이미 있으면 기존 결제를 반환한다")
         void confirmPayment_returnsExistingPayment() {
             Payment existingPayment = createPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
+            existingPayment.startConfirming();
+            existingPayment.approve(existingPayment.getProviderPaymentId());
 
             given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.of(existingPayment));
 
@@ -145,6 +149,33 @@ class PaymentCoreServiceTest {
             );
 
             assertThat(result).isSameAs(existingPayment);
+            verify(paymentRepository, never()).save(any(Payment.class));
+            verifyNoInteractions(paymentGatewayPort, paymentOutboxService, couponServiceClient);
+        }
+
+        @Test
+        @DisplayName("같은 주문의 결제가 승인 처리 중이면 재시도 예외를 던진다")
+        void confirmPayment_existingConfirmingPaymentThrowsRetryableException() {
+            Payment existingPayment = createPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
+            existingPayment.startConfirming();
+
+            given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.of(existingPayment));
+
+            assertThatThrownBy(() -> paymentCoreService.confirmPayment(
+                    ORDER_ID,
+                    DROP_ID,
+                    PRODUCT_ID,
+                    null,
+                    USER_ID,
+                    10000L,
+                    0L,
+                    10000L,
+                    "결제 승인 아이디"
+            ))
+                    .isInstanceOf(RetryablePaymentException.class)
+                    .satisfies(exception -> assertThat(((RetryablePaymentException) exception).getErrorCode())
+                            .isEqualTo(PaymentErrorCode.PAYMENT_ALREADY_EXISTS));
+
             verify(paymentRepository, never()).save(any(Payment.class));
             verifyNoInteractions(paymentGatewayPort, paymentOutboxService, couponServiceClient);
         }
@@ -250,7 +281,7 @@ class PaymentCoreServiceTest {
                     "결제 승인 아이디"
             );
 
-            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.CONFIRM_UNKNOWN);
             assertThat(payment.getProviderPaymentId()).isNotBlank();
             verify(paymentOutboxService, never()).savePaymentFailed(any(Payment.class));
             verify(paymentOutboxService, never()).savePaymentCompleted(any(Payment.class));
@@ -338,6 +369,68 @@ class PaymentCoreServiceTest {
         }
 
         @Test
+        @DisplayName("PG 취소 통신 실패 시 결제를 CANCEL_UNKNOWN으로 변경한다")
+        void cancelPaymentByPaymentId_gatewayConnectionFailureMarksUnknown() {
+            Payment payment = createApprovedPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
+            given(paymentRepository.findById(PAYMENT_ID)).willReturn(Optional.of(payment));
+            given(paymentGatewayPort.cancelPayment(any(PaymentGatewayCommand.Cancel.class)))
+                    .willThrow(new PaymentGatewayConnectionException("게이트웨이 타임아웃"));
+
+            Payment result = paymentCoreService.cancelPaymentByPaymentId(
+                    PAYMENT_ID,
+                    USER_ID,
+                    "USER",
+                    null,
+                    "사용자 취소"
+            );
+
+            assertThat(result.getPaymentStatus()).isEqualTo(PaymentStatus.CANCEL_UNKNOWN);
+            verify(paymentOutboxService, never()).saveRefundDone(any(Payment.class));
+        }
+
+        @Test
+        @DisplayName("이미 취소된 결제는 PG 취소와 Outbox 저장을 반복하지 않는다")
+        void cancelPaymentByPaymentId_alreadyCanceledReturnsPaymentWithoutGateway() {
+            Payment payment = createApprovedPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
+            payment.cancel("취소 아이디", CancellationCode.USER_CANCEL, "사용자 취소");
+            given(paymentRepository.findById(PAYMENT_ID)).willReturn(Optional.of(payment));
+
+            Payment result = paymentCoreService.cancelPaymentByPaymentId(
+                    PAYMENT_ID,
+                    USER_ID,
+                    "USER",
+                    null,
+                    "사용자 취소"
+            );
+
+            assertThat(result).isSameAs(payment);
+            verify(paymentGatewayPort, never()).cancelPayment(any(PaymentGatewayCommand.Cancel.class));
+            verify(paymentOutboxService, never()).saveRefundDone(any(Payment.class));
+        }
+
+        @Test
+        @DisplayName("승인 처리 중인 결제는 취소를 재시도 예외로 위임한다")
+        void cancelPaymentByPaymentId_confirmingPaymentThrowsRetryableException() {
+            Payment payment = createPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
+            payment.startConfirming();
+            given(paymentRepository.findById(PAYMENT_ID)).willReturn(Optional.of(payment));
+
+            assertThatThrownBy(() -> paymentCoreService.cancelPaymentByPaymentId(
+                    PAYMENT_ID,
+                    USER_ID,
+                    "USER",
+                    null,
+                    "사용자 취소"
+            ))
+                    .isInstanceOf(RetryablePaymentException.class)
+                    .satisfies(exception -> assertThat(((RetryablePaymentException) exception).getErrorCode())
+                            .isEqualTo(PaymentErrorCode.PAYMENT_ALREADY_EXISTS));
+
+            verify(paymentGatewayPort, never()).cancelPayment(any(PaymentGatewayCommand.Cancel.class));
+            verify(paymentOutboxService, never()).saveRefundDone(any(Payment.class));
+        }
+
+        @Test
         @DisplayName("사용자가 본인 결제가 아니면 취소할 수 없다")
         void cancelPaymentByPaymentId_accessDenied() {
             Payment payment = createApprovedPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
@@ -353,6 +446,50 @@ class PaymentCoreServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
                             .isEqualTo(CommonErrorCode.ACCESS_DENIED));
+
+            verify(paymentGatewayPort, never()).cancelPayment(any(PaymentGatewayCommand.Cancel.class));
+            verify(paymentOutboxService, never()).saveRefundDone(any(Payment.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("주문 기준 결제 취소")
+    class CancelPaymentByOrderId {
+
+        @Test
+        @DisplayName("PG 취소 통신 실패 시 이벤트 취소 결제를 CANCEL_UNKNOWN으로 변경한다")
+        void cancelPaymentByOrderId_gatewayConnectionFailureMarksUnknown() {
+            Payment payment = createApprovedPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
+            given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.of(payment));
+            given(paymentRepository.findById(PAYMENT_ID)).willReturn(Optional.of(payment));
+            given(paymentGatewayPort.cancelPayment(any(PaymentGatewayCommand.Cancel.class)))
+                    .willThrow(new PaymentGatewayConnectionException("게이트웨이 타임아웃"));
+
+            paymentCoreService.cancelPaymentByOrderId(
+                    ORDER_ID,
+                    CancellationCode.STOCK_DEDUCT_FAILED,
+                    "재고 차감 실패"
+            );
+
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.CANCEL_UNKNOWN);
+            verify(paymentOutboxService, never()).saveRefundDone(any(Payment.class));
+        }
+
+        @Test
+        @DisplayName("승인 처리 중인 결제는 이벤트 취소를 재시도 예외로 위임한다")
+        void cancelPaymentByOrderId_confirmingPaymentThrowsRetryableException() {
+            Payment payment = createPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
+            payment.startConfirming();
+            given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.of(payment));
+
+            assertThatThrownBy(() -> paymentCoreService.cancelPaymentByOrderId(
+                    ORDER_ID,
+                    CancellationCode.STOCK_DEDUCT_FAILED,
+                    "재고 차감 실패"
+            ))
+                    .isInstanceOf(RetryablePaymentException.class)
+                    .satisfies(exception -> assertThat(((RetryablePaymentException) exception).getErrorCode())
+                            .isEqualTo(PaymentErrorCode.PAYMENT_ALREADY_EXISTS));
 
             verify(paymentGatewayPort, never()).cancelPayment(any(PaymentGatewayCommand.Cancel.class));
             verify(paymentOutboxService, never()).saveRefundDone(any(Payment.class));
