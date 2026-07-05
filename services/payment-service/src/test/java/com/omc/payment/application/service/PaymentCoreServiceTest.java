@@ -281,7 +281,7 @@ class PaymentCoreServiceTest {
                     "결제 승인 아이디"
             );
 
-            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.CONFIRM_UNKNOWN);
             assertThat(payment.getProviderPaymentId()).isNotBlank();
             verify(paymentOutboxService, never()).savePaymentFailed(any(Payment.class));
             verify(paymentOutboxService, never()).savePaymentCompleted(any(Payment.class));
@@ -369,6 +369,26 @@ class PaymentCoreServiceTest {
         }
 
         @Test
+        @DisplayName("PG 취소 통신 실패 시 결제를 CANCEL_UNKNOWN으로 변경한다")
+        void cancelPaymentByPaymentId_gatewayConnectionFailureMarksUnknown() {
+            Payment payment = createApprovedPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
+            given(paymentRepository.findById(PAYMENT_ID)).willReturn(Optional.of(payment));
+            given(paymentGatewayPort.cancelPayment(any(PaymentGatewayCommand.Cancel.class)))
+                    .willThrow(new PaymentGatewayConnectionException("게이트웨이 타임아웃"));
+
+            Payment result = paymentCoreService.cancelPaymentByPaymentId(
+                    PAYMENT_ID,
+                    USER_ID,
+                    "USER",
+                    null,
+                    "사용자 취소"
+            );
+
+            assertThat(result.getPaymentStatus()).isEqualTo(PaymentStatus.CANCEL_UNKNOWN);
+            verify(paymentOutboxService, never()).saveRefundDone(any(Payment.class));
+        }
+
+        @Test
         @DisplayName("이미 취소된 결제는 PG 취소와 Outbox 저장을 반복하지 않는다")
         void cancelPaymentByPaymentId_alreadyCanceledReturnsPaymentWithoutGateway() {
             Payment payment = createApprovedPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
@@ -435,6 +455,25 @@ class PaymentCoreServiceTest {
     @Nested
     @DisplayName("주문 기준 결제 취소")
     class CancelPaymentByOrderId {
+
+        @Test
+        @DisplayName("PG 취소 통신 실패 시 이벤트 취소 결제를 CANCEL_UNKNOWN으로 변경한다")
+        void cancelPaymentByOrderId_gatewayConnectionFailureMarksUnknown() {
+            Payment payment = createApprovedPayment(SalesType.DROP, DROP_ID, null, null, null, 10000L, 0L);
+            given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.of(payment));
+            given(paymentRepository.findById(PAYMENT_ID)).willReturn(Optional.of(payment));
+            given(paymentGatewayPort.cancelPayment(any(PaymentGatewayCommand.Cancel.class)))
+                    .willThrow(new PaymentGatewayConnectionException("게이트웨이 타임아웃"));
+
+            paymentCoreService.cancelPaymentByOrderId(
+                    ORDER_ID,
+                    CancellationCode.STOCK_DEDUCT_FAILED,
+                    "재고 차감 실패"
+            );
+
+            assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.CANCEL_UNKNOWN);
+            verify(paymentOutboxService, never()).saveRefundDone(any(Payment.class));
+        }
 
         @Test
         @DisplayName("승인 처리 중인 결제는 이벤트 취소를 재시도 예외로 위임한다")

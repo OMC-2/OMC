@@ -98,6 +98,7 @@ public class PaymentTransactionService {
     public Payment markConfirming(UUID paymentId) {
         Payment payment = getPayment(paymentId);
         // 이미 승인 처리 중이면 중복 PG 호출을 막고 재시도
+        // 처리 결과부터 확정
         if (payment.getPaymentStatus() == PaymentStatus.CONFIRMING) {
             throw new RetryablePaymentException(
                     PaymentErrorCode.PAYMENT_ALREADY_EXISTS,
@@ -141,16 +142,37 @@ public class PaymentTransactionService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Payment markUnknown(UUID paymentId) {
+    public Payment markConfirmUnknown(UUID paymentId) {
         Payment payment = getPayment(paymentId);
 
-        if (payment.getPaymentStatus() == PaymentStatus.UNKNOWN
+        if (payment.getPaymentStatus() == PaymentStatus.CONFIRM_UNKNOWN
+                || payment.getPaymentStatus() == PaymentStatus.CANCEL_UNKNOWN
                 || payment.getPaymentStatus() == PaymentStatus.PAID
                 || payment.getPaymentStatus() == PaymentStatus.FAILED
                 || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
             return payment;
         }
-        payment.markUnknown();
+        payment.markConfirmUnknown();
+        return payment;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Payment markCancelUnknown(UUID paymentId) {
+        Payment payment = getPayment(paymentId);
+
+        if (payment.getPaymentStatus() == PaymentStatus.CANCEL_UNKNOWN
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED
+                || payment.getPaymentStatus() == PaymentStatus.FAILED) {
+            return payment;
+        }
+
+        if (payment.getPaymentStatus() == PaymentStatus.CONFIRMING) {
+            throw new RetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_ALREADY_EXISTS,
+                    "이미 결제 승인 처리가 진행 중입니다."
+            );
+        }
+        payment.markCancelUnknown();
         return payment;
     }
 

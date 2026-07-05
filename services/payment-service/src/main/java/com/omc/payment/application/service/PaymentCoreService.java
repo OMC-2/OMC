@@ -15,7 +15,6 @@ import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.exception.RetryablePaymentException;
-import com.omc.payment.domain.repository.PaymentRepository;
 import com.omc.payment.infrastructure.client.CouponReserveRequest;
 import com.omc.payment.infrastructure.client.CouponServiceClient;
 import com.omc.payment.infrastructure.client.UserCouponResponse;
@@ -151,7 +150,7 @@ public class PaymentCoreService {
     // 처리 중인 상태만 재처리로 넘기고 나머지는 그대로 반환
     private Payment resolvePayment(Payment payment) {
         return switch (payment.getPaymentStatus()) {
-            case READY, PAID, FAILED, CANCELED, UNKNOWN -> payment;
+            case READY, PAID, FAILED, CANCELED, CONFIRM_UNKNOWN, CANCEL_UNKNOWN -> payment;
             case CONFIRMING -> throw new RetryablePaymentException(
                     PaymentErrorCode.PAYMENT_ALREADY_EXISTS,
                     "이미 결제 승인 처리가 진행 중입니다."
@@ -196,13 +195,17 @@ public class PaymentCoreService {
                 ? resolveCancellationReason(cancellationCode)
                 : reason;
 
-        String providerCancellationId = cancelWithGateway(payment, resolvedReason);
-        return paymentTransactionService.cancelAndSaveOutbox(
-                payment.getPaymentId(),
-                providerCancellationId,
-                resolvedCancellationCode,
-                resolvedReason
-        );
+        try {
+            String providerCancellationId = cancelWithGateway(payment, resolvedReason);
+            return paymentTransactionService.cancelAndSaveOutbox(
+                    payment.getPaymentId(),
+                    providerCancellationId,
+                    resolvedCancellationCode,
+                    resolvedReason
+            );
+        } catch (PaymentGatewayConnectionException e) {
+            return paymentTransactionService.markCancelUnknown(payment.getPaymentId());
+        }
     }
 
     /*
@@ -223,13 +226,17 @@ public class PaymentCoreService {
                 ? resolveCancellationReason(cancellationCode)
                 : reason;
 
-        String providerCancellationId = cancelWithGateway(payment, resolvedReason);
-        paymentTransactionService.cancelAndSaveOutbox(
-                payment.getPaymentId(),
-                providerCancellationId,
-                cancellationCode,
-                resolvedReason
-        );
+        try {
+            String providerCancellationId = cancelWithGateway(payment, resolvedReason);
+            paymentTransactionService.cancelAndSaveOutbox(
+                    payment.getPaymentId(),
+                    providerCancellationId,
+                    cancellationCode,
+                    resolvedReason
+            );
+        } catch (PaymentGatewayConnectionException e) {
+            paymentTransactionService.markCancelUnknown(payment.getPaymentId());
+        }
     }
 
     private boolean isAlreadyCancelled(Payment payment) {
@@ -289,7 +296,7 @@ public class PaymentCoreService {
             return paymentTransactionService.failAndSaveOutbox(payment.getPaymentId(), e.getProviderErrorCode(), e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
             /* UNKNOWN 처리, 추후 재처리 필요 */
-            return paymentTransactionService.markUnknown(payment.getPaymentId());
+            return paymentTransactionService.markConfirmUnknown(payment.getPaymentId());
         }
     }
 
@@ -323,7 +330,7 @@ public class PaymentCoreService {
         } catch (PaymentGatewayRequestException e) {
             return paymentTransactionService.failAndSaveOutbox(payment.getPaymentId(), e.getProviderErrorCode(), e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
-            return paymentTransactionService.markUnknown(payment.getPaymentId());
+            return paymentTransactionService.markConfirmUnknown(payment.getPaymentId());
         }
     }
 
@@ -342,7 +349,7 @@ public class PaymentCoreService {
         } catch (PaymentGatewayRequestException e) {
             throw new RetryablePaymentException(PaymentErrorCode.PAYMENT_GATEWAY_REQUEST_FAILED, e.getMessage());
         } catch (PaymentGatewayConnectionException e) {
-            throw new RetryablePaymentException(PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED, e.getMessage());
+            throw e;
         }
     }
 

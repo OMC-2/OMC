@@ -260,10 +260,10 @@ class PaymentServiceIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestBody))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.paymentStatus").value("UNKNOWN"));
+                    .andExpect(jsonPath("$.paymentStatus").value("CONFIRM_UNKNOWN"));
 
             Payment unknownPayment = paymentRepository.findByOrderId(orderId).orElseThrow();
-            assertThat(unknownPayment.getPaymentStatus()).isEqualTo(PaymentStatus.UNKNOWN);
+            assertThat(unknownPayment.getPaymentStatus()).isEqualTo(PaymentStatus.CONFIRM_UNKNOWN);
             assertThat(paymentOutboxEventRepository.count()).isZero();
 
             mockMvc.perform(post("/internal/v1/payments/confirm")
@@ -271,7 +271,7 @@ class PaymentServiceIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestBody))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.paymentStatus").value("UNKNOWN"));
+                    .andExpect(jsonPath("$.paymentStatus").value("CONFIRM_UNKNOWN"));
 
             assertThat(paymentRepository.count()).isEqualTo(1);
         }
