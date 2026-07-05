@@ -8,6 +8,7 @@ import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
 import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentErrorCode;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -27,6 +28,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
 
     // Toss 일반 결제
     @Override
+    @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Confirm confirmPayment(PaymentGatewayCommand.Confirm command) {
         PaymentResponse response = post(
                 "/v1/payments/confirm",
@@ -51,6 +53,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
 
     // Toss 빌링키 자동 결제
     @Override
+    @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Confirm confirmBillingPayment(PaymentGatewayCommand.ConfirmBilling command) {
         PaymentResponse response = post(
                 "/v1/billing/{billingKey}",
@@ -69,6 +72,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
 
     // Toss 결제 조회
     @Override
+    @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Payment getPayment(PaymentGatewayCommand.GetPayment command) {
         PaymentResponse response = get(
                 "/v1/payments/{paymentKey}",
@@ -87,6 +91,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
 
     // Toss 결제 취소
     @Override
+    @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Cancel cancelPayment(PaymentGatewayCommand.Cancel command) {
         PaymentResponse response = post(
                 "/v1/payments/{paymentKey}/cancel",
