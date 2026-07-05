@@ -1,6 +1,5 @@
 package com.omc.notification.application.scheduler;
 
-import com.omc.notification.application.service.NotificationService;
 import com.omc.notification.domain.entity.Notification;
 import com.omc.notification.domain.enums.NotificationStatus;
 import com.omc.notification.domain.repository.NotificationRepository;
@@ -18,8 +17,8 @@ import java.util.List;
 public class NotificationRetryScheduler {
 
     private final NotificationRepository notificationRepository;
-    private final NotificationService notificationService;
 
+    // FAILED → PENDING으로 되돌려 NotificationDispatchScheduler가 재처리하도록 함
     @Scheduled(fixedDelay = 60000)
     @Transactional
     public void retryFailedNotifications() {
@@ -36,7 +35,6 @@ public class NotificationRetryScheduler {
                 continue;
             }
             notification.resetToPending();
-            notificationService.retry(notification);
         }
     }
 }

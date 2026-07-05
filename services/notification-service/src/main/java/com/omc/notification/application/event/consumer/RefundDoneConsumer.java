@@ -3,17 +3,22 @@ package com.omc.notification.application.event.consumer;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.notification.application.service.NotificationService;
+import com.omc.notification.application.service.ProcessedEventIdempotencyService;
+import com.omc.notification.domain.entity.Notification;
 import com.omc.notification.domain.enums.NotificationType;
 import com.omc.notification.infrastructure.kafka.KafkaTopics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.listener.BatchListenerFailedException;
 import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -22,28 +27,42 @@ import java.util.UUID;
 public class RefundDoneConsumer {
 
     private final NotificationService notificationService;
+    private final ProcessedEventIdempotencyService processedEventIdempotencyService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = KafkaTopics.REFUND_DONE, groupId = "notification-service")
-    public void handle(
-            String message,
-            Acknowledgment acknowledgment,
-            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-            @Header(KafkaHeaders.OFFSET) long offset
-    ) {
-        Map<String, Object> event = parseEvent(message, topic);
-        String eventId = String.valueOf(event.get("eventId"));
-        log.info("[RefundDoneConsumer] 수신. topic={}, offset={}, eventId={}", topic, offset, eventId);
+    public void handle(List<ConsumerRecord<String, String>> records, Acknowledgment acknowledgment) {
+        List<Map<String, Object>> events = new ArrayList<>(records.size());
+        for (int i = 0; i < records.size(); i++) {
+            ConsumerRecord<String, String> record = records.get(i);
+            try {
+                Map<String, Object> event = parseEvent(record.value(), record.topic());
+                log.info("[RefundDoneConsumer] 수신. topic={}, offset={}, eventId={}", record.topic(), record.offset(), event.get("eventId"));
+                events.add(event);
+            } catch (Exception e) {
+                throw new BatchListenerFailedException("레코드 처리 실패", e, i);
+            }
+        }
+        if (events.isEmpty()) { acknowledgment.acknowledge(); return; }
 
-        UUID userId = UUID.fromString(String.valueOf(event.get("userId")));
-        UUID orderId = UUID.fromString(String.valueOf(event.get("orderId")));
-        Object amount = event.get("amount");
+        List<String> eventIds = events.stream().map(e -> String.valueOf(e.get("eventId"))).toList();
+        Set<String> duplicates = processedEventIdempotencyService.filterAndMarkProcessed(eventIds, records.get(0).topic());
 
-        notificationService.send(eventId, topic, userId,
-                NotificationType.REFUND_COMPLETED,
-                "환불 완료 알림",
-                "환불이 완료되었습니다." + (amount != null ? " 환불 금액: " + amount + "원" : ""),
-                orderId, "ORDER");
+        List<Notification> toSave = new ArrayList<>();
+        for (Map<String, Object> event : events) {
+            String eventId = String.valueOf(event.get("eventId"));
+            if (duplicates.contains(eventId)) {
+                log.debug("[RefundDoneConsumer] 중복 이벤트 스킵. eventId={}", eventId);
+                continue;
+            }
+            UUID userId = UUID.fromString(String.valueOf(event.get("userId")));
+            UUID orderId = UUID.fromString(String.valueOf(event.get("orderId")));
+            Object amount = event.get("amount");
+            String content = "환불이 완료되었습니다." + (amount != null ? " 환불 금액: " + amount + "원" : "");
+            toSave.add(Notification.createPending(userId, NotificationType.REFUND_COMPLETED,
+                    "환불 완료 알림", content, orderId, "ORDER"));
+        }
+        notificationService.savePendingBatch(toSave);
         acknowledgment.acknowledge();
     }
 
