@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { adminProductsApi } from '../../api/admin'
+import { adminProductsApi, adminInventoryApi } from '../../api/admin'
 import { formatPrice } from '../../lib/utils'
-import { Plus, Trash2, X, ImageIcon } from 'lucide-react'
+import { Plus, Trash2, X, ImageIcon, Boxes } from 'lucide-react'
 
 const INIT = { name: '', description: '', price: '', brand: '', category: '', imageUrl: '', initialQuantity: '' }
 
@@ -46,12 +46,110 @@ function ImagePresetPicker({ value, onChange }: { value: string; onChange: (url:
   )
 }
 
+function InventoryModal({ product, onClose }: { product: any; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [newQty, setNewQty] = useState('')
+  const [reason, setReason] = useState('')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-inventory', product.productId],
+    queryFn: () => adminInventoryApi.get(product.productId),
+  })
+  const inv = data?.data?.data
+
+  const updateMutation = useMutation({
+    mutationFn: () => adminInventoryApi.update(product.productId, Number(newQty), reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-inventory', product.productId] })
+      qc.invalidateQueries({ queryKey: ['admin-products'] })
+      setNewQty('')
+      setReason('')
+      alert('재고가 수정되었습니다.')
+    },
+    onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+      <div className="w-full max-w-md rounded-lg border border-white/10 bg-gray-900 p-6">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-black tracking-wider">재고 관리</h2>
+            <p className="text-[10px] text-white/30 mt-0.5">{product.name}</p>
+          </div>
+          <button onClick={onClose}><X size={18} className="text-white/40 hover:text-white" /></button>
+        </div>
+
+        {isLoading ? (
+          <div className="py-8 text-center text-xs text-white/20">로딩 중...</div>
+        ) : inv ? (
+          <div className="mb-5 grid grid-cols-3 gap-3">
+            {[
+              { label: '총 재고', value: inv.totalQuantity },
+              { label: '판매됨', value: inv.soldQuantity },
+              { label: '잔여', value: inv.availableQuantity },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white/5 rounded p-3 text-center">
+                <p className="text-[10px] text-white/30 tracking-wider mb-1">{label}</p>
+                <p className="text-xl font-black text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mb-5 py-4 text-center text-xs text-white/20">재고 정보 없음</div>
+        )}
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">새 총 재고 수량 *</label>
+            <input
+              type="number"
+              min="0"
+              placeholder={inv ? String(inv.totalQuantity) : '0'}
+              value={newQty}
+              onChange={e => setNewQty(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">변경 사유 * (감사 로그)</label>
+            <input
+              type="text"
+              placeholder="예: 추가 입고, 불량 차감"
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30"
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-white/10 py-2.5 text-xs font-bold text-white/40 hover:text-white transition-colors"
+          >
+            닫기
+          </button>
+          <button
+            disabled={!newQty || !reason || updateMutation.isPending}
+            onClick={() => updateMutation.mutate()}
+            className="flex-1 bg-white py-2.5 text-xs font-black text-black hover:bg-red-500 hover:text-white disabled:bg-white/20 disabled:text-white/20 transition-colors"
+          >
+            {updateMutation.isPending ? '저장 중...' : '저장'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function AdminProductsPage() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(INIT)
   const [editProduct, setEditProduct] = useState<any | null>(null)
   const [editImageUrl, setEditImageUrl] = useState('')
+  const [inventoryProduct, setInventoryProduct] = useState<any | null>(null)
 
   const { data, isLoading } = useQuery({ queryKey: ['admin-products'], queryFn: () => adminProductsApi.getAll() })
   const products = data?.data?.data?.content ?? []
@@ -115,7 +213,6 @@ export function AdminProductsPage() {
         </button>
       </div>
 
-      {/* 생성 폼 모달 */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <div className="w-full max-w-lg rounded-lg border border-white/10 bg-gray-900 p-6 max-h-[90vh] overflow-y-auto">
@@ -175,7 +272,6 @@ export function AdminProductsPage() {
         </div>
       )}
 
-      {/* 이미지 수정 모달 */}
       {editProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <div className="w-full max-w-md rounded-lg border border-white/10 bg-gray-900 p-6">
@@ -208,7 +304,10 @@ export function AdminProductsPage() {
         </div>
       )}
 
-      {/* 목록 */}
+      {inventoryProduct && (
+        <InventoryModal product={inventoryProduct} onClose={() => setInventoryProduct(null)} />
+      )}
+
       <div className="rounded-lg border border-white/5 overflow-hidden">
         <table className="w-full text-xs">
           <thead>
@@ -238,6 +337,13 @@ export function AdminProductsPage() {
                       title="이미지 변경"
                     >
                       <ImageIcon size={14} />
+                    </button>
+                    <button
+                      onClick={() => setInventoryProduct(p)}
+                      className="text-white/20 hover:text-green-400 transition-colors"
+                      title="재고 관리"
+                    >
+                      <Boxes size={14} />
                     </button>
                     <button
                       onClick={() => { if (confirm('삭제?')) deleteMutation.mutate(p.productId) }}

@@ -2,13 +2,17 @@ import { NavLink, Outlet, Navigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { authApi } from '../../api/auth'
-import { LayoutDashboard, Package, ShoppingBag, Ticket, LogOut, ShieldAlert } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingBag, Ticket, Tag, CreditCard, AlertTriangle, RefreshCw, LogOut, ShieldAlert } from 'lucide-react'
 
 const nav = [
   { to: '/admin', label: '대시보드', icon: LayoutDashboard, end: true },
   { to: '/admin/products', label: '상품 관리', icon: Package, end: false },
   { to: '/admin/drops', label: '드롭 관리', icon: ShoppingBag, end: false },
   { to: '/admin/raffles', label: '래플 관리', icon: Ticket, end: false },
+  { to: '/admin/coupons', label: '쿠폰 관리', icon: Tag, end: false },
+  { to: '/admin/payments', label: '결제 내역', icon: CreditCard, end: false },
+  { to: '/admin/dlq', label: 'DLQ 관리', icon: AlertTriangle, end: false },
+  { to: '/admin/outbox', label: 'Outbox 재처리', icon: RefreshCw, end: false },
 ]
 
 export function AdminLayout() {
@@ -43,7 +47,6 @@ export function AdminLayout() {
 
   return (
     <div className="flex min-h-screen bg-gray-950 text-white">
-      {/* Sidebar */}
       <aside className="w-56 shrink-0 border-r border-white/5 flex flex-col">
         <div className="px-5 py-6 border-b border-white/5">
           <div className="flex items-center gap-1">
@@ -88,7 +91,6 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 overflow-auto">
         <Outlet />
       </div>

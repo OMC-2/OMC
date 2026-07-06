@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminDropsApi, adminProductsApi } from '../../api/admin'
 import { formatDate } from '../../lib/utils'
-import { Plus, X, StopCircle, Trash2, Package } from 'lucide-react'
+import { Plus, X, StopCircle, Trash2, Package, Edit2 } from 'lucide-react'
 
 const INIT = { productId: '', startAt: '', endAt: '', totalQty: '', holdTtlSec: '30' }
 
@@ -10,6 +10,8 @@ export function AdminDropsPage() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(INIT)
+  const [editDrop, setEditDrop] = useState<any | null>(null)
+  const [editForm, setEditForm] = useState({ startAt: '', endAt: '', totalQty: '', holdTtlSec: '' })
 
   const { data, isLoading } = useQuery({ queryKey: ['admin-drops'], queryFn: () => adminDropsApi.getAll() })
   const { data: productData, isLoading: productsLoading } = useQuery({
@@ -25,9 +27,6 @@ export function AdminDropsPage() {
   const createMutation = useMutation({
     mutationFn: () => adminDropsApi.create({
       productId: form.productId,
-      // 백엔드(Spring)는 KST 로컬 시간 기준으로 @Future 검증.
-      // toISOString()은 KST→UTC 변환(-9h)으로 과거 시간이 되어 검증 실패하므로
-      // datetime-local 값(YYYY-MM-DDTHH:MM)에 ':00'만 붙여 KST 로컬 시간 그대로 전송.
       startAt: form.startAt + ':00',
       endAt: form.endAt + ':00',
       totalQty: Number(form.totalQty),
@@ -48,8 +47,31 @@ export function AdminDropsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-drops'] }),
   })
 
+  const updateMutation = useMutation({
+    mutationFn: () => adminDropsApi.update(editDrop.dropId, {
+      startAt: editForm.startAt + ':00',
+      endAt: editForm.endAt + ':00',
+      totalQty: Number(editForm.totalQty),
+      holdTtlSec: Number(editForm.holdTtlSec),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-drops'] })
+      setEditDrop(null)
+    },
+    onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
+  })
+
+  const openEdit = (d: any) => {
+    const toLocal = (dt: string) => dt ? dt.slice(0, 16) : ''
+    setEditForm({ startAt: toLocal(d.startAt), endAt: toLocal(d.endAt), totalQty: String(d.totalQty ?? ''), holdTtlSec: String(d.holdTtlSec ?? '30') })
+    setEditDrop(d)
+  }
+
   const f = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const ef = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setEditForm(p => ({ ...p, [k]: e.target.value }))
 
   return (
     <div className="p-8">
@@ -111,6 +133,44 @@ export function AdminDropsPage() {
         </div>
       )}
 
+      {editDrop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-lg border border-white/10 bg-gray-900 p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-black tracking-wider">드롭 수정</h2>
+                <p className="text-[10px] text-white/30 mt-0.5 font-mono">{editDrop.dropId?.slice(0, 8)}...</p>
+              </div>
+              <button onClick={() => setEditDrop(null)}><X size={18} className="text-white/40 hover:text-white" /></button>
+            </div>
+            <div className="space-y-3">
+              {[
+                { label: '시작 시간 *', key: 'startAt', type: 'datetime-local' },
+                { label: '종료 시간 *', key: 'endAt', type: 'datetime-local' },
+                { label: '재고 수량 *', key: 'totalQty', type: 'number', placeholder: '100' },
+                { label: '선점 대기(초) *', key: 'holdTtlSec', type: 'number', placeholder: '30' },
+              ].map(({ label, key, type, placeholder }: any) => (
+                <div key={key}>
+                  <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">{label}</label>
+                  <input type={type} placeholder={placeholder} value={(editForm as any)[key]} onChange={ef(key)}
+                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30" />
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setEditDrop(null)}
+                className="flex-1 border border-white/10 py-2.5 text-xs font-bold text-white/40 hover:text-white transition-colors">취소</button>
+              <button
+                disabled={!editForm.startAt || !editForm.endAt || !editForm.totalQty || updateMutation.isPending}
+                onClick={() => updateMutation.mutate()}
+                className="flex-1 bg-white py-2.5 text-xs font-black text-black hover:bg-red-500 hover:text-white disabled:bg-white/20 disabled:text-white/20 transition-colors">
+                {updateMutation.isPending ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-lg border border-white/5 overflow-hidden">
         <table className="w-full text-xs">
           <thead>
@@ -144,6 +204,12 @@ export function AdminDropsPage() {
                 <td className="px-4 py-3 text-white/60">{d.totalQty ?? '-'}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
+                    {d.status === 'SCHEDULED' && (
+                      <button onClick={() => openEdit(d)}
+                        className="text-white/20 hover:text-blue-400 transition-colors" title="수정">
+                        <Edit2 size={14} />
+                      </button>
+                    )}
                     {d.status === 'OPEN' && (
                       <button onClick={() => { if (confirm('드롭을 종료하시겠습니까?')) closeMutation.mutate(d.dropId) }}
                         className="text-white/30 hover:text-yellow-400 transition-colors" title="종료">
