@@ -33,6 +33,15 @@ const userData = new SharedArray('users', function () {
   return JSON.parse(open('./users.json'));
 });
 
+// 티켓 캐시 — ticket_cache.json이 있으면 로드, 없으면 null
+// run.sh의 ensure_ticket_cache()가 발급·갱신을 담당 (k6 컨텍스트 격리 문제로 k6에서 저장 불가)
+let ticketCache = null;
+try {
+  ticketCache = JSON.parse(open('./ticket_cache.json'));
+} catch (_) { /* 캐시 없음 — setup()에서 직접 발급 (run.sh 없이 실행한 경우) */ }
+
+const TICKET_TTL_SEC = 86400; // 서버 TTL과 동일 (24h)
+
 // =====================================================================
 // Smoke Test: 5명 × 1회 (스크립트/인증/라우팅 확인용)
 // 쿠폰은 1인 1발급 → 반복이 의미 없으므로 iteration 기반으로 실행
@@ -53,17 +62,17 @@ export const smokeOptions = {
 };
 
 // =====================================================================
-// Load Test: 1000명이 100 VU 동시로 쿠폰 발급 시도 (1인 1회)
-// - shared-iterations: 각 iteration = 독립 유저 1회 시도
+// Load Test: 100명이 동시에 쿠폰 발급 시도 (1인 1회) — 단일 인스턴스 능력치 측정
+// - vus:100, iterations:100 → 각 VU가 정확히 1회 = 100명 동시 도착
 // - iteration 기반 유저 순환 → 같은 유저 중복 요청 없음
-// - 쿠폰 100개: 먼저 온 100명 201, 나머지 900명 409
+// - 쿠폰 100개 준비 → 100명 전원 202 (재고=인원)
 // =====================================================================
 export const loadOptions = {
   scenarios: {
     coupon_load: {
       executor: 'shared-iterations',
       vus: 100,
-      iterations: 1000,
+      iterations: 100,
       maxDuration: '2m',
     },
   },
@@ -121,11 +130,27 @@ const baseOptions =
 
 export const options = { ...baseOptions, setupTimeout: '3m' };
 
-// setup(): 각 사용자 JWT로 AES 티켓을 미리 발급받아 반환
-// 부하 테스트 시 JWT 검증(ES256) 없이 AES 복호화로 처리 → Gateway CPU 절약
+// setup(): AES 티켓을 준비한 뒤 반환
+// 티켓은 userId+expiry만 포함 (couponId 없음) → 24시간 동안 어떤 쿠폰에도 재사용 가능
+// ticket_cache.json이 유효하면 즉시 재사용, 없거나 만료됐으면 새로 발급 후 저장
 export function setup() {
+  const now = Math.floor(Date.now() / 1000);
+
+  // 캐시 유효성 확인: 24시간 이내 + 유저 수 충분
+  if (ticketCache &&
+      ticketCache.tickets &&
+      ticketCache.tickets.length >= userData.length &&
+      (now - ticketCache.issued_at) < TICKET_TTL_SEC) {
+    const ageH = Math.round((now - ticketCache.issued_at) / 3600);
+    console.log(`[setup] 티켓 캐시 유효 (${ageH}시간 전 발급). 재발급 없이 바로 시작합니다.`);
+    return { tickets: ticketCache.tickets, tokens: userData.map(u => u.token) };
+  }
+
+  // 캐시 없음 또는 만료 — 새로 발급
+  const total = userData.length;
+  console.log(`[setup] 티켓 발급 시작 (총 ${total}명)...`);
   const tickets = [];
-  for (let i = 0; i < userData.length; i++) {
+  for (let i = 0; i < total; i++) {
     const u = userData[i];
     const res = http.post(
       `${BASE}/api/v1/coupons/${COUPON_ID}/ticket`,
@@ -139,15 +164,15 @@ export function setup() {
       }
     );
     if (res.status === 200) {
-      const body = JSON.parse(res.body);
-      tickets.push(body.data.ticket);
+      tickets.push(JSON.parse(res.body).data.ticket);
     } else {
-      // 티켓 발급 실패 시 JWT 토큰으로 폴백
       tickets.push(null);
     }
+    if ((i + 1) % 100 === 0) {
+      console.log(`[setup] 티켓 발급 중... ${i + 1}/${total}`);
+    }
   }
-  // 첫 라운드에만 60초 대기 — Gateway CPU 냉각 + 실제 이벤트 시나리오 재현
-  // load-repeat 시 2번째 라운드부터는 SKIP_SLEEP=true로 스킵
+
   if (__ENV.SKIP_SLEEP !== 'true') {
     console.log('[setup] AES 티켓 발급 완료. 60초 대기 후 부하 시작...');
     sleep(60);

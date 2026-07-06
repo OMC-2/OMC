@@ -5,6 +5,8 @@
 #   ./k6/run.sh coupon <command> [태그]
 #
 # Commands:
+#   load-start    부하 테스트용 최소 서비스만 기동 (CPU 절약)
+#   load-stop     모든 서비스 종료
 #   setup         유저 준비 + Sentry 비활성화 (개별 단계 실행 전 1회만)
 #   restore       Sentry 복원 (개별 단계 실행 모두 끝난 후)
 #   all [tag]     setup + 전체 단계 + restore (한 번에 전부)
@@ -150,6 +152,117 @@ create_coupon() {
       \"expiredAt\": \"2099-12-31T23:59:59\"
     }")
   echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['couponId'])" 2>/dev/null
+}
+
+# k6 setup()과 handleSummary()가 별도 JS 컨텍스트로 실행되어 모듈 변수를 공유할 수 없음.
+# 티켓 캐시(ticket_cache.json)를 bash+Python에서 직접 관리한다.
+ensure_ticket_cache() {
+  local coupon_id=${1:-00000000-0000-0000-0000-000000000001}
+  local cache_file="$SCRIPT_DIR/ticket_cache.json"
+  local ttl=86400
+  local now
+  now=$(date +%s)
+
+  if [ -f "$cache_file" ]; then
+    local issued_at count age
+    issued_at=$(python3 -c "import json; print(json.load(open('$cache_file'))['issued_at'])" 2>/dev/null || echo 0)
+    count=$(python3 -c "import json; print(len(json.load(open('$cache_file'))['tickets']))" 2>/dev/null || echo 0)
+    age=$(( now - issued_at ))
+    if [ "$age" -lt "$ttl" ] && [ "$count" -ge "$USER_COUNT" ]; then
+      log "  ✅ 티켓 캐시 유효 ($(( age / 3600 ))시간 전 발급, ${count}개)"
+      return 0
+    fi
+    log "  ⚠️  티켓 캐시 만료 또는 부족 — 재발급 중..."
+  else
+    log "  ℹ️  티켓 캐시 없음 — 발급 중..."
+  fi
+
+  python3 - "$cache_file" "$SCRIPT_DIR/users.json" "$BASE_URL" "$GATEWAY_SECRET" "$coupon_id" "$USER_COUNT" <<'PYEOF'
+import json, sys, time
+import urllib.request
+
+cache_file, users_file, base_url, gateway_secret, coupon_id, user_count = sys.argv[1:7]
+user_count = int(user_count)
+users = json.load(open(users_file))[:user_count]
+tickets = []
+success = 0
+
+for i, user in enumerate(users):
+    req = urllib.request.Request(
+        f'{base_url}/api/v1/coupons/{coupon_id}/ticket',
+        method='POST',
+        headers={
+            'Authorization': f'Bearer {user["token"]}',
+            'X-Gateway-Secret': gateway_secret,
+            'Content-Type': 'application/json',
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            tickets.append(data['data']['ticket'])
+            success += 1
+    except Exception:
+        tickets.append(None)
+    if (i + 1) % 100 == 0:
+        print(f'  티켓 발급 중... {i+1}/{user_count}', flush=True)
+
+cache = {'issued_at': int(time.time()), 'tickets': tickets}
+json.dump(cache, open(cache_file, 'w'), indent=2)
+print(f'  ✅ 티켓 발급 완료: {success}/{user_count}개')
+PYEOF
+}
+
+warmup_gateway_ticket_path() {
+  local warmup_qty=2000
+  local warmup_rounds=2   # 티켓 1000개짜리 2라운드 = 2000회 요청
+  log "▶ Gateway JIT 워밍업 — AES 복호화 경로 (${warmup_qty}회)"
+
+  # 워밍업 전용 쿠폰 생성
+  local warmup_coupon_id
+  warmup_coupon_id=$(create_coupon "$warmup_qty" "[JIT-Warmup] Gateway AES path")
+  if [ -z "$warmup_coupon_id" ]; then
+    log "  ⚠️  워밍업 쿠폰 생성 실패 — 스킵"
+    return 0
+  fi
+  log "  워밍업 쿠폰: $warmup_coupon_id (재고 ${warmup_qty}개)"
+
+  wait_gateway_route
+
+  # 티켓은 userId만 담긴 구조라 coupon_id 무관하게 재사용 가능
+  ensure_ticket_cache "$warmup_coupon_id"
+
+  log "  POST /api/v1/coupons/{id}/issue + X-Coupon-Ticket 경로 ${warmup_qty}회 워밍업 중 (동시 50)..."
+  python3 - "$SCRIPT_DIR/ticket_cache.json" "$warmup_coupon_id" "$BASE_URL" "$warmup_rounds" <<'PYEOF'
+import json, sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import urllib.request
+
+cache_file, coupon_id, base_url, rounds_str = sys.argv[1:5]
+rounds = int(rounds_str)
+tickets = [t for t in json.load(open(cache_file))['tickets'] if t]
+all_tickets = (tickets * rounds)[:len(tickets) * rounds]
+url = f'{base_url}/api/v1/coupons/{coupon_id}/issue'
+
+def fire(ticket):
+    req = urllib.request.Request(url, method='POST', headers={'X-Coupon-Ticket': ticket})
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except Exception:
+        pass
+
+done = 0
+total = len(all_tickets)
+with ThreadPoolExecutor(max_workers=50) as ex:
+    futs = [ex.submit(fire, t) for t in all_tickets]
+    for _ in as_completed(futs):
+        done += 1
+        if done % 500 == 0:
+            print(f'  JIT 워밍업 진행: {done}/{total}', flush=True)
+print(f'  ✅ Gateway AES 경로 JIT 워밍업 완료 ({done}회 요청)')
+PYEOF
+  log "  ✅ Gateway JIT 워밍업 완료"
 }
 
 verify_and_save() {
@@ -428,7 +541,7 @@ run_stage() {
       ;;
     load)
       purpose="정상 부하 기준 응답시간 측정 (개선 전/후 비교 기준점)"
-      vu_desc="0 → 100명 ramp-up → 1분 유지 → 0명"
+      vu_desc="1000명 동시 도착 (1인 1회, 총 1000회 요청)"
       duration="약 2분"
       ;;
     stress-*)
@@ -465,6 +578,9 @@ run_stage() {
   # k6 실행 전 게이트웨이 경로 대기
   wait_gateway_route
 
+  # 티켓 캐시 확인/갱신 (bash에서 관리 — k6 컨텍스트 격리 우회)
+  ensure_ticket_cache "$coupon_id"
+
   # k6 실행 — load-round-* 는 k6 SCENARIO=load 로 변환
   local k6_scenario="$stage"
   if [[ "$stage" == load-round-* ]]; then
@@ -485,6 +601,8 @@ run_stage() {
       "$SCRIPT_DIR/03-coupon-issue.js" || k6_exit=$?
   else
     k6 run \
+      --vus 1000 \
+      --iterations 1000 \
       --env SCENARIO="$k6_scenario" \
       --env COUPON_ID="$coupon_id" \
       --env BASE_URL="$BASE_URL" \
@@ -516,6 +634,40 @@ run_stage() {
   fi
 
   return 0
+}
+
+# ============================================================
+# 인프라 제어 — 부하 테스트용 최소 서비스만 기동
+# ============================================================
+load_infra_start() {
+  echo ""
+  echo "=========================================="
+  log "  [load-start] 부하 테스트용 서비스 기동"
+  echo "  시작: gateway + coupon-service + 필수 인프라"
+  echo "        (keycloak, postgres, redis, kafka, zookeeper, eureka, config)"
+  echo "  스킵: user/drop/order/product/payment/raffle/notification"
+  echo "        zipkin/prometheus/grafana/loki/promtail"
+  echo "        kafka-ui/kafka-rest-proxy/toss-wiremock"
+  echo "=========================================="
+  echo ""
+
+  log "▶ 기존 실행 중인 서비스 모두 중지..."
+  $COMPOSE down
+
+  log "▶ 필수 서비스만 기동 중 (compose가 의존성 자동 해결)..."
+  $COMPOSE up -d gateway coupon-service
+
+  echo ""
+  log "  ✅ 기동 명령 완료"
+  log "  ⏳ keycloak 초기화 + gateway 헬스체크 통과까지 최대 2분 소요됩니다"
+  log "  ℹ️  준비 확인: curl -s http://localhost:8080/actuator/health"
+}
+
+load_infra_stop() {
+  echo ""
+  log "▶ [load-stop] 모든 서비스 종료..."
+  $COMPOSE down
+  log "  ✅ 종료 완료"
 }
 
 # ============================================================
@@ -603,12 +755,40 @@ coupon_run_stage() {
         rounds=$LOAD_REPEAT
       fi
       log "▶ load-repeat: ${rounds}회 반복 (쿠폰 ${COUPON_LOAD_QTY}개 × ${rounds}회)"
+
+      # Gateway AES 복호화 경로 JIT 워밍업 (기존 warmup은 GET/JWT 경로만 워밍업해서 미적용)
+      warmup_gateway_ticket_path
+
+      # [격리] 부하 중 keycloak 중지로 CPU(~226%) 회수.
+      #  - 발급 버스트는 X-Coupon-Ticket AES 복호화 경로 → keycloak 불필요
+      #  - create_coupon은 coupon-service 직접 호출(X-Gateway-Secret), ensure_ticket_cache는
+      #    캐시 유효 시 keycloak 미사용 → warmup 통과 시점엔 안전
+      #  - 중단/종료 시 반드시 복구 (EXIT trap)
+      trap '$COMPOSE start keycloak >/dev/null 2>&1 || true' EXIT
+      log "  ▶ [격리] 부하 중 keycloak 중지 (AES 경로 무관 → ~226% 회수)"
+      $COMPOSE stop keycloak >/dev/null 2>&1 || true
+
       SKIP_SETUP_SLEEP=false
       for i in $(seq 1 "$rounds"); do
         log "  ▶ round ${i}/${rounds}"
+        # 각 라운드 직전 coupon-service 힙 강제 청소
+        # → 누적 워밍업 객체가 burst 중 GC 트리거를 당기는 것을 방지
+        log "  🧹 GC 힙 청소 중..."
+        curl -s -X POST http://localhost:8087/actuator/forcegc >/dev/null 2>&1 || true
+        sleep 2  # ZGC concurrent phase 완료 대기
+        log "  ✅ GC 완료"
         run_stage "load-round-${i}" "$COUPON_LOAD_QTY" || true
         SKIP_SETUP_SLEEP=true
+        # 라운드 간 cooldown: 직전 세일의 GC 여파가 다음 세일로 번지지 않도록
+        if [ "$i" -lt "$rounds" ]; then
+          log "  ⏳ cooldown 12초 (GC 여파 분리 → 다음 세일 깨끗한 힙에서 출발)"
+          sleep 12
+        fi
       done
+
+      log "  ▶ keycloak 복구..."
+      $COMPOSE start keycloak >/dev/null 2>&1 || true
+      trap - EXIT
       ;;
     stress-200)   run_stage "stress-200"  $COUPON_STRESS_QTY  200  || true ;;
     stress-400)   run_stage "stress-400"  $COUPON_STRESS_QTY  400  || true ;;
@@ -675,21 +855,25 @@ coupon_all() {
 case "$SCENARIO_TYPE" in
   coupon)
     case "$COMMAND" in
-      setup)   coupon_setup ;;
-      restore) sentry_restore ;;
-      all)     coupon_all ;;
+      setup)      coupon_setup ;;
+      restore)    sentry_restore ;;
+      all)        coupon_all ;;
+      load-start) load_infra_start ;;
+      load-stop)  load_infra_stop ;;
       smoke|load|load-repeat|stress-200|stress-400|stress-600|stress-800|stress-1000|spike)
                coupon_run_stage "$COMMAND" ;;
       "")
         echo "사용법: ./k6/run.sh coupon <command> [태그]"
         echo ""
         echo "Commands:"
+        echo "  load-start        부하 테스트용 최소 서비스만 기동 (CPU 절약)"
+        echo "  load-stop         모든 서비스 종료"
         echo "  setup             유저 준비 + Sentry 비활성화 (개별 실행 전 1회)"
         echo "  restore           Sentry 복원 (개별 실행 모두 끝난 후)"
         echo "  all [태그]        setup + 전체 단계 + restore"
         echo "  smoke [태그]      smoke 단계만"
         echo "  load [태그]       load 단계만"
-  echo "  load-repeat [N] [태그]  load N회 반복 (기본 LOAD_REPEAT=${LOAD_REPEAT}회, 매 회차 새 쿠폰)"
+        echo "  load-repeat [N] [태그]  load N회 반복 (기본 LOAD_REPEAT=${LOAD_REPEAT}회, 매 회차 새 쿠폰)"
         echo "  stress-200 [태그] stress 200VU만"
         echo "  stress-400 [태그] stress 400VU만"
         echo "  stress-600 [태그] stress 600VU만"

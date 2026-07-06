@@ -4,6 +4,7 @@ services:
     build:
       context: ./services/eureka-server
     container_name: omc-eureka-server
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
     ports:
       - "8761:8761"
     environment:
@@ -26,6 +27,7 @@ services:
     build:
       context: ./services/config-server
     container_name: omc-config-server
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
     ports:
       - "8888:8888"
     environment:
@@ -51,6 +53,7 @@ services:
     build:
       context: ./services/gateway
     container_name: omc-gateway
+    cpuset: "4-5"        # [격리] hot 서비스 전용 코어 (coupon 0-3과 분리, infra 6-7과 분리)
     ports:
       - "8080:8080"
     environment:
@@ -63,8 +66,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SENTRY_DSN: ${SENTRY_DSN:-}
-      JAVA_TOOL_OPTIONS: "-XX:+UseZGC -XX:+ZGenerational -XX:ConcGCThreads=1 -XX:MaxRAMPercentage=70.0 -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m"
+      JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -Xmx1300m -Xms256m -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m"
       TRACING_SAMPLING_PROBABILITY: "0.0"
+      MANAGEMENT_TRACING_ENABLED: "false"   # 샘플링 0으로는 Observation 객체 생성이 안 멈춤 → 트레이싱 자체 비활성으로 hot path 할당 제거
     depends_on:
       config-server:
         condition: service_healthy
@@ -335,6 +339,7 @@ services:
     build:
       context: ./services/coupon-service
     container_name: omc-coupon-service
+    cpuset: "0-3"        # [격리] hot 서비스 전용 코어 (가장 큰 CPU 소비처 → 4코어 배정)
     ports:
       - "8087:8087"
     environment:
@@ -350,7 +355,9 @@ services:
       GATEWAY_SECRET: local-secret
       COUPON_TICKET_AES_KEY: ${COUPON_TICKET_AES_KEY:-Y291cG9uLXRpY2tldC1hZXMtMjU2LXNlY3JldC1rZXk=}
       SENTRY_DSN: ${SENTRY_DSN:-}
-      JAVA_TOOL_OPTIONS: "-XX:+UseZGC -XX:+ZGenerational -XX:ConcGCThreads=1 -XX:MaxRAMPercentage=80.0 -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m -Djdk.tracePinnedThreads=full"
+      KAFKA_MAX_POLL_RECORDS: "50"
+      SPRING_KAFKA_LISTENER_CONCURRENCY: "3"
+      JAVA_TOOL_OPTIONS: "-XX:+UseZGC -XX:+ZGenerational -XX:ConcGCThreads=2 -XX:-ZProactive -Xmx1200m -Xms512m -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m -Djdk.tracePinnedThreads=full"
       TRACING_SAMPLING_PROBABILITY: "0.0"
       MANAGEMENT_TRACING_ENABLED: "false"
     depends_on:
@@ -393,6 +400,7 @@ services:
       USER_SERVICE_URL: http://user-service:8081
       SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      JAVA_TOOL_OPTIONS: "-XX:+UseZGC -XX:+ZGenerational -XX:ConcGCThreads=2 -Xmx512m -Xms128m"
     depends_on:
       config-server:
         condition: service_healthy
@@ -411,7 +419,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 1G
 
 networks:
   omc-network:

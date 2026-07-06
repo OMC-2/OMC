@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: omc-postgres
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
     environment:
       POSTGRES_USER: omc
       POSTGRES_PASSWORD: password
@@ -25,6 +26,7 @@ services:
   redis:
     image: redis:7.2-alpine
     container_name: omc-redis
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
     ports:
       - "6379:6379"
     volumes:
@@ -42,6 +44,8 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: omc-zookeeper
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
+    init: true
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -55,6 +59,8 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: omc-kafka
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
+    init: true
     depends_on:
       - zookeeper
     ports:
@@ -68,6 +74,8 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+      KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS: "60000"
+      KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: "30000"
     restart: on-failure
     networks:
       - omc-network
@@ -118,6 +126,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
     container_name: omc-keycloak
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리 (부하 중엔 run.sh가 stop)
     command: start-dev --import-realm --cache=local
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
