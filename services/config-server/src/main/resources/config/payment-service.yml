@@ -89,6 +89,12 @@ payment:
     fixed-delay-ms: 30000
     batch-size: 100
     max-retry-count: 3
+  expiration:
+    enabled: true
+    initial-delay-ms: 60000
+    fixed-delay-ms: 30000
+    batch-size: 100
+    ttl-ms: 300000
 
 resilience4j:
   retry:
