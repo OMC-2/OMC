@@ -179,7 +179,7 @@ export function RaffleDetailPage() {
               <p className="text-xs font-black tracking-wider text-green-700">응모 완료</p>
               {myResult.result && (
                 <p className="mt-1 text-xs text-green-600">
-                  결과: {myResult.result === 'WIN' ? '당첨!' : '아쉽게 탈락'}
+                  결과: {myResult.result === 'WINNER' ? '🎉 당첨!' : myResult.result === 'LOSER' ? '아쉽게 탈락' : '집계 중'}
                 </p>
               )}
             </div>
@@ -196,59 +196,55 @@ export function RaffleDetailPage() {
             <div className="border border-gray-200 p-6 space-y-4">
               <p className="text-xs font-black tracking-widest text-gray-900">APPLY</p>
               {productLoading && <p className="text-xs text-gray-400">상품 정보 로딩 중...</p>}
-              {price > 0 && (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">
-                      빌링키 ID <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="등록된 결제 수단 ID"
-                      value={billingKeyId}
-                      onChange={e => setBillingKeyId(e.target.value)}
-                      className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1">상품 금액 (원)</label>
-                      <input
-                        type="number"
-                        value={originalAmount}
-                        onChange={e => setOriginalAmount(e.target.value)}
-                        className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1">할인 금액 (원)</label>
-                      <input
-                        type="number"
-                        value={discountAmount}
-                        onChange={e => setDiscountAmount(e.target.value)}
-                        className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-between border-t pt-3 text-xs">
-                    <span className="text-gray-500 font-bold tracking-wide">최종 결제 예정</span>
-                    <span className="font-black text-gray-900">{finalAmount.toLocaleString()}원</span>
-                  </div>
-                </>
-              )}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">
+                  빌링키 ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="등록된 결제 수단 ID"
+                  value={billingKeyId}
+                  onChange={e => setBillingKeyId(e.target.value)}
+                  className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">상품 금액 (원)</label>
+                  <input
+                    type="number"
+                    value={originalAmount}
+                    onChange={e => setOriginalAmount(e.target.value)}
+                    className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">할인 금액 (원)</label>
+                  <input
+                    type="number"
+                    value={discountAmount}
+                    onChange={e => setDiscountAmount(e.target.value)}
+                    className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between border-t pt-3 text-xs">
+                <span className="text-gray-500 font-bold tracking-wide">최종 결제 예정</span>
+                <span className="font-black text-gray-900">{finalAmount.toLocaleString()}원</span>
+              </div>
               {productError && (
                 <div className="bg-yellow-50 border border-yellow-200 px-4 py-3 text-xs text-yellow-700">
                   상품 정보를 불러올 수 없습니다. 래플 데이터를 확인해주세요.
                 </div>
               )}
               <button
-                disabled={entryMutation.isPending || productLoading || !!productError || (price > 0 && !billingKeyId.trim())}
+                disabled={entryMutation.isPending || productLoading || !!productError || !billingKeyId.trim()}
                 onClick={() => entryMutation.mutate()}
                 className="w-full bg-black py-4 text-xs font-black tracking-[0.2em] text-white hover:bg-red-500 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
               >
                 {entryMutation.isPending ? '응모 중...' : productLoading ? '로딩 중...' : productError ? '상품 오류' : 'ENTER RAFFLE'}
               </button>
-              {price > 0 && !billingKeyId.trim() && !productError && (
+              {!billingKeyId.trim() && !productError && (
                 <p className="text-[10px] text-red-400 text-center">
                   빌링키 없음 —{' '}
                   <a href="/mypage" className="underline">마이페이지</a>에서 카드 등록 후 응모하세요

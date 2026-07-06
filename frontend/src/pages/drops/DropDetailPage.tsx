@@ -17,6 +17,7 @@ export function DropDetailPage() {
     queryKey: ['drop', dropId],
     queryFn: () => dropsApi.getById(dropId!),
     enabled: !!dropId,
+    refetchInterval: 5000, // 5초마다 잔여 수량 갱신
   })
   const drop = dropData?.data?.data
 
@@ -65,10 +66,36 @@ export function DropDetailPage() {
           <p className="text-4xl font-black">{formatPrice(price)}</p>
           {description && <p className="text-sm text-gray-500 leading-relaxed">{description}</p>}
           <div className="space-y-3 border border-gray-100 p-5">
-            <div className="flex justify-between text-xs">
-              <span className="flex items-center gap-1.5 font-bold tracking-wide text-gray-400"><Package size={12} />TOTAL QTY</span>
-              <span className="font-black">{drop.totalQty}개</span>
-            </div>
+            {(() => {
+              const remaining = drop.remainingQty ?? drop.availableQuantity ?? drop.stockQty
+              const total = drop.totalQty ?? 0
+              const soldPct = remaining != null && total > 0
+                ? Math.round(((total - remaining) / total) * 100) : null
+              return (
+                <>
+                  <div className="flex justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-bold tracking-wide text-gray-400"><Package size={12} />REMAINING</span>
+                    <span className={`font-black ${remaining === 0 ? 'text-red-500' : soldPct != null && soldPct > 80 ? 'text-orange-500' : ''}`}>
+                      {remaining != null ? `${remaining}개` : `${total}개`}
+                      {remaining != null && <span className="text-gray-300 font-normal ml-1">/ {total}개</span>}
+                    </span>
+                  </div>
+                  {soldPct != null && (
+                    <div>
+                      <div className="h-1 bg-gray-100 overflow-hidden">
+                        <div
+                          className={`h-full transition-all ${remaining === 0 ? 'bg-gray-300' : soldPct > 80 ? 'bg-red-500' : 'bg-black'}`}
+                          style={{ width: `${100 - soldPct}%` }}
+                        />
+                      </div>
+                      {soldPct > 80 && remaining! > 0 && (
+                        <p className="text-[10px] text-red-500 font-bold mt-1">마감 임박! {remaining}개 남음</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
             {drop.startAt && (
               <div className="flex justify-between text-xs">
                 <span className="flex items-center gap-1.5 font-bold tracking-wide text-gray-400"><Clock size={12} />START</span>

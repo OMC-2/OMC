@@ -19,6 +19,7 @@ import { DropDetailPage } from './pages/drops/DropDetailPage'
 import { RafflesPage } from './pages/raffles/RafflesPage'
 import { RaffleDetailPage } from './pages/raffles/RaffleDetailPage'
 import { RaffleWinnersPage } from './pages/raffles/RaffleWinnersPage'
+import { CouponsPage } from './pages/coupons/CouponsPage'
 import { OrdersPage } from './pages/orders/OrdersPage'
 import { OrderDetailPage } from './pages/orders/OrderDetailPage'
 import { MyPage } from './pages/mypage/MyPage'
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/raffles" element={<RafflesPage />} />
         <Route path="/raffles/:raffleId" element={<RaffleDetailPage />} />
         <Route path="/raffles/:raffleId/winners" element={<RaffleWinnersPage />} />
+        <Route path="/coupons" element={<CouponsPage />} />
         <Route path="/orders" element={<RequireAuth><OrdersPage /></RequireAuth>} />
         <Route path="/orders/:orderId" element={<RequireAuth><OrderDetailPage /></RequireAuth>} />
         <Route path="/mypage" element={<RequireAuth><MyPage /></RequireAuth>} />

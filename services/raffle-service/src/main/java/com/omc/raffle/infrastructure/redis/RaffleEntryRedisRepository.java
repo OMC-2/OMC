@@ -31,18 +31,9 @@ public class RaffleEntryRedisRepository {
         String key = buildKey(raffleId);
         try {
             Long result = redisTemplate.opsForSet().add(key, userId.toString());
-            boolean isAdded = result != null && result > 0L;
-            if (isAdded) {
-                Long expire = redisTemplate.getExpire(key);
-                if (expire == null || expire < 0) {
-                    // 래플 중복 방지 데이터가 영구적으로 쌓이는 것을 방지하기 위해 7일 TTL 설정 (최초 생성 시에만)
-                    redisTemplate.expire(key, 7, java.util.concurrent.TimeUnit.DAYS);
-                }
-            }
-            return isAdded;
+            return result != null && result > 0L;
         } catch (Exception e) {
             log.error("[Redis Error] 중복 검증 중 오류 발생: {}", e.getMessage());
-            // Redis 장애 시 안전하게 실패하도록 하거나, DB 조회로 Fallback 할 수 있습니다.
             throw new com.omc.raffle.domain.exception.RedisOperationException(com.omc.raffle.domain.enums.RaffleErrorCode.RAFFLE_008, "Redis 서버 연동 오류");
         }
     }

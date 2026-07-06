@@ -12,6 +12,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface RaffleRepository extends JpaRepository<Raffle, UUID> {
+    @org.springframework.cache.annotation.Cacheable(cacheNames = "raffle", key = "#id")
+    Optional<Raffle> findById(UUID id);
     // 추첨 스케줄러용: 종료 시간이 지났고 상태가 OPEN인 래플 목록 조회
     List<Raffle> findAllByStatusAndEndedAtBefore(RaffleStatus status, LocalDateTime now);
 
