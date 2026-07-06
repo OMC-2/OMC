@@ -222,6 +222,15 @@ public class Order extends BaseEntity implements Persistable<UUID> {
     this.cancelReason = reason;
   }
 
+  //[환불 완료] REFUND_REQUESTED -> REFUNDED (payment refund.done 수신, PG 취소 완료)
+  public void markRefunded() {
+    if (this.status != OrderStatus.REFUND_REQUESTED) {
+      throw new OrderStateException(OrderErrorCode.INVALID_ORDER_STATE);
+    }
+    this.status = OrderStatus.REFUNDED;
+    this.refundedAt = LocalDateTime.now();
+  }
+
 
   //[배송 시작] CONFIRMED -> SHIPPING (배송 스케줄러)
   public void startShipping() {

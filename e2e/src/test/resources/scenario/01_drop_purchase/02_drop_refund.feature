@@ -154,11 +154,11 @@ Feature: [시나리오] 선착순 드롭 환불 (구매→결제→확정→환�
 
     # STEP 7: 환불 알림(ORDER_REFUNDED) 수신 확인
     * configure retry = { count: 30, interval: 2000 }
-    * retry until karate.filter(response.data.content, function(n){ return n.notificationType == 'ORDER_REFUNDED' }).length > 0
+    * retry until karate.filter(response.data.content, function(n){ return n.notificationType == 'REFUND_COMPLETED' }).length > 0
     Given path '/api/v1/notifications'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userToken
     When method get
     Then status 200
-    * def refundNotifications = karate.filter(response.data.content, function(n){ return n.notificationType == 'ORDER_REFUNDED' })
+    * def refundNotifications = karate.filter(response.data.content, function(n){ return n.notificationType == 'REFUND_COMPLETED' })
     And assert refundNotifications.length > 0
