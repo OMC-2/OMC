@@ -1,6 +1,5 @@
 package com.omc.product.integration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.entity.Product;
 import com.omc.product.domain.repository.InventoryRepository;
@@ -173,6 +172,25 @@ class ProductCrudIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk());
 
         assertThat(productRepository.findById(product.getProductId())).isEmpty();
+    }
+
+    @Test
+    void 진행중_드롭_있으면_상품_삭제_409() throws Exception {
+        Product product = Product.create("Switch 2", "설명", 689000L,
+                "Nintendo", "게이밍 기기", null);
+        productRepository.save(product);
+        Inventory inventory = Inventory.create(product.getProductId(), 10);
+        inventoryRepository.save(inventory);
+        stubHasActiveDrop(product.getProductId(), true);
+
+        mockMvc.perform(delete("/api/v1/admin/products/{productId}", product.getProductId())
+                        .header("X-Gateway-Secret", GW_SECRET)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ADMIN"))
+                .andExpect(status().isConflict());
+
+        // 삭제되지 않고 그대로 남아있어야 함
+        assertThat(productRepository.findById(product.getProductId())).isPresent();
     }
 
     @Test
