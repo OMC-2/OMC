@@ -116,6 +116,10 @@ const CACHE_REPEAT = parseInt(__ENV.CACHE_REPEAT || '20', 10);
 // 커스텀 메트릭
 const purchaseDuration  = new Trend('purchase_duration_ms');
 const purchaseSuccess   = new Rate('purchase_success_rate');
+const status202         = new Counter('status_202');
+const status409         = new Counter('status_409');
+const status429         = new Counter('status_429');
+const statusUnexpected  = new Counter('status_unexpected');
 const stockSentCount    = new Counter('stock_event_sent_count');
 const duplicateSuccessCount  = new Counter('duplicate_success_count');   // 202 (선점 성공) — 정확히 1이어야 함
 const duplicateRejectedCount = new Counter('duplicate_rejected_count');  // 409 + DROP-005 (중복 구매 차단)
@@ -238,17 +242,22 @@ function runPurchase(data) {
 
   const res = http.post(`${BASE}/api/v1/drops/${DROP_ID}/purchase`, null, params);
 
-  const ok = check(res, {
-    '202 Accepted (선점 성공)': (r) => r.status === 202,
-    '409 Conflict (재고 소진 — 정상 비즈니스 응답)': (r) => r.status === 409,
-    '429 Too Many Requests (Rate Limiter 차단 — 정상 방어)': (r) => r.status === 429,
+  check(res, {
+    '정상 응답 (202/409/429)': (r) => [202, 409, 429].includes(r.status),
   });
 
-  // 202(선점 성공)만 성공률로 집계. 409/429는 정상 비즈니스 차단이므로 실패 아님.
-  purchaseSuccess.add(res.status === 202);
-  if (res.status >= 500) {
-    console.warn(`[purchase] 5xx 오류: status=${res.status}, body=${res.body}`);
+  if (res.status === 202) {
+    status202.add(1);
+  } else if (res.status === 409) {
+    status409.add(1);
+  } else if (res.status === 429) {
+    status429.add(1);
+  } else {
+    statusUnexpected.add(1);
+    console.warn(`[purchase] unexpected status=${res.status}, body=${res.body}`);
   }
+
+  purchaseSuccess.add(res.status === 202);
   purchaseDuration.add(res.timings.duration);
 }
 
