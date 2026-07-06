@@ -61,41 +61,46 @@ public class CouponService {
     }
 
     public void issueCoupon(UUID couponId, UUID userId) {
+        // UUID -> String 변환 캐싱 (요청당 단 1회만 변환하여 GC 압박 극단적 감소)
+        String couponIdStr = couponId.toString();
+        String userIdStr = userId.toString();
+
         CouponCacheDto couponDto = findCouponDto(couponId);
 
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
-        if (couponDto.getExpiredAt().isBefore(now)) {
+        // System.currentTimeMillis() 기반 무객체(No-Object) 시간 검증
+        long nowMillis = System.currentTimeMillis();
+        if (couponDto.getExpiredAtMillis() < nowMillis) {
             throw new BusinessException(CouponErrorCode.COUPON_EXPIRED);
         }
-        if (couponDto.getStartedAt().isAfter(now)) {
+        if (couponDto.getStartedAtMillis() > nowMillis) {
             throw new BusinessException(CouponErrorCode.COUPON_NOT_STARTED);
         }
 
         // 인메모리 CAS 기반 재고 차감 + 중복 확인 (Redis 왕복 없음)
         // -3: LocalStore 미초기화 → Redis Lua fallback
-        long result = couponLocalStore.tryIssue(couponId.toString(), userId.toString());
+        long result = couponLocalStore.tryIssue(couponIdStr, userIdStr);
         if (result == -3) {
             result = couponMetrics.recordRedisDuration(
-                    couponId.toString(),
-                    () -> couponRedisRepository.tryIssueWithStockCheck(couponId.toString(), userId.toString())
+                    couponIdStr,
+                    () -> couponRedisRepository.tryIssueWithStockCheck(couponIdStr, userIdStr)
             );
             if (result == -3) {
                 couponStockRecoveryService.syncCouponStock(couponId);
-                result = couponRedisRepository.tryIssue(couponId.toString(), userId.toString());
+                result = couponRedisRepository.tryIssue(couponIdStr, userIdStr);
             }
         }
         if (result == -2) {
-            couponMetrics.incrementDuplicate(couponId.toString());
+            couponMetrics.incrementDuplicate(couponIdStr);
             throw new CouponAlreadyIssuedException();
         }
         if (result == -1) {
-            couponMetrics.incrementOutOfStock(couponId.toString());
+            couponMetrics.incrementOutOfStock(couponIdStr);
             throw new CouponOutOfStockException();
         }
 
         couponIssueProducer.publish(couponId, userId); // 비동기 발행 — 실패 시 whenComplete에서 Redis 롤백
 
-        couponMetrics.incrementIssueSuccess(couponId.toString());
+        couponMetrics.incrementIssueSuccess(couponIdStr);
     }
 
     @Transactional(readOnly = true)

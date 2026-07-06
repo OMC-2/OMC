@@ -12,7 +12,6 @@ import java.util.UUID;
 
 @Getter
 @NoArgsConstructor
-@AllArgsConstructor
 public class CouponCacheDto {
 
     private UUID couponId;
@@ -23,6 +22,21 @@ public class CouponCacheDto {
     private int totalQuantity;
     private LocalDateTime startedAt;
     private LocalDateTime expiredAt;
+
+    private transient volatile Long startedAtMillisCached;
+    private transient volatile Long expiredAtMillisCached;
+
+    public CouponCacheDto(UUID couponId, String name, DiscountType discountType, BigDecimal discountValue,
+                          BigDecimal maxDiscountAmount, int totalQuantity, LocalDateTime startedAt, LocalDateTime expiredAt) {
+        this.couponId = couponId;
+        this.name = name;
+        this.discountType = discountType;
+        this.discountValue = discountValue;
+        this.maxDiscountAmount = maxDiscountAmount;
+        this.totalQuantity = totalQuantity;
+        this.startedAt = startedAt;
+        this.expiredAt = expiredAt;
+    }
 
     public static CouponCacheDto from(Coupon coupon) {
         return new CouponCacheDto(
@@ -37,9 +51,22 @@ public class CouponCacheDto {
         );
     }
 
-    // 날짜 유효성만 검사 — 재고는 Redis DECR이 실질적으로 제어
-    public boolean isDateValid() {
-        LocalDateTime now = LocalDateTime.now();
-        return !now.isBefore(startedAt) && now.isBefore(expiredAt);
+    public long getStartedAtMillis() {
+        if (startedAtMillisCached == null) {
+            startedAtMillisCached = startedAt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        }
+        return startedAtMillisCached;
+    }
+
+    public long getExpiredAtMillis() {
+        if (expiredAtMillisCached == null) {
+            expiredAtMillisCached = expiredAt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        }
+        return expiredAtMillisCached;
+    }
+
+    // 날짜 유효성 검사 (System.currentTimeMillis() 기반 무객체 비교 가능)
+    public boolean isDateValid(long nowMillis) {
+        return nowMillis >= getStartedAtMillis() && nowMillis < getExpiredAtMillis();
     }
 }

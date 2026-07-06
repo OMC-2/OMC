@@ -1,5 +1,8 @@
 server:
   port: 8087
+  tomcat:
+    accept-count: 2000
+    max-connections: 2000
 
 spring:
   datasource:
@@ -63,4 +66,4 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,forcegc

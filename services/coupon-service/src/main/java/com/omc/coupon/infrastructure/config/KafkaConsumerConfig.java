@@ -53,7 +53,8 @@ public class KafkaConsumerConfig {
     public ConcurrentKafkaListenerContainerFactory<Object, Object> kafkaListenerContainerFactory(
             ConsumerFactory<Object, Object> consumerFactory,
             CommonErrorHandler kafkaCommonErrorHandler,
-            @Value("${spring.kafka.listener.concurrency:3}") int concurrency
+            @Value("${spring.kafka.listener.concurrency:3}") int concurrency,
+            @Value("${KAFKA_IDLE_BETWEEN_POLLS_MS:0}") long idleBetweenPollsMs
     ) {
         ConcurrentKafkaListenerContainerFactory<Object, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
@@ -64,6 +65,12 @@ public class KafkaConsumerConfig {
 
         // MANUAL_IMMEDIATE: listener 내부에서 acknowledge() 호출 시점에 바로 offset 커밋
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+
+        // poll 사이 딜레이 — 부하 테스트 시 힙 압박 완화용 (기본 0 = 비활성)
+        if (idleBetweenPollsMs > 0) {
+            factory.getContainerProperties().setIdleBetweenPolls(idleBetweenPollsMs);
+        }
+
         return factory;
     }
 

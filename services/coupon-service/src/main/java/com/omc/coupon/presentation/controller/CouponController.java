@@ -58,7 +58,7 @@ public class CouponController {
     public ApiResponse<CouponTicketResponse> issueTicket(@PathVariable UUID couponId) {
         UUID userId = SecurityUtil.getCurrentUserId()
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
-        String ticket = couponTicketService.issueTicket(userId, couponId);
+        String ticket = couponTicketService.issueTicket(userId);
         return ApiResponse.success(new CouponTicketResponse(ticket));
     }
 

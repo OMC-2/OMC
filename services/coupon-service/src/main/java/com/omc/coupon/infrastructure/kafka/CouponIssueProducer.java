@@ -55,23 +55,32 @@ public class CouponIssueProducer {
         running = false;
     }
 
+    // 응답(202) 경로에서는 큐에 offer만 한다.
+    // JSON 직렬화·이벤트 객체·LocalDateTime 생성은 전부 sender 스레드로 오프로드 →
+    // 요청 스레드의 요청당 할당을 최소화(작은 record 1개) → GC 압박↓ → 버스트 중 GC 빈도↓.
+    // requestedAt은 다운스트림(Writer)이 자체 now를 쓰므로 미사용 → 발송 시각으로 채워도 무방.
     public void publish(UUID couponId, UUID userId) {
-        CouponIssueRequestedEvent event = new CouponIssueRequestedEvent(couponId, userId, LocalDateTime.now());
-        String payload;
-        try {
-            payload = objectMapper.writeValueAsString(event);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("CouponIssueRequestedEvent 직렬화 실패", e);
-        }
-
-        if (!queue.offer(new CouponIssueTask(couponId, userId, payload))) {
+        if (!queue.offer(new CouponIssueTask(couponId, userId))) {
             log.warn("[CouponIssueProducer] 내부 큐 포화. couponId={}", couponId);
             couponLocalStore.rollback(couponId.toString(), userId.toString());
         }
     }
 
     private void sendToKafka(CouponIssueTask task) {
-        kafkaTemplate.send(KafkaTopics.COUPON_ISSUE_REQUESTED, task.couponId().toString(), task.payload())
+        String payload;
+        try {
+            CouponIssueRequestedEvent event = new CouponIssueRequestedEvent(task.couponId(), task.userId(), LocalDateTime.now());
+            payload = objectMapper.writeValueAsString(event);
+        } catch (JsonProcessingException e) {
+            // 응답은 이미 202로 반환된 뒤이므로 동기 실패 불가 → Kafka 실패와 동일하게 보상(롤백)
+            log.error("[CouponIssueProducer] 직렬화 실패 — 롤백. couponId={}, userId={}", task.couponId(), task.userId(), e);
+            couponLocalStore.rollback(task.couponId().toString(), task.userId().toString());
+            couponRedisRepository.incrementStock(task.couponId().toString());
+            couponRedisRepository.removeIssued(task.couponId().toString(), task.userId().toString());
+            return;
+        }
+
+        kafkaTemplate.send(KafkaTopics.COUPON_ISSUE_REQUESTED, task.couponId().toString(), payload)
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
                         log.error("[CouponIssueProducer] Kafka 발행 실패 — 롤백. couponId={}, userId={}", task.couponId(), task.userId(), ex);
@@ -82,5 +91,5 @@ public class CouponIssueProducer {
                 });
     }
 
-    private record CouponIssueTask(UUID couponId, UUID userId, String payload) {}
+    private record CouponIssueTask(UUID couponId, UUID userId) {}
 }

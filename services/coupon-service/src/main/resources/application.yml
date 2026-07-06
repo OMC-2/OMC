@@ -7,6 +7,8 @@ spring:
     virtual:
       enabled: true
   kafka:
+    consumer:
+      max-poll-records: ${KAFKA_MAX_POLL_RECORDS:500}
     producer:
       properties:
         delivery.timeout.ms: 30000
@@ -15,7 +17,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,forcegc
   endpoint:
     prometheus:
       enabled: true
@@ -23,6 +25,7 @@ management:
       probes:
         enabled: true
   tracing:
+    enabled: ${TRACING_ENABLED:true}
     sampling:
       probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
   zipkin:
