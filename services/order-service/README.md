@@ -49,6 +49,7 @@ OMC 플랫폼의 주문 라이프사이클 관리 및 SAGA 패턴의 핵심 상�
 | 소비 | `purchase.confirmed` | Kafka Consumer | 드롭 선점 완료 수신 → Feign 상품 조회 → PENDING 주문 생성 |
 | 소비 | `raffle.winner.selected` | Kafka Consumer | 래플 당첨 수신 → PENDING 주문 생성 |
 | 소비 | `payment.completed` | Kafka Consumer | 결제 완료 수신 → PAID 상태 전이 |
+| 소비 | `stock.deducted` | Kafka Consumer | DB 재고 확정 차감 완료 수신 → CONFIRMED 전이 (INSTANT 전용, 래플은 미발행) |
 | 소비 | `payment.failed` | Kafka Consumer | (보상) 결제 실패 수신 → CANCELLED 전이 |
 | 소비 | `stock.failed` | Kafka Consumer | (보상) 재고 차감 실패 수신 → CANCELLED 전이 |
 | 소비 | `hold.expired` | Kafka Consumer | (보상) 드롭 홀드 만료 수신 → CANCELLED 전이 |
