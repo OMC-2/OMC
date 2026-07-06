@@ -29,35 +29,45 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentGatewayPort paymentGatewayPort;
     private final PaymentCoreService paymentCoreService;
+    private final PaymentIdempotencyService paymentIdempotencyService;
 
-
-    @Transactional
     public PaymentResponse confirmPayment(ConfirmPaymentRequest request, UUID userId) {
         if (userId == null) {
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
         }
-        Payment payment = paymentCoreService.confirmPayment(
-                request.orderID(),
-                request.dropId(),
-                request.productId(),
-                request.couponID(),
-                userId,
-                request.originalAmount(),
-                request.discountAmount(),
-                request.finalAmount(),
-                request.providerPaymentId()
+        if (request == null) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
+        }
+        Payment payment = paymentIdempotencyService.execute(
+                paymentIdempotencyService.confirmKey(request.orderID()),
+                () -> paymentCoreService.confirmPayment(
+                        request.orderID(),
+                        request.dropId(),
+                        request.productId(),
+                        request.couponID(),
+                        userId,
+                        request.originalAmount(),
+                        request.discountAmount(),
+                        request.finalAmount(),
+                        request.providerPaymentId()
+                ),
+                () -> paymentRepository.findByOrderId(request.orderID())
+                        .orElseThrow(() -> new BusinessException(PaymentErrorCode.PAYMENT_NOT_FOUND))
         );
         return PaymentResponse.from(payment);
     }
 
     public RegisterBillingKeyResponse registerBillingKey(RegisterBillingKeyRequest request) {
         try {
+            if (request == null) {
+                throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
+            }
             /*
             * Mocking을 위한 랜덤 키 Fallback
             * */
@@ -80,8 +90,10 @@ public class PaymentService {
         }
     }
 
-    @Transactional
     public PaymentResponse cancelPayment(UUID paymentId, CancelPaymentRequest request) {
+        if (request == null) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
+        }
         Payment payment = paymentCoreService.cancelPaymentByPaymentId(
                 paymentId,
                 getCurrentUserId(),
@@ -92,6 +104,7 @@ public class PaymentService {
         return PaymentResponse.from(payment);
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<PaymentDetailResponse> getMyPayments(Pageable pageable) {
         Pageable validatedPageable = PageableUtil.validatePageSize(pageable);
         UUID currentUserId = getCurrentUserId();
@@ -100,6 +113,7 @@ public class PaymentService {
         return new PageResponse<>(page);
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<PaymentDetailResponse> getPayments(Pageable pageable) {
         Pageable validatedPageable = PageableUtil.validatePageSize(pageable);
         Page<PaymentDetailResponse> page = paymentRepository.findAll(validatedPageable)

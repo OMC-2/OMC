@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 // coupon-service 쿠폰 선점 응답
-public record CouponUserCouponResponse(
+public record UserCouponResponse(
         UUID userCouponId,
         UUID couponId,
         String couponName,

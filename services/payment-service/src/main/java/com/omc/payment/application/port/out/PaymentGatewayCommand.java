@@ -24,8 +24,11 @@ public final class PaymentGatewayCommand {
             String orderName,
             Long amount,
             String idempotencyKey
-    ) {
-    }
+    ) {}
+
+    public record GetPayment(
+            String providerPaymentID
+    ) {}
 
     public record Cancel(
             String providerPaymentId,

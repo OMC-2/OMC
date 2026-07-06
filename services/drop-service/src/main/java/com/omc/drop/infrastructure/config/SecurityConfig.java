@@ -27,6 +27,7 @@ public class SecurityConfig {
             .addFilterBefore(new GatewayHeaderAuthFilter(gatewaySecret), UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/actuator/**").permitAll()
+                // permitAll()은 인증 생략일 뿐 — 외부 접근은 NetworkPolicy/Gateway 라우팅으로 차단할 것.
                 .requestMatchers("/internal/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/drops", "/api/v1/drops/*").permitAll()
                 .anyRequest().authenticated()

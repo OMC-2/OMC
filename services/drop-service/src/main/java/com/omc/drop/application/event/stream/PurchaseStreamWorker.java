@@ -49,7 +49,13 @@ public class PurchaseStreamWorker {
         try {
             return "consumer-" + InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
-            return "consumer-" + UUID.randomUUID().toString().substring(0, 8);
+            String fallbackId = "consumer-" + UUID.randomUUID().toString().substring(0, 8);
+            // SLF4J 백엔드가 아직 초기화 전일 수 있으므로 System.err 사용.
+            // 재시작 후 consumerId가 바뀌면 기존 PEL(Pending Entry List)을 자신의 것으로 인식하지 못해
+            // reclaimStalePending()의 XCLAIM이 필요해진다. HOSTNAME 환경변수 설정을 확인할 것.
+            System.err.printf("[PurchaseStreamWorker] WARN: hostname 조회 실패 — 랜덤 consumerId 사용: %s. " +
+                    "재시작 시 PEL 복구 불가. HOSTNAME 환경변수 설정을 확인하세요.%n", fallbackId);
+            return fallbackId;
         }
     }
 
@@ -82,6 +88,25 @@ public class PurchaseStreamWorker {
         int retried = drainOwnPending();
         if (retried > 0) {
             log.info("[PurchaseStream] 내 pending 재처리: {}건", retried);
+        }
+    }
+
+    /** MAX_DELIVERY_COUNT 초과 메시지를 stream:purchase:failed 에 보관 후 ACK */
+    @Scheduled(fixedDelay = 30_000)
+    void handlePoisonMessages() {
+        List<MapRecord<String, String, String>> poisonRecords =
+                purchaseStreamStore.claimPoisonMessages(consumerId);
+        if (poisonRecords.isEmpty()) return;
+        log.error("[PurchaseStream] poison 메시지 {}건 failed 스트림으로 이동: {}",
+                poisonRecords.size(),
+                poisonRecords.stream().map(r -> r.getId().toString()).toList());
+        for (MapRecord<String, String, String> record : poisonRecords) {
+            try {
+                purchaseStreamStore.publishToFailed(record);
+                purchaseStreamStore.acknowledge(record.getId());
+            } catch (Exception ex) {
+                log.error("[PurchaseStream] failed 스트림 저장 실패 — pending 유지: messageId={}", record.getId(), ex);
+            }
         }
     }
 

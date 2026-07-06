@@ -5,6 +5,8 @@ import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.exception.DropNotFoundException;
 import com.omc.drop.domain.exception.InvalidDropDateRangeException;
+import com.omc.drop.domain.exception.InvalidDropHoldTtlException;
+import com.omc.drop.domain.exception.InvalidDropQuantityException;
 import com.omc.drop.domain.exception.InvalidDropStatusException;
 import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
@@ -36,6 +38,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import org.mockito.InOrder;
+
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -91,8 +96,10 @@ class DropAdminServiceTest {
 
             dropAdminService.close(dropId);
 
-            verify(dropRedisStore).deleteStatus(dropId);
-            verify(dropEventProducer).publishDropClosed(any());
+            // 구매 차단 gap 방지: deleteStatus → updateStatusConditionally → publishDropClosed 순서 보장
+            InOrder inOrder = inOrder(dropRedisStore, dropEventProducer);
+            inOrder.verify(dropRedisStore).deleteStatus(dropId);
+            inOrder.verify(dropEventProducer).publishDropClosed(any());
         }
 
         @Test
@@ -224,6 +231,32 @@ class DropAdminServiceTest {
 
             assertThatThrownBy(() -> dropAdminService.update(dropId, validUpdateRequest()))
                     .isInstanceOf(InvalidDropStatusException.class);
+        }
+
+        @Test
+        @DisplayName("totalQty가 0 이하이면 예외가 발생한다")
+        void throwsWhenTotalQtyIsZero() {
+            UUID dropId = UUID.randomUUID();
+            Drop drop = createScheduledDrop(dropId);
+            when(dropRepository.getByIdOrThrow(dropId)).thenReturn(drop);
+            LocalDateTime startAt = LocalDateTime.now().plusDays(1);
+            DropUpdateRequest request = new DropUpdateRequest(startAt, startAt.plusDays(2), 0, 600);
+
+            assertThatThrownBy(() -> dropAdminService.update(dropId, request))
+                    .isInstanceOf(InvalidDropQuantityException.class);
+        }
+
+        @Test
+        @DisplayName("holdTtlSec가 0 이하이면 예외가 발생한다")
+        void throwsWhenHoldTtlSecIsZero() {
+            UUID dropId = UUID.randomUUID();
+            Drop drop = createScheduledDrop(dropId);
+            when(dropRepository.getByIdOrThrow(dropId)).thenReturn(drop);
+            LocalDateTime startAt = LocalDateTime.now().plusDays(1);
+            DropUpdateRequest request = new DropUpdateRequest(startAt, startAt.plusDays(2), 100, 0);
+
+            assertThatThrownBy(() -> dropAdminService.update(dropId, request))
+                    .isInstanceOf(InvalidDropHoldTtlException.class);
         }
     }
 

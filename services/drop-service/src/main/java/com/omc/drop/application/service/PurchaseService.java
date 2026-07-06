@@ -23,28 +23,23 @@ public class PurchaseService {
     private final DropMetrics dropMetrics;
 
     public PurchaseResponse purchase(UUID dropId, UUID userId) {
-        // ① Redis OPEN 플래그 확인 — fail-fast
-        if (!dropRedisStore.isOpen(dropId)) {
-            throw new DropNotOpenException();
-        }
-
-        // ② holdTtlSec·productId를 Redis에서 조회 (워밍 시 캐싱된 값) — DB 무접촉 유지
-        int holdTtlSec = dropRedisStore.getHoldTtlSec(dropId);
-        UUID productId = dropRedisStore.getProductId(dropId);
-        if (productId == null) {
-            throw new DropNotFoundException();
-        }
-
-        // ③ orderId·eventId 선발급 — Lua 호출 전에 생성해서 Stream 메시지에 포함
+        // ① orderId·eventId 선발급 — Lua 호출 전에 생성해서 Stream 메시지에 포함
         UUID orderId = UuidV7Generator.generate();
         String eventId = UuidV7Generator.generate().toString();
 
-        // ④ Lua 원자 실행: 중복 체크 → 재고 체크 → 선점 → Stream XADD → 순번 발급
+        // ② Lua 단일 호출: OPEN 확인 + holdTtlSec/productId 조회 + 중복·재고 체크 + 선점 + Stream XADD + 순번 발급
+        //    (기존 3번의 개별 Redis GET 제거 → 4 round-trips → 1 round-trip)
         long start = System.nanoTime();
-        Long result = dropRedisStore.executePurchase(dropId, userId, orderId, holdTtlSec, productId, eventId);
+        Long result = dropRedisStore.executePurchase(dropId, userId, orderId, eventId);
         dropMetrics.recordLuaDuration(System.nanoTime() - start);
 
-        if (result == null || result == -2L) {
+        if (result == null || result == -3L) {
+            throw new DropNotOpenException();
+        }
+        if (result == -4L) {
+            throw new DropNotFoundException();
+        }
+        if (result == -2L) {
             dropMetrics.incrementDuplicatePurchase(dropId);
             throw new DuplicatePurchaseException();
         }

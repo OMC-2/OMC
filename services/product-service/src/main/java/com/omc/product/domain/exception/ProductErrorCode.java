@@ -29,7 +29,8 @@ public enum ProductErrorCode implements ErrorCode {
     DROP_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "PRODUCT-020", "Drop Service가 응답하지 않습니다. 잠시 후 다시 시도해 주세요."),
 
     // Outbox
-    OUTBOX_EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "PRODUCT-030", "존재하지 않는 Outbox 이벤트입니다.");
+    OUTBOX_EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "PRODUCT-030", "존재하지 않는 Outbox 이벤트입니다."),
+    OUTBOX_EVENT_NOT_FAILED(HttpStatus.CONFLICT, "PRODUCT-031", "FAILED 상태의 이벤트만 재처리 가능합니다.");
 
 
     private final HttpStatus status;

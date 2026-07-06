@@ -5,6 +5,7 @@ import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
+import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,14 +19,8 @@ import org.springframework.web.client.RestClient;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.badRequest;
-import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
-import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
-import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
-import static com.github.tomakehurst.wiremock.client.WireMock.post;
-import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -55,7 +50,7 @@ class TossPaymentAdapterWireMockTest {
     }
 
     @Test
-    @DisplayName("일반 결제 승인 요청은 Toss 확인 API를 호출하고 paymentKey를 반환한다")
+    @DisplayName("일반 결제 승인 요청은 Toss 승인 API를 호출하고 paymentKey를 반환한다")
     void confirmPayment_success() {
         wireMock.stubFor(post(urlEqualTo("/v1/payments/confirm"))
                 .withHeader(HttpHeaders.AUTHORIZATION, equalTo(basicAuthValue()))
@@ -88,6 +83,35 @@ class TossPaymentAdapterWireMockTest {
     }
 
     @Test
+    @DisplayName("결제 조회 요청은 Toss 조회 API를 호출하고 PG 결제 상태를 반환한다")
+    void getPayment_success() {
+        wireMock.stubFor(get(urlEqualTo("/v1/payments/toss-payment-key"))
+                .withHeader(HttpHeaders.AUTHORIZATION, equalTo(basicAuthValue()))
+                .willReturn(okJson("""
+                        {
+                          "paymentKey": "toss-payment-key",
+                          "orderId": "order-id",
+                          "status": "DONE",
+                          "totalAmount": 10000,
+                          "balanceAmount": 10000,
+                          "lastTransactionKey": "confirm-transaction-key"
+                        }
+                        """)));
+
+        PaymentGatewayResult.Payment result = tossPaymentAdapter.getPayment(
+                new PaymentGatewayCommand.GetPayment("toss-payment-key")
+        );
+
+        assertThat(result.providerPaymentId()).isEqualTo("toss-payment-key");
+        assertThat(result.orderId()).isEqualTo("order-id");
+        assertThat(result.status()).isEqualTo(PaymentGatewayStatus.PAID);
+        assertThat(result.totalAmount()).isEqualTo(10000L);
+        assertThat(result.cancelableAmount()).isEqualTo(10000L);
+        assertThat(result.providerTransactionId()).isEqualTo("confirm-transaction-key");
+        wireMock.verify(getRequestedFor(urlEqualTo("/v1/payments/toss-payment-key")));
+    }
+
+    @Test
     @DisplayName("Toss 요청 실패 응답은 PG 요청 실패 예외로 변환한다")
     void confirmPayment_tossRequestFailure() {
         wireMock.stubFor(post(urlEqualTo("/v1/payments/confirm"))
@@ -111,7 +135,7 @@ class TossPaymentAdapterWireMockTest {
                 .isInstanceOf(PaymentGatewayRequestException.class)
                 .hasMessage("카드 한도를 초과했습니다")
                 .satisfies(exception -> assertThat(
-                        ((PaymentGatewayRequestException) exception).getProviderCode()
+                        ((PaymentGatewayRequestException) exception).getProviderErrorCode()
                 ).isEqualTo("EXCEED_MAX_CARD_LIMIT"));
     }
 

@@ -49,6 +49,20 @@ spring:
                 key-resolver: "#{@rateLimiterKeyResolver}"
                 rate-limiter: "#{@adminRateLimiter}"
 
+        # 구매 선점 전용 route: drop-service보다 앞에 두어 먼저 매칭
+        # dropId 기준 초당 200개 제한 → Tomcat thread pool(200) 이내로 유입 억제
+        # 초과 시 429 → RateLimitErrorResponseFilter가 JSON 응답 반환
+        - id: drop-purchase
+          uri: lb://drop-service
+          predicates:
+            - Path=/api/v1/drops/*/purchase
+            - Method=POST
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@dropPurchaseKeyResolver}"
+                rate-limiter: "#{@dropPurchaseRateLimiter}"
+
         - id: drop-service
           uri: lb://drop-service
           predicates:

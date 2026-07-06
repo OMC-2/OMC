@@ -11,7 +11,7 @@ import com.omc.product.domain.exception.InsufficientStockException;
 import com.omc.product.domain.repository.InventoryRepository;
 import com.omc.product.domain.repository.ProcessedEventRepository;
 import com.omc.product.infrastructure.client.ActiveDropResponse;
-import com.omc.product.infrastructure.client.DropInternalClient;
+import com.omc.product.infrastructure.client.DropFeignClient;
 import com.omc.product.presentation.dto.request.InventoryUpdateRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +37,7 @@ class InventoryServiceTest {
 
     @Mock private InventoryRepository inventoryRepository;
     @Mock private ProcessedEventRepository processedEventRepository;
-    @Mock private DropInternalClient dropInternalClient;
+    @Mock private DropFeignClient dropFeignClient;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private InventoryDeductProcessor inventoryDeductProcessor;
     @Mock private StockSuccessHandler stockSuccessHandler;
@@ -122,7 +122,7 @@ class InventoryServiceTest {
     @Test
     @DisplayName("진행 중인 Drop이 있으면 재고 수정 시 ActiveDropExistsException 발생시킨다")
     void updateInventory_activeDropExists() {
-        given(dropInternalClient.hasActiveDrop(any()))
+        given(dropFeignClient.hasActiveDrop(any()))
                 .willReturn(ApiResponse.success(new ActiveDropResponse(true)));
 
         assertThatThrownBy(() -> inventoryService.updateInventory(

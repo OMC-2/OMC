@@ -3,6 +3,7 @@ package com.omc.payment.infrastructure.adapter;
 import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
+import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -49,6 +50,19 @@ public class TestPaymentAdapter implements PaymentGatewayPort {
     @Override
     public PaymentGatewayResult.Confirm confirmBillingPayment(PaymentGatewayCommand.ConfirmBilling command) {
         return new PaymentGatewayResult.Confirm("test-billing-payment-" + command.orderId());
+    }
+
+    // 테스트 PG 결제 조회 즉시 성공 처리
+    @Override
+    public PaymentGatewayResult.Payment getPayment(PaymentGatewayCommand.GetPayment command) {
+        return new PaymentGatewayResult.Payment(
+                command.providerPaymentID(),
+                "test-order-id",
+                PaymentGatewayStatus.PAID,
+                10000L,
+                10000L,
+                "test-transaction-" + command.providerPaymentID()
+        );
     }
 
     // 결제 취소 즉시 성공 처리
