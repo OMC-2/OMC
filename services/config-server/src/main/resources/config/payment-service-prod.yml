@@ -7,7 +7,6 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-
   jpa:
     hibernate:
       ddl-auto: validate
@@ -16,15 +15,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: payment_db
-
   flyway:
     default-schema: payment_db
-
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-
   kafka:
     bootstrap-servers: ${KAFKA_URI}
     consumer:
@@ -35,12 +31,10 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
         spring.json.trusted.packages: ${KAFKA_TRUSTED_PACKAGES:com.omc.*}
-
     listener:
       concurrency: ${KAFKA_LISTENER_CONCURRENCY:3}  # consumer 병렬 처리 개수
       missing-topics-fatal: false  # 토픽이 없어도 서버 다운 X
       ack-mode: manual_immediate  # 처리 성공 후 수동 ack
-
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -79,6 +73,12 @@ payment:
     secret-key: ${TOSS_SECRET_KEY:}
     connect-timeout-ms: ${TOSS_CONNECT_TIMEOUT_MS:1000}
     read-timeout-ms: ${TOSS_READ_TIMEOUT_MS:5000}
+  unknown-recovery:
+    enabled: true
+    initial-delay-ms: 60000
+    fixed-delay-ms: 30000
+    batch-size: 100
+    max-retry-count: 3
 
 resilience4j:
   retry:

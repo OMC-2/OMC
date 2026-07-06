@@ -119,7 +119,8 @@ public class PaymentTransactionService {
         // 종료 상태 시 Outbox 중복 저장 방지
         if (payment.getPaymentStatus() == PaymentStatus.PAID
                 || payment.getPaymentStatus() == PaymentStatus.FAILED
-                || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
         payment.approve(providerPaymentId);
@@ -133,7 +134,8 @@ public class PaymentTransactionService {
 
         if (payment.getPaymentStatus() == PaymentStatus.PAID
                 || payment.getPaymentStatus() == PaymentStatus.FAILED
-                || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
         payment.fail(failureCode, failureMessage);
@@ -149,7 +151,8 @@ public class PaymentTransactionService {
                 || payment.getPaymentStatus() == PaymentStatus.CANCEL_UNKNOWN
                 || payment.getPaymentStatus() == PaymentStatus.PAID
                 || payment.getPaymentStatus() == PaymentStatus.FAILED
-                || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
         payment.markConfirmUnknown();
@@ -157,12 +160,13 @@ public class PaymentTransactionService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Payment markCancelUnknown(UUID paymentId) {
+    public Payment markCancelUnknown(UUID paymentId, CancellationCode cancellationCode, String reason) {
         Payment payment = getPayment(paymentId);
 
         if (payment.getPaymentStatus() == PaymentStatus.CANCEL_UNKNOWN
                 || payment.getPaymentStatus() == PaymentStatus.CANCELED
-                || payment.getPaymentStatus() == PaymentStatus.FAILED) {
+                || payment.getPaymentStatus() == PaymentStatus.FAILED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
 
@@ -172,7 +176,7 @@ public class PaymentTransactionService {
                     "이미 결제 승인 처리가 진행 중입니다."
             );
         }
-        payment.markCancelUnknown();
+        payment.markCancelUnknown(cancellationCode, reason);
         return payment;
     }
 
@@ -193,11 +197,19 @@ public class PaymentTransactionService {
         }
 
         if (payment.getPaymentStatus() == PaymentStatus.CANCELED
-                || payment.getPaymentStatus() == PaymentStatus.FAILED) {
+                || payment.getPaymentStatus() == PaymentStatus.FAILED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
         payment.cancel(providerCancellationId, cancellationCode, reason);
         paymentOutboxService.saveRefundDone(payment);
+        return payment;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Payment markUnknownRecoveryRetry(UUID paymentId, int maxRetryCount) {
+        Payment payment = getPayment(paymentId);
+        payment.markUnknownRecoveryRetry(maxRetryCount);
         return payment;
     }
 

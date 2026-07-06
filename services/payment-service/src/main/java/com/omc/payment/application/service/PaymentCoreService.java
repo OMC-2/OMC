@@ -150,7 +150,7 @@ public class PaymentCoreService {
     // 처리 중인 상태만 재처리로 넘기고 나머지는 그대로 반환
     private Payment resolvePayment(Payment payment) {
         return switch (payment.getPaymentStatus()) {
-            case READY, PAID, FAILED, CANCELED, CONFIRM_UNKNOWN, CANCEL_UNKNOWN -> payment;
+            case READY, PAID, FAILED, CANCELED, CONFIRM_UNKNOWN, CANCEL_UNKNOWN, RECOVERY_FAILED -> payment;
             case CONFIRMING -> throw new RetryablePaymentException(
                     PaymentErrorCode.PAYMENT_ALREADY_EXISTS,
                     "이미 결제 승인 처리가 진행 중입니다."
@@ -204,7 +204,7 @@ public class PaymentCoreService {
                     resolvedReason
             );
         } catch (PaymentGatewayConnectionException e) {
-            return paymentTransactionService.markCancelUnknown(payment.getPaymentId());
+            return paymentTransactionService.markCancelUnknown(payment.getPaymentId(), resolvedCancellationCode, resolvedReason);
         }
     }
 
@@ -235,7 +235,7 @@ public class PaymentCoreService {
                     resolvedReason
             );
         } catch (PaymentGatewayConnectionException e) {
-            paymentTransactionService.markCancelUnknown(payment.getPaymentId());
+            paymentTransactionService.markCancelUnknown(payment.getPaymentId(), cancellationCode, resolvedReason);
         }
     }
 
