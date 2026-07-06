@@ -4,7 +4,9 @@ import com.omc.payment.application.port.out.PaymentGatewayCommand;
 import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
 import com.omc.payment.domain.entity.Payment;
+import com.omc.payment.domain.enums.CancellationCode;
 import com.omc.payment.domain.enums.PaymentStatus;
+import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
@@ -30,10 +32,13 @@ public class PaymentUnknownRecoveryService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentGatewayPort paymentGatewayPort;
+    private final PaymentIdempotencyService paymentIdempotencyService;
     private final PaymentTransactionService paymentTransactionService;
 
     @Value("${payment.unknown-recovery.max-retry-count:3}")
     private int maxRetryCount;
+
+    private final String NETWORK_CANCEL_REASON = "PG 승인 성공 후 서비스 완료 처리 실패로 망 취소합니다.";
 
     public void recoverPendingPayments(int batchSize) {
         if (batchSize <= 0) {
@@ -86,10 +91,7 @@ public class PaymentUnknownRecoveryService {
 
     private void recoverConfirmUnknown(Payment payment, PaymentGatewayResult.Payment gatewayPayment){
         switch (gatewayPayment.status()) {
-            case PAID -> paymentTransactionService.approveAndSaveOutbox(
-                    payment.getPaymentId(),
-                    resolveProviderPaymentId(payment, gatewayPayment)
-            );
+            case PAID -> recoverPaidConfirmUnknown(payment, gatewayPayment);
             case FAILED -> paymentTransactionService.failAndSaveOutbox(
                     payment.getPaymentId(),
                     PaymentErrorCode.PAYMENT_FAILED.getCode(),
@@ -100,6 +102,55 @@ public class PaymentUnknownRecoveryService {
             case UNKNOWN -> markRecoveryRetry(payment, "PG 승인 상태를 확인할 수 없습니다.");
         }
     }
+
+    // PG 조회 결과가 성공이지만 후속 처리에 실패할 경우 망 취소
+    private void recoverPaidConfirmUnknown(Payment payment, PaymentGatewayResult.Payment gatewayPayment){
+        String providerPaymentId = resolveProviderPaymentId(payment, gatewayPayment);
+        try {
+            paymentTransactionService.approveAndSaveOutbox(
+                    payment.getPaymentId(),
+                    providerPaymentId
+            );
+        } catch (NonRetryablePaymentException e) {
+            cancelPaidPayment(payment, providerPaymentId, e.getMessage());
+        }
+    }
+
+    // PG 연동 망 취소
+    private void cancelPaidPayment(Payment payment, String providerPaymentId, String failureReason) {
+        try {
+            PaymentGatewayResult.Cancel result = paymentGatewayPort.cancelPayment(
+                    new PaymentGatewayCommand.Cancel(
+                            providerPaymentId,
+                            NETWORK_CANCEL_REASON,
+                            payment.getFinalAmount(),
+                            paymentIdempotencyService.cancelKey(payment.getOrderId())
+                    )
+            );
+            String providerCancellationId = isBlank(result.providerCancellationId())
+                    ? providerPaymentId
+                    : result.providerCancellationId();
+            paymentTransactionService.cancelAndSaveOutbox(
+                    payment.getPaymentId(),
+                    providerCancellationId,
+                    CancellationCode.NETWORK_CANCEL,
+                    NETWORK_CANCEL_REASON
+            );
+            log.warn("PG 승인 성공 후 내부 완료 보정에 실패해 망 취소를 완료했습니다. paymentId={}, reason={}",
+                    payment.getPaymentId(), failureReason);
+        } catch (PaymentGatewayConnectionException e) { // 네트워크/타임아웃 시 UNKNOWN 처리
+            paymentTransactionService.markCancelUnknown(
+                    payment.getPaymentId(),
+                    CancellationCode.NETWORK_CANCEL,
+                    NETWORK_CANCEL_REASON
+            );
+            log.warn("PG 승인 성공 후 내부 완료 보정에 실패했지만 망 취소 결과를 확인하지 못했습니다. paymentId={}, reason={}",
+                    payment.getPaymentId(), failureReason, e);
+        } catch (PaymentGatewayRequestException e) { // 요청 오류 시 재시도 후 격리
+            markRecoveryRetry(payment, "PG 망 취소 요청에 실패했습니다.");
+        }
+    }
+
 
     private void recoverCancelUnknown(Payment payment, PaymentGatewayResult.Payment gatewayPayment){
         switch (gatewayPayment.status()) {
