@@ -194,6 +194,14 @@ public class OrderService {
             .build());
   }
 
+  //[환불 완료] REFUND_REQUESTED -> REFUNDED (payment refund.done 수신, PG 취소 완료)
+  @Transactional
+  public void refundOrder(UUID orderId) {
+    log.info("[OrderService] 환불 완료 수신 -> REFUNDED 전이: orderId={}", orderId);
+    Order order = findOrder(orderId);
+    order.markRefunded();
+  }
+
   private Order findOrder(UUID orderId) {
     return orderRepository.findById(orderId)
         .orElseThrow(OrderNotFoundException::new);
