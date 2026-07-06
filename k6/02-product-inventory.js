@@ -116,6 +116,10 @@ const CACHE_REPEAT = parseInt(__ENV.CACHE_REPEAT || '20', 10);
 // 커스텀 메트릭
 const purchaseDuration  = new Trend('purchase_duration_ms');
 const purchaseSuccess   = new Rate('purchase_success_rate');
+const status202         = new Counter('status_202');
+const status409         = new Counter('status_409');
+const status429         = new Counter('status_429');
+const statusUnexpected  = new Counter('status_unexpected');
 const stockSentCount    = new Counter('stock_event_sent_count');
 const duplicateSuccessCount  = new Counter('duplicate_success_count');   // 202 (선점 성공) — 정확히 1이어야 함
 const duplicateRejectedCount = new Counter('duplicate_rejected_count');  // 409 + DROP-005 (중복 구매 차단)
@@ -135,13 +139,11 @@ const userData = new SharedArray('users', function () {
 export const purchaseOptions = {
   scenarios: {
     drop_purchase: {
-      executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '5s',  target: 1000 }, // 5초 안에 1,000명 진입 (동시성 극대화)
-        { duration: '10s', target: 1000 }, // 10초 유지
-        { duration: '5s',  target: 0 },    // 감소
-      ],
+      executor: 'per-vu-iterations',
+      vus: 1000,
+      iterations: 1,        // VU당 1회 → 총 정확히 1,000 요청
+      maxDuration: '2m',
+      gracefulStop: '30s',
     },
   },
   thresholds: {
@@ -240,12 +242,21 @@ function runPurchase(data) {
 
   const res = http.post(`${BASE}/api/v1/drops/${DROP_ID}/purchase`, null, params);
 
-  const ok = check(res, {
-    '202 Accepted (선점 성공)': (r) => r.status === 202,
-    '409 Conflict (재고 소진 — 정상 비즈니스 응답)': (r) => r.status === 409,
+  check(res, {
+    '정상 응답 (202/409/429)': (r) => [202, 409, 429].includes(r.status),
   });
 
-  // 202(선점 성공)만 성공률로 집계
+  if (res.status === 202) {
+    status202.add(1);
+  } else if (res.status === 409) {
+    status409.add(1);
+  } else if (res.status === 429) {
+    status429.add(1);
+  } else {
+    statusUnexpected.add(1);
+    console.warn(`[purchase] unexpected status=${res.status}, body=${res.body}`);
+  }
+
   purchaseSuccess.add(res.status === 202);
   purchaseDuration.add(res.timings.duration);
 }
