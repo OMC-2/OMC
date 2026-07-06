@@ -114,6 +114,8 @@ public class ProductService {
         }
         Product product = findActiveProduct(productId);
         product.delete(deletedBy);
+
+        eventPublisher.publishEvent(new ProductUpdatedEvent(productId));
     }
 
     private Product findActiveProduct(UUID productId) {
