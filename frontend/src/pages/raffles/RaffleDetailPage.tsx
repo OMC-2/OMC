@@ -7,7 +7,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { formatDate, getRaffleDisplayStatus } from '../../lib/utils'
 import { getPlaceholderImage } from '../../lib/images'
 import { useAuthStore } from '../../store/authStore'
-import { ArrowLeft, Trophy, Clock, Timer } from 'lucide-react'
+import { ArrowLeft, Trophy, Clock, Timer, Users } from 'lucide-react'
 import { useCountdown } from '../../hooks/useCountdown'
 
 export function RaffleDetailPage() {
@@ -15,7 +15,7 @@ export function RaffleDetailPage() {
   const { isAuthenticated } = useAuthStore()
   const queryClient = useQueryClient()
 
-  const [billingKeyId, setBillingKeyId] = useState('')
+  const [billingKeyId, setBillingKeyId] = useState(() => localStorage.getItem('omc_billing_key') ?? '')
   const [originalAmount, setOriginalAmount] = useState('0')
   const [discountAmount, setDiscountAmount] = useState('0')
 
@@ -48,7 +48,14 @@ export function RaffleDetailPage() {
   })
   const myResult = myResultData?.data?.data
 
-  // 타임스탬프 기반 상태 계산 (hooks 호출 전에 early return 금지이므로 raffle 없어도 계산)
+  const { data: countData } = useQuery({
+    queryKey: ['raffle-count', raffleId],
+    queryFn: () => rafflesApi.getParticipantsCount(raffleId!),
+    enabled: !!raffleId,
+    retry: false,
+  })
+  const participantsCount: number = countData?.data?.data ?? 0
+
   const displayStatus = getRaffleDisplayStatus(raffle)
   const isOpen = displayStatus === 'LIVE'
   const isUpcoming = displayStatus === 'UPCOMING'
@@ -91,7 +98,6 @@ export function RaffleDetailPage() {
       </Link>
 
       <div className="grid gap-12 md:grid-cols-2">
-        {/* Image */}
         <div className="relative aspect-square overflow-hidden bg-gray-50">
           <img
             src={imageUrl}
@@ -114,7 +120,6 @@ export function RaffleDetailPage() {
           </div>
         </div>
 
-        {/* Info */}
         <div className="flex flex-col space-y-6">
           <div>
             <p className="text-[10px] font-bold tracking-[0.3em] text-gray-400 mb-2">RAFFLE</p>
@@ -122,13 +127,13 @@ export function RaffleDetailPage() {
             {product && <p className="text-sm text-gray-400 mt-1">{product.name}</p>}
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-px bg-gray-100">
+          <div className="grid grid-cols-3 gap-px bg-gray-100">
             {[
               { icon: Trophy, value: raffle.winnerCount, label: '당첨 인원' },
+              { icon: Users, value: participantsCount, label: '참가자 수' },
               {
                 icon: Trophy,
-                value: productLoading ? '로딩 중...' : price > 0 ? price.toLocaleString() + '원' : 'FREE',
+                value: productLoading ? '...' : price > 0 ? price.toLocaleString() + '원' : 'FREE',
                 label: '상품 가격',
               },
             ].map(({ icon: Icon, value, label }) => (
@@ -140,7 +145,6 @@ export function RaffleDetailPage() {
             ))}
           </div>
 
-          {/* Period */}
           <div className="space-y-2 border border-gray-100 p-4">
             {raffle.startedAt && (
               <div className="flex justify-between text-xs">
@@ -170,7 +174,6 @@ export function RaffleDetailPage() {
             )}
           </div>
 
-          {/* My entry result */}
           {myResult && (
             <div className="bg-green-50 border border-green-200 p-4">
               <p className="text-xs font-black tracking-wider text-green-700">응모 완료</p>
@@ -182,7 +185,6 @@ export function RaffleDetailPage() {
             </div>
           )}
 
-          {/* 진행 예정 안내 */}
           {isUpcoming && (
             <div className="bg-blue-50 border border-blue-200 p-4 text-center">
               <p className="text-xs font-black tracking-wider text-blue-700">아직 응모 기간이 아닙니다</p>
@@ -190,7 +192,6 @@ export function RaffleDetailPage() {
             </div>
           )}
 
-          {/* Entry form */}
           {isAuthenticated && isOpen && !myResult && (
             <div className="border border-gray-200 p-6 space-y-4">
               <p className="text-xs font-black tracking-widest text-gray-900">APPLY</p>
@@ -248,7 +249,10 @@ export function RaffleDetailPage() {
                 {entryMutation.isPending ? '응모 중...' : productLoading ? '로딩 중...' : productError ? '상품 오류' : 'ENTER RAFFLE'}
               </button>
               {price > 0 && !billingKeyId.trim() && !productError && (
-                <p className="text-[10px] text-red-400 text-center">빌링키를 입력해야 응모할 수 있습니다</p>
+                <p className="text-[10px] text-red-400 text-center">
+                  빌링키 없음 —{' '}
+                  <a href="/mypage" className="underline">마이페이지</a>에서 카드 등록 후 응모하세요
+                </p>
               )}
             </div>
           )}

@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, Link } from 'react-router-dom'
 import { ordersApi } from '../../api/orders'
 import { Spinner } from '../../components/ui/Spinner'
 import { formatPrice, formatDate } from '../../lib/utils'
-import { ArrowLeft, Package } from 'lucide-react'
+import { ArrowLeft, Package, RotateCcw } from 'lucide-react'
 
 const STATUS_COLOR: Record<string, string> = {
   COMPLETED: 'text-green-600 bg-green-50',
@@ -13,6 +13,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>()
+  const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['order', orderId],
@@ -21,10 +22,20 @@ export function OrderDetailPage() {
   })
   const order = data?.data?.data
 
+  const refundMutation = useMutation({
+    mutationFn: () => ordersApi.refund(orderId!),
+    onSuccess: () => {
+      alert('환불 요청이 접수되었습니다.')
+      qc.invalidateQueries({ queryKey: ['order', orderId] })
+    },
+    onError: (e: any) => alert(e?.response?.data?.message ?? '환불 요청 실패'),
+  })
+
   if (isLoading) return <Spinner className="py-20" />
   if (!order) return <p className="text-center py-20 text-xs tracking-widest text-gray-400">주문을 찾을 수 없습니다</p>
 
   const statusClass = STATUS_COLOR[order.status] ?? 'text-gray-500 bg-gray-50'
+  const canRefund = order.status === 'COMPLETED'
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -38,7 +49,6 @@ export function OrderDetailPage() {
       </div>
 
       <div className="space-y-4">
-        {/* Status + ID */}
         <div className="flex items-center justify-between border border-gray-100 px-5 py-4">
           <div>
             <p className="text-[10px] font-bold tracking-widest text-gray-400 mb-0.5">ORDER ID</p>
@@ -49,7 +59,6 @@ export function OrderDetailPage() {
           </span>
         </div>
 
-        {/* Product info */}
         <div className="border border-gray-100 px-5 py-4">
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center bg-gray-50">
@@ -62,7 +71,6 @@ export function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Amount */}
         {(order.totalAmount || order.finalAmount) && (
           <div className="border border-gray-100 px-5 py-4 space-y-2">
             <p className="text-[10px] font-bold tracking-widest text-gray-400 mb-2">결제 정보</p>
@@ -85,7 +93,6 @@ export function OrderDetailPage() {
           </div>
         )}
 
-        {/* Dates */}
         <div className="border border-gray-100 px-5 py-4 space-y-2">
           {order.createdAt && (
             <div className="flex justify-between text-xs">
@@ -100,6 +107,17 @@ export function OrderDetailPage() {
             </div>
           )}
         </div>
+
+        {canRefund && (
+          <button
+            onClick={() => { if (confirm('환불을 요청하시겠습니까?')) refundMutation.mutate() }}
+            disabled={refundMutation.isPending}
+            className="flex w-full items-center justify-center gap-2 border border-gray-200 py-3 text-xs font-bold text-gray-400 hover:border-red-300 hover:text-red-500 disabled:opacity-50 transition-colors"
+          >
+            <RotateCcw size={13} />
+            {refundMutation.isPending ? '처리 중...' : '환불 요청'}
+          </button>
+        )}
       </div>
     </div>
   )
