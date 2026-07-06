@@ -18,8 +18,14 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import com.omc.gateway.infrastructure.util.AesTicketUtil;
+
 import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Configuration
@@ -35,6 +41,9 @@ public class GatewayWarmupConfig {
 
     @Value("${server.port:8080}")
     private int serverPort;
+
+    @Value("${COUPON_TICKET_AES_KEY:Y291cG9uLXRpY2tldC1hZXMtMjU2LXNlY3JldC1rZXk=}")
+    private String aesKeyBase64;
 
     @Value("${gateway.warmup.keycloak-token-uri:http://keycloak:8180/realms/omc/protocol/openid-connect/token}")
     private String keycloakTokenUri;
@@ -67,6 +76,7 @@ public class GatewayWarmupConfig {
             warmUpRedis();
             waitForCouponService();
             warmUpSecurityFilterChain();
+            warmUpCouponTicketPath();
         } finally {
             // 워밍업 garbage 수집 후 heap 안정화 대기, 이후 트래픽 수락
             System.gc();
@@ -196,6 +206,50 @@ public class GatewayWarmupConfig {
         } catch (Exception e) {
             log.warn("[GatewayWarmup] Keycloak 토큰 발급 예외 (무시): {}", e.getMessage());
             return null;
+        }
+    }
+
+    // POST /api/v1/coupons/{id}/issue + X-Coupon-Ticket 경로를 2000회 실행해
+    // CouponTicketFilter.filter() + AesTicketUtil.decrypt() 의 JIT C2 컴파일을 보장.
+    // coupon-service 응답은 4xx여도 무방 — gateway 필터체인만 워밍업하면 됨.
+    private void warmUpCouponTicketPath() {
+        try {
+            byte[] aesKey = Base64.getDecoder().decode(aesKeyBase64);
+            String warmupCouponId = "00000000-0000-0000-0000-000000000000";
+            String warmupUri = "http://localhost:" + serverPort + "/api/v1/coupons/" + warmupCouponId + "/issue";
+            WebClient warmupClient = WebClient.create();
+            long expireAt = Instant.now().plusSeconds(3600).getEpochSecond();
+
+            List<String> tickets = new ArrayList<>(WARMUP_CONCURRENCY);
+            for (int i = 0; i < WARMUP_CONCURRENCY; i++) {
+                tickets.add(AesTicketUtil.encrypt("warmup-" + i + ":" + expireAt, aesKey));
+            }
+
+            AtomicInteger counter = new AtomicInteger(0);
+            Long successCount = Flux.range(0, SECURITY_WARMUP_REPEAT)
+                    .flatMap(i -> {
+                        String ticket = tickets.get(i % tickets.size());
+                        return warmupClient.post()
+                                .uri(warmupUri)
+                                .header("X-Coupon-Ticket", ticket)
+                                .header("X-B3-Sampled", "0")
+                                .exchangeToMono(response -> response.bodyToMono(String.class).defaultIfEmpty(""))
+                                .timeout(Duration.ofSeconds(15))
+                                .onErrorResume(e -> Mono.empty())
+                                .doOnSuccess(r -> {
+                                    int done = counter.incrementAndGet();
+                                    if (done % 500 == 0) {
+                                        log.info("[GatewayWarmup] AES 경로 워밍업 진행: {}/{}", done, SECURITY_WARMUP_REPEAT);
+                                    }
+                                });
+                    }, WARMUP_CONCURRENCY)
+                    .count()
+                    .block(Duration.ofSeconds(180));
+
+            log.info("[GatewayWarmup] CouponTicket(AES) 경로 워밍업 완료 ({}/{} 요청)",
+                    successCount != null ? successCount : 0, SECURITY_WARMUP_REPEAT);
+        } catch (Exception e) {
+            log.warn("[GatewayWarmup] CouponTicket(AES) 경로 워밍업 실패 (무시): {}", e.getMessage());
         }
     }
 

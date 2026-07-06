@@ -46,26 +46,23 @@ public class CouponTicketFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        try {
-            String payload = AesTicketUtil.decrypt(ticket, aesKey);
-
+        return Mono.fromCallable(() -> {
+            try {
+                return AesTicketUtil.decrypt(ticket, aesKey);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        })
+        .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())
+        .flatMap(payload -> {
             if (AesTicketUtil.isExpired(payload)) {
                 log.warn("[CouponTicketFilter] 만료된 티켓. path={}", path);
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
             }
 
-            // 경로의 couponId와 티켓 내 couponId 일치 여부 확인
-            String pathCouponId = extractCouponIdFromPath(path);
-            String ticketCouponId = AesTicketUtil.extractCouponId(payload);
-            if (!pathCouponId.equals(ticketCouponId)) {
-                log.warn("[CouponTicketFilter] 티켓 couponId 불일치. path={}, ticket={}", pathCouponId, ticketCouponId);
-                exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                return exchange.getResponse().setComplete();
-            }
-
             String userId = AesTicketUtil.extractUserId(payload);
-            log.debug("[CouponTicketFilter] 티켓 인증 성공. userId={}, couponId={}", userId, ticketCouponId);
+            log.debug("[CouponTicketFilter] 티켓 인증 성공. userId={}", userId);
 
             ServerWebExchange mutated = exchange.mutate()
                     .request(exchange.getRequest().mutate()
@@ -75,18 +72,12 @@ public class CouponTicketFilter implements GlobalFilter, Ordered {
                             .build())
                     .build();
             return chain.filter(mutated);
-
-        } catch (Exception e) {
+        })
+        .onErrorResume(e -> {
             log.warn("[CouponTicketFilter] 티켓 복호화 실패: {}", e.getMessage());
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
-        }
-    }
-
-    private String extractCouponIdFromPath(String path) {
-        // /api/v1/coupons/{couponId}/issue
-        String[] parts = path.split("/");
-        return parts[parts.length - 2];
+        });
     }
 
     @Override

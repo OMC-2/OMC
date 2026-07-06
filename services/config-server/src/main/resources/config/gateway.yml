@@ -8,6 +8,10 @@ spring:
       port: ${REDIS_PORT:6379}
   cloud:
     gateway:
+      httpclient:
+        pool:
+          max-connections: 2000
+          acquire-timeout: 3000
       routes:
         - id: user-service
           uri: lb://user-service
