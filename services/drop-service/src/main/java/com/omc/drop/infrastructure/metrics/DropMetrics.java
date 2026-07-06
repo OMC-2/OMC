@@ -75,4 +75,11 @@ public class DropMetrics {
                 .register(meterRegistry)
                 .increment();
     }
+
+    public void incrementInventoryFallback(UUID dropId) {
+        Counter.builder("drop.open.inventory.fallback")
+                .tag("dropId", dropId.toString())
+                .register(meterRegistry)
+                .increment();
+    }
 }

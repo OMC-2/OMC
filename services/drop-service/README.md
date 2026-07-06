@@ -32,18 +32,20 @@ stateDiagram-v2
     CLOSED --> [*] : 정산 후 Redis 키 정리
 ```
 
-OPEN 전이는 반드시 다음 순서를 지킨다. 워밍 실패 시 OPEN으로 바꾸지 않고 다음 주기에 재시도한다.
+OPEN 전이는 반드시 다음 순서를 지킨다. DB 업데이트를 먼저 수행해 멀티 인스턴스 중복 전이를 차단하고, Redis 워밍은 이후에 진행한다.
 
 ```
 ① product-service 재고 스냅샷 조회 (GET /internal/v1/products/{productId}/inventories/snapshot)
    → availableQuantity 사용 / product-service 장애 시 드롭 생성 시 저장한 totalQty로 폴백
-② Redis 워밍 — warmup.lua로 4개 키를 원자적으로 초기화
+   → 폴백 발생 시 drop.open.inventory.fallback 메트릭 기록
+② 조건부 UPDATE (WHERE status='SCHEDULED')  ← 인스턴스가 여러 대여도 전이는 1회
+③ Redis 워밍 — warmup.lua로 4개 키를 원자적으로 초기화
    status 키 EXISTS 체크 → 이미 OPEN이면 덮어쓰지 않음 (멱등, 멀티 인스턴스 재고 보호)
    stock:{dropId}      = availableQuantity
    drop:{dropId}:status = "OPEN"
    hold_ttl:{dropId}   = holdTtlSec   ← 진입 경로 DB 무접촉을 위한 캐싱
    product_id:{dropId} = productId    ← purchase.confirmed 이벤트 조립용 캐싱
-③ 조건부 UPDATE (WHERE status='SCHEDULED')  ← 인스턴스가 여러 대여도 전이는 1회
+   → 워밍 실패 시 DB는 이미 OPEN — HoldExpireScheduler.recoverFromDb()가 다음 주기에 Redis 복구
 ④ open_drops SADD {dropId}  ← HoldExpireScheduler가 DB 조회 없이 참조
 ⑤ drop.opened 발행
 ```
@@ -248,7 +250,7 @@ processed_events (
 | --- | --- | --- |
 | 1 | 동시성 제어를 분산 락(Redisson)이 아닌 **Lua Script**로 | 락은 대기·재시도 오버헤드 발생. 단일 스레드 Redis에서 Lua는 락 없이 원자성 확보 |
 | 2 | `purchase.confirmed` 파티션 키를 dropId가 아닌 **orderId**로 | 트래픽이 단일 인기 드롭에 집중 → dropId 키는 핫 파티션(병렬성 0). 순서 보장은 포기하되 정합성은 멱등 처리 + DB가 담당 |
-| 3 | 진입 API에 **DB Outbox 미적용 → Redis Stream Outbox** 채택 | 진입 경로가 DB 무접촉이라 DB Outbox는 오히려 DB I/O 추가 및 병목 재발생. Redis Stream을 Outbox로 사용하면 purchase.lua의 선점 연산과 XADD가 같은 Lua 블록 안에서 원자적으로 처리되어 DB 무접촉 원칙을 유지하면서 이벤트 유실도 방지. PurchaseStreamWorker가 XREADGROUP → Kafka 발행 → XACK 흐름으로 at-least-once 보장. 서버 재시작 시 pending 메시지를 자동 재처리하고, 멀티 인스턴스 환경에서는 XCLAIM으로 dead consumer의 메시지를 인수 |
+| 3 | 진입 API에 **DB Outbox 미적용 → Redis Stream Outbox** 채택 | 진입 경로가 DB 무접촉이라 DB Outbox는 오히려 DB I/O 추가 및 병목 재발생. Redis Stream을 Outbox로 사용하면 purchase.lua의 선점 연산과 XADD가 같은 Lua 블록 안에서 원자적으로 처리되어 DB 무접촉 원칙을 유지하면서 이벤트 유실도 방지. PurchaseStreamWorker가 XREADGROUP → Kafka 발행 → XACK 흐름으로 at-least-once 보장. 서버 재시작 시 pending 메시지를 자동 재처리하고, 멀티 인스턴스 환경에서는 XCLAIM으로 dead consumer의 메시지를 인수. 재시도 한도(5회) 초과 메시지는 `stream:purchase:failed`에 보관 — Kafka 장애가 원인일 수 있어 Kafka DLT 대신 Redis Stream 선택 |
 | 4 | TTL 감지를 Keyspace Notification이 아닌 **폴링**으로 | 만료 이벤트는 유실 가능성 존재. 폴링은 재실행 가능해 견고하며, hold.expired Consumer 멱등이 전제 |
 | 5 | 상태 전이를 **조건부 UPDATE**로 멱등화 | 스케줄러 다중 인스턴스 환경에서도 전이·워밍·발행이 정확히 1회 |
 | 6 | `payment.failed` 수신 시 **TTL 대기 없이 즉시 복구** | TTL(600초) 대기 시 그 시간 동안 재고 불필요하게 차단. 즉시 ZREM+INCR+SREM으로 재고 반환 → 다음 사용자 선점 가능 시간 최소화 |
