@@ -1,5 +1,17 @@
 Feature: 관리자 래플 상태 강제 변경 시나리오
+
+  # ================================================================
   # 관리자가 래플의 상태를 SCHEDULED -> OPEN -> CLOSED 등으로 강제 전환하는 검증
+  # 실행: bash e2e/run.sh scenario/05_admin/03_raffle_status
+  #
+  # 검증 흐름:
+  #   상품 등록 → 드롭 생성 → 래플 생성(SCHEDULED)
+  #   → 상태 강제 변경 OPEN → 상태 강제 변경 CLOSED
+  #
+  # 검증 포인트:
+  #   1. 관리자 API로 래플 상태를 SCHEDULED → OPEN으로 강제 전환 가능
+  #   2. 관리자 API로 래플 상태를 OPEN → CLOSED로 강제 전환 가능
+  # ================================================================
 
   Background:
     * url baseUrl
@@ -36,9 +48,6 @@ Feature: 관리자 래플 상태 강제 변경 시나리오
     And match response.data.status == 'SCHEDULED'
     * def raffleId = response.data.raffleId
 
-  # ================================================================
-  # 시나리오 1: 래플 상태 강제 변경 (SCHEDULED -> OPEN -> CLOSED)
-  # ================================================================
   Scenario: [관리자] 래플 상태를 SCHEDULED에서 OPEN으로, 다시 CLOSED로 강제 변경한다
     # [1단계] OPEN 상태로 강제 변경 (예시 API: PATCH /api/v1/admin/raffles/{id}/status)
     Given path '/api/v1/admin/raffles/' + raffleId + '/status'
