@@ -116,6 +116,7 @@
 #   bash e2e/run.sh scenario/06_auth_errors                             # 권한 오류 시나리오 전체
 #   bash e2e/run.sh scenario/01_drop_purchase/01_normal                 # 드롭 정상 구매 해피패쓰
 #   bash e2e/run.sh scenario/01_drop_purchase/02_refund                 # 환불 요청 → 결제 취소 → 환불 알림
+#   bash e2e/run.sh scenario/01_drop_purchase/03_auto_payment_chain     # 결제 승인 API 우회 없이 Kafka 자동 흐름만으로 검증
 #   bash e2e/run.sh scenario/02_raffle_purchase/01_entry_with_coupon    # 응모 (쿠폰 적용 + 선결제)
 #   bash e2e/run.sh scenario/02_raffle_purchase/02_duplicate_issue      # 중복 발급 시도 → 실패
 #   bash e2e/run.sh scenario/03_coupon_concurrency/01_concurrent_issue  # 동시 발급
@@ -124,6 +125,7 @@
 #   bash e2e/run.sh scenario/04_payment_saga/02_stock_failure           # 재고 차감 실패 → 결제 승인 취소 보상
 #   bash e2e/run.sh scenario/04_payment_saga/03_hold_expire             # 구매 hold 만료 → 선점 자동 해제
 #   bash e2e/run.sh scenario/04_payment_saga/04_idempotency             # 외부 결제 오류 → 멱등성 키로 중복 결제 방지
+#   bash e2e/run.sh scenario/04_payment_saga/05_raffle_stock_failure    # 래플 당첨자 재고 차감 실패 → 결제 승인 취소 보상
 #   bash e2e/run.sh scenario/05_admin/01_drop_modify                    # 오픈 전 드롭 수정/삭제
 #   bash e2e/run.sh scenario/05_admin/02_raffle_modify                  # 오픈 전 래플 수정/삭제
 #   bash e2e/run.sh scenario/05_admin/03_raffle_status                  # 래플 상태 강제 변경 (SCHEDULED→OPEN→CLOSED)
@@ -159,7 +161,7 @@ else
 fi
 
 # 유효한 대상인지 확인
-VALID_TARGETS="user coupon notification drop payment saga scenario user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_issue_happy coupon/coupon_cold_start coupon/sentry_monitor coupon/coupon_my coupon/coupon_security coupon/coupon_rate_limit notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security scenario/01_drop_purchase scenario/01_drop_purchase/01_normal scenario/03_coupon_concurrency scenario/03_coupon_concurrency/01_concurrent_issue scenario/03_coupon_concurrency/02_duplicate_issue scenario/04_payment_saga scenario/04_payment_saga/01_payment_failure scenario/04_payment_saga/02_stock_failure scenario/04_payment_saga/03_hold_expire scenario/04_payment_saga/04_idempotency scenario/05_admin scenario/05_admin/01_drop_modify scenario/05_admin/02_raffle_modify scenario/05_admin/03_raffle_status scenario/05_admin/04_raffle_draw scenario/06_auth_errors scenario/06_auth_errors/00_signup_happy scenario/06_auth_errors/01_unauthenticated scenario/06_auth_errors/02_unauthorized scenario/06_auth_errors/03_token_refresh"
+VALID_TARGETS="user coupon notification drop payment saga scenario user/signup user/login user/profile user/token_refresh user/profile_update user/address user/security coupon/coupon_create coupon/coupon_issue coupon/coupon_issue_happy coupon/coupon_cold_start coupon/sentry_monitor coupon/coupon_my coupon/coupon_security coupon/coupon_rate_limit notification/notification_list notification/notification_read notification/notification_security drop/drop_admin_crud drop/drop_query drop/drop_purchase payment/payment_flow payment/payment_security scenario/01_drop_purchase scenario/01_drop_purchase/01_normal scenario/01_drop_purchase/03_auto_payment_chain scenario/03_coupon_concurrency scenario/03_coupon_concurrency/01_concurrent_issue scenario/03_coupon_concurrency/02_duplicate_issue scenario/04_payment_saga scenario/04_payment_saga/01_payment_failure scenario/04_payment_saga/02_stock_failure scenario/04_payment_saga/03_hold_expire scenario/04_payment_saga/04_idempotency scenario/04_payment_saga/05_raffle_stock_failure scenario/05_admin scenario/05_admin/01_drop_modify scenario/05_admin/02_raffle_modify scenario/05_admin/03_raffle_status scenario/05_admin/04_raffle_draw scenario/06_auth_errors scenario/06_auth_errors/00_signup_happy scenario/06_auth_errors/01_unauthenticated scenario/06_auth_errors/02_unauthorized scenario/06_auth_errors/03_token_refresh"
 if [ -n "$TARGET" ]; then
   VALID=false
   for t in $VALID_TARGETS; do
@@ -214,10 +216,11 @@ if [ -n "$TARGET" ]; then
     echo "  payment/payment_security → 결제 인증·인가 보안 검증"
     echo ""
     echo "  [핵심 시연 시나리오 — payment saga]"
-    echo "  scenario/04_payment_saga/01_payment_failure → 결제 수단 오류 보상"
-    echo "  scenario/04_payment_saga/02_stock_failure   → 재고 차감 실패 결제 취소"
-    echo "  scenario/04_payment_saga/03_hold_expire     → 구매 hold 만료"
-    echo "  scenario/04_payment_saga/04_idempotency     → PG 오류 결제 멱등성"
+    echo "  scenario/04_payment_saga/01_payment_failure       → 결제 수단 오류 보상"
+    echo "  scenario/04_payment_saga/02_stock_failure         → 재고 차감 실패 결제 취소"
+    echo "  scenario/04_payment_saga/03_hold_expire           → 구매 hold 만료"
+    echo "  scenario/04_payment_saga/04_idempotency           → PG 오류 결제 멱등성"
+    echo "  scenario/04_payment_saga/05_raffle_stock_failure  → 래플 당첨자 재고 차감 실패 → 결제 승인 취소 보상"
     echo ""
     echo "  [시연 시나리오 그룹]"
     echo "  scenario                        → 핵심 시연 시나리오 전체"
@@ -230,6 +233,7 @@ if [ -n "$TARGET" ]; then
     echo ""
     echo "  [시연 시나리오 개별]"
     echo "  scenario/01_drop_purchase/01_normal                 → 드롭 정상 구매 해피패쓰"
+    echo "  scenario/01_drop_purchase/03_auto_payment_chain     → 결제 승인 API 우회 없이 Kafka 자동 흐름만으로 검증"
     echo "  scenario/02_raffle_purchase/01_entry_with_coupon    → 응모 (쿠폰 적용 + 선결제)"
     echo "  scenario/02_raffle_purchase/02_draw_and_notify      → 추첨 → 당첨 알림 / 낙첨 자동 환불 + 알림"
     echo "  scenario/03_coupon_concurrency/01_concurrent_issue  → 동시 발급 → 수량만 성공"
@@ -237,6 +241,8 @@ if [ -n "$TARGET" ]; then
     echo "  scenario/04_payment_saga/01_payment_failure         → 결제 수단 오류 → 재고/쿠폰 롤백 + 실패 알림"
     echo "  scenario/04_payment_saga/02_stock_failure           → 재고 차감 실패 → 결제 승인 취소 보상"
     echo "  scenario/04_payment_saga/03_hold_expire             → 구매 hold 만료 → 선점 자동 해제"
+    echo "  scenario/04_payment_saga/04_idempotency             → PG 오류 결제 멱등성"
+    echo "  scenario/04_payment_saga/05_raffle_stock_failure    → 래플 당첨자 재고 차감 실패 → 결제 승인 취소 보상"
     echo "  scenario/05_admin/01_drop_modify                    → 오픈 전 드롭 수정/삭제"
     echo "  scenario/05_admin/02_raffle_modify                  → 오픈 전 래플 수정/삭제"
     echo "  scenario/05_admin/03_raffle_status                  → 래플 상태 강제 변경 (SCHEDULED→OPEN→CLOSED)"
