@@ -2,10 +2,12 @@ package com.omc.payment.application.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.payment.domain.entity.Payment;
+import com.omc.payment.domain.entity.PaymentStatusHistory;
 import com.omc.payment.domain.enums.*;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.RetryablePaymentException;
 import com.omc.payment.domain.repository.PaymentRepository;
+import com.omc.payment.domain.repository.PaymentStatusHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -19,6 +21,7 @@ public class PaymentTransactionService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentOutboxService paymentOutboxService;
+    private final PaymentStatusHistoryRepository paymentStatusHistoryRepository;
 
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
     public Payment findByOrderId(UUID orderId){
@@ -109,7 +112,9 @@ public class PaymentTransactionService {
         if (payment.getPaymentStatus() != PaymentStatus.READY) {
             return payment;
         }
+        PaymentStatus previousStatus = payment.getPaymentStatus();
         payment.startConfirming();
+        saveStatusHistory(payment, previousStatus, "결제 승인 처리 시작");
         return payment;
     }
 
@@ -119,11 +124,14 @@ public class PaymentTransactionService {
         // 종료 상태 시 Outbox 중복 저장 방지
         if (payment.getPaymentStatus() == PaymentStatus.PAID
                 || payment.getPaymentStatus() == PaymentStatus.FAILED
-                || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
+        PaymentStatus previousStatus = payment.getPaymentStatus();
         payment.approve(providerPaymentId);
         paymentOutboxService.savePaymentCompleted(payment);
+        saveStatusHistory(payment, previousStatus, "PG 승인 성공");
         return payment;
     }
 
@@ -133,11 +141,14 @@ public class PaymentTransactionService {
 
         if (payment.getPaymentStatus() == PaymentStatus.PAID
                 || payment.getPaymentStatus() == PaymentStatus.FAILED
-                || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
+        PaymentStatus previousStatus = payment.getPaymentStatus();
         payment.fail(failureCode, failureMessage);
         paymentOutboxService.savePaymentFailed(payment);
+        saveStatusHistory(payment, previousStatus, resolveFailureReason(failureCode, failureMessage));
         return payment;
     }
 
@@ -149,20 +160,24 @@ public class PaymentTransactionService {
                 || payment.getPaymentStatus() == PaymentStatus.CANCEL_UNKNOWN
                 || payment.getPaymentStatus() == PaymentStatus.PAID
                 || payment.getPaymentStatus() == PaymentStatus.FAILED
-                || payment.getPaymentStatus() == PaymentStatus.CANCELED) {
+                || payment.getPaymentStatus() == PaymentStatus.CANCELED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
+        PaymentStatus previousStatus = payment.getPaymentStatus();
         payment.markConfirmUnknown();
+        saveStatusHistory(payment, previousStatus, "PG 승인 결과 미확정");
         return payment;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Payment markCancelUnknown(UUID paymentId) {
+    public Payment markCancelUnknown(UUID paymentId, CancellationCode cancellationCode, String reason) {
         Payment payment = getPayment(paymentId);
 
         if (payment.getPaymentStatus() == PaymentStatus.CANCEL_UNKNOWN
                 || payment.getPaymentStatus() == PaymentStatus.CANCELED
-                || payment.getPaymentStatus() == PaymentStatus.FAILED) {
+                || payment.getPaymentStatus() == PaymentStatus.FAILED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
 
@@ -172,7 +187,9 @@ public class PaymentTransactionService {
                     "이미 결제 승인 처리가 진행 중입니다."
             );
         }
-        payment.markCancelUnknown();
+        PaymentStatus previousStatus = payment.getPaymentStatus();
+        payment.markCancelUnknown(cancellationCode, reason);
+        saveStatusHistory(payment, previousStatus, resolveCancelUnknownReason(reason));
         return payment;
     }
 
@@ -193,12 +210,62 @@ public class PaymentTransactionService {
         }
 
         if (payment.getPaymentStatus() == PaymentStatus.CANCELED
-                || payment.getPaymentStatus() == PaymentStatus.FAILED) {
+                || payment.getPaymentStatus() == PaymentStatus.FAILED
+                || payment.getPaymentStatus() == PaymentStatus.RECOVERY_FAILED) {
             return payment;
         }
+        PaymentStatus previousStatus = payment.getPaymentStatus();
         payment.cancel(providerCancellationId, cancellationCode, reason);
         paymentOutboxService.saveRefundDone(payment);
+        saveStatusHistory(payment, previousStatus, resolveCancelReason(reason));
         return payment;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Payment markUnknownRecoveryRetry(UUID paymentId, int maxRetryCount) {
+        Payment payment = getPayment(paymentId);
+        PaymentStatus previousStatus = payment.getPaymentStatus();
+        payment.markUnknownRecoveryRetry(maxRetryCount);
+        saveStatusHistory(payment, previousStatus, "미확정 결제 재조회 최대 횟수 초과");
+        return payment;
+    }
+
+    // 결제가 변경된 경우 append-only 적재
+    private void saveStatusHistory(Payment payment, PaymentStatus previousStatus, String reason) {
+        PaymentStatus currentStatus = payment.getPaymentStatus();
+        if (previousStatus == currentStatus) {
+            return;
+        }
+        paymentStatusHistoryRepository.save(
+                PaymentStatusHistory.create(
+                        payment.getPaymentId(),
+                        payment.getOrderId(),
+                        previousStatus,
+                        currentStatus,
+                        reason
+                )
+        );
+    }
+
+    private String resolveFailureReason(String failureCode, String failureMessage) {
+        if (failureMessage == null || failureMessage.isBlank()) {
+            return "결제 실패: " + failureCode;
+        }
+        return "결제 실패: " + failureMessage;
+    }
+
+    private String resolveCancelUnknownReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return "PG 취소 결과 미확정";
+        }
+        return "PG 취소 결과 미확정: " + reason;
+    }
+
+    private String resolveCancelReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return "결제 취소";
+        }
+        return "결제 취소: " + reason;
     }
 
     private Payment getPayment(UUID paymentId) {

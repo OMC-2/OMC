@@ -103,6 +103,9 @@ public class Payment extends BaseEntity {
     @Column(name = "cancelled_message")
     private String cancelledMessage;
 
+    @Column(name = "unknown_recovery_retry_count", nullable = false)
+    private int unknownRecoveryRetryCount;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -213,8 +216,10 @@ public class Payment extends BaseEntity {
     }
 
     // PG 취소 결과를 확인할 수 없는 상태로 변경
-    public void markCancelUnknown() {
+    public void markCancelUnknown(CancellationCode cancellationCode, String cancelledMessage) {
         transitTo(PaymentStatus.CANCEL_UNKNOWN);
+        this.cancellationCode = cancellationCode;
+        this.cancelledMessage = cancelledMessage;
     }
 
     // 결제 취소 또는 환불 이벤트 반영
@@ -228,6 +233,18 @@ public class Payment extends BaseEntity {
         this.cancellationCode = cancellationCode;
         this.cancelledMessage = cancelledMessage;
         this.canceledAt = LocalDateTime.now();
+    }
+
+    // 재시도 실패 횟수 증가 및 최대 시도 검증
+    public void markUnknownRecoveryRetry(int maxRetryCount) {
+        if (paymentStatus != PaymentStatus.CONFIRM_UNKNOWN
+                && paymentStatus != PaymentStatus.CANCEL_UNKNOWN) {
+            return;
+        }
+        this.unknownRecoveryRetryCount += 1;
+        if (unknownRecoveryRetryCount >= Math.max(1, maxRetryCount)) {
+            transitTo(PaymentStatus.RECOVERY_FAILED);
+        }
     }
 
     private void transitTo(PaymentStatus targetStatus) {

@@ -12,19 +12,19 @@ import com.omc.payment.domain.enums.PaymentMethod;
 import com.omc.payment.domain.enums.PaymentStatus;
 import com.omc.payment.domain.enums.Provider;
 import com.omc.payment.domain.enums.SalesType;
-import com.omc.payment.domain.exception.NonRetryablePaymentException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
 import com.omc.payment.domain.exception.PaymentGatewayConnectionException;
 import com.omc.payment.domain.exception.PaymentGatewayRequestException;
 import com.omc.payment.domain.exception.RetryablePaymentException;
 import com.omc.payment.domain.repository.PaymentRepository;
+import com.omc.payment.domain.repository.PaymentStatusHistoryRepository;
 import com.omc.payment.infrastructure.client.CouponReserveRequest;
 import com.omc.payment.infrastructure.client.CouponServiceClient;
 import com.omc.payment.infrastructure.client.UserCouponResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -61,6 +61,7 @@ class PaymentCoreServiceTest {
     private static final UUID ENTRY_ID = UUID.randomUUID();
 
     @Mock private PaymentRepository paymentRepository;
+    @Mock private PaymentStatusHistoryRepository paymentStatusHistoryRepository;
     @Mock private PaymentGatewayPort paymentGatewayPort;
     @Mock private PaymentOutboxService paymentOutboxService;
     @Mock private CouponServiceClient couponServiceClient;
@@ -73,7 +74,7 @@ class PaymentCoreServiceTest {
     @BeforeEach
     void setUp() {
         savedPayments = new HashMap<>();
-        paymentTransactionService = new PaymentTransactionService(paymentRepository, paymentOutboxService);
+        paymentTransactionService = new PaymentTransactionService(paymentRepository, paymentOutboxService, paymentStatusHistoryRepository);
         paymentCoreService = new PaymentCoreService(
                 paymentGatewayPort,
                 couponServiceClient,
