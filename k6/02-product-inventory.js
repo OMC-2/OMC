@@ -135,13 +135,11 @@ const userData = new SharedArray('users', function () {
 export const purchaseOptions = {
   scenarios: {
     drop_purchase: {
-      executor: 'ramping-vus',
-      startVUs: 0,
-      stages: [
-        { duration: '5s',  target: 1000 }, // 5초 안에 1,000명 진입 (동시성 극대화)
-        { duration: '10s', target: 1000 }, // 10초 유지
-        { duration: '5s',  target: 0 },    // 감소
-      ],
+      executor: 'per-vu-iterations',
+      vus: 1000,
+      iterations: 1,        // VU당 1회 → 총 정확히 1,000 요청
+      maxDuration: '2m',
+      gracefulStop: '30s',
     },
   },
   thresholds: {
@@ -243,10 +241,14 @@ function runPurchase(data) {
   const ok = check(res, {
     '202 Accepted (선점 성공)': (r) => r.status === 202,
     '409 Conflict (재고 소진 — 정상 비즈니스 응답)': (r) => r.status === 409,
+    '429 Too Many Requests (Rate Limiter 차단 — 정상 방어)': (r) => r.status === 429,
   });
 
-  // 202(선점 성공)만 성공률로 집계
+  // 202(선점 성공)만 성공률로 집계. 409/429는 정상 비즈니스 차단이므로 실패 아님.
   purchaseSuccess.add(res.status === 202);
+  if (res.status >= 500) {
+    console.warn(`[purchase] 5xx 오류: status=${res.status}, body=${res.body}`);
+  }
   purchaseDuration.add(res.timings.duration);
 }
 
