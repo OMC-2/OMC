@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -55,35 +56,48 @@ public class PaymentReconciliationResult {
     @Column(name = "checked_at", nullable = false)
     private LocalDateTime checkedAt;
 
-    private PaymentReconciliationResult(
-            Payment payment,
-            String pgStatus,
-            Long pgAmount,
-            PaymentReconciliationResultType resultType
-    ) {
-        this.reconciliationResultId = UuidV7Generator.generate();
-        this.paymentId = payment.getPaymentId();
-        this.orderId = payment.getOrderId();
-        this.providerPaymentId = payment.getProviderPaymentId();
-        this.dbStatus = payment.getPaymentStatus();
-        this.pgStatus = pgStatus;
-        this.dbAmount = payment.getFinalAmount();
-        this.pgAmount = pgAmount;
-        this.resultType = resultType;
-        this.checkedAt = LocalDateTime.now();
-    }
-
     public static PaymentReconciliationResult create(
             Payment payment,
             String pgStatus,
             Long pgAmount,
             PaymentReconciliationResultType resultType
     ) {
-        return new PaymentReconciliationResult(
-                payment,
-                pgStatus,
-                pgAmount,
-                resultType
-        );
+        return PaymentReconciliationResult.builder()
+                .reconciliationResultId(UuidV7Generator.generate())
+                .paymentId(payment.getPaymentId())
+                .orderId(payment.getOrderId())
+                .providerPaymentId(payment.getProviderPaymentId())
+                .dbStatus(payment.getPaymentStatus())
+                .pgStatus(pgStatus)
+                .dbAmount(payment.getFinalAmount())
+                .pgAmount(pgAmount)
+                .resultType(resultType)
+                .checkedAt(LocalDateTime.now())
+                .build();
+    }
+
+    @Builder(access = AccessLevel.PRIVATE)
+    private PaymentReconciliationResult(
+            UUID reconciliationResultId,
+            UUID paymentId,
+            UUID orderId,
+            String providerPaymentId,
+            PaymentStatus dbStatus,
+            String pgStatus,
+            Long dbAmount,
+            Long pgAmount,
+            PaymentReconciliationResultType resultType,
+            LocalDateTime checkedAt
+    ) {
+        this.reconciliationResultId = reconciliationResultId;
+        this.paymentId = paymentId;
+        this.orderId = orderId;
+        this.providerPaymentId = providerPaymentId;
+        this.dbStatus = dbStatus;
+        this.pgStatus = pgStatus;
+        this.dbAmount = dbAmount;
+        this.pgAmount = pgAmount;
+        this.resultType = resultType;
+        this.checkedAt = checkedAt;
     }
 }
