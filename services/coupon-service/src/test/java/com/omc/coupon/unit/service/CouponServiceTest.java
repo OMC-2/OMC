@@ -42,6 +42,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -105,7 +106,7 @@ class CouponServiceTest {
         Coupon couponMock = mock(Coupon.class);
         UserCoupon userCouponMock = mock(UserCoupon.class);
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
         given(couponMock.isIssuable()).willReturn(true);
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
@@ -134,7 +135,7 @@ class CouponServiceTest {
         // given
         Coupon couponMock = mock(Coupon.class);
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
         given(couponMock.isIssuable()).willReturn(true);
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(-1L); // 재고 없음
@@ -156,7 +157,7 @@ class CouponServiceTest {
         // given
         Coupon couponMock = mock(Coupon.class);
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
         given(couponMock.isIssuable()).willReturn(true);
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(true);
 
@@ -177,7 +178,7 @@ class CouponServiceTest {
         Coupon couponMock = mock(Coupon.class);
         UserCoupon existingMock = mock(UserCoupon.class);
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
         given(couponMock.isIssuable()).willReturn(true);
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
@@ -200,7 +201,7 @@ class CouponServiceTest {
         // given
         Coupon couponMock = mock(Coupon.class);
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
         given(couponMock.isIssuable()).willReturn(true);
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.decrementStock(couponId.toString())).willReturn(5L);
@@ -225,7 +226,7 @@ class CouponServiceTest {
         // given
         Coupon couponMock = mock(Coupon.class);
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
         given(couponMock.isIssuable()).willReturn(false);
         given(couponMock.getExpiredAt()).willReturn(LocalDateTime.now().minusDays(1)); // 만료됨
         // getStartedAt() 은 expiredAt 체크가 먼저 통과하면 호출되지 않음 — 스텁 불필요
@@ -246,7 +247,7 @@ class CouponServiceTest {
         // given
         Coupon couponMock = mock(Coupon.class);
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
         given(couponMock.isIssuable()).willReturn(false);
         given(couponMock.getExpiredAt()).willReturn(LocalDateTime.now().plusDays(7)); // 미래
         given(couponMock.getStartedAt()).willReturn(LocalDateTime.now().plusDays(1)); // 아직 시작 안 됨
@@ -315,7 +316,7 @@ class CouponServiceTest {
         Coupon couponMock = mock(Coupon.class);
         UserCoupon userCouponMock = mock(UserCoupon.class);
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
         given(couponMock.isIssuable()).willReturn(true);
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.hasStock(couponId.toString())).willReturn(false); // key 없음 (기본 true 오버라이드)
@@ -347,7 +348,7 @@ class CouponServiceTest {
         Coupon couponMock = mock(Coupon.class);
         UserCoupon userCouponMock = mock(UserCoupon.class);
 
-        given(couponRepository.findById(couponId)).willReturn(Optional.of(couponMock));
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
         given(couponMock.isIssuable()).willReturn(true);
         given(couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())).willReturn(false);
         given(couponRedisRepository.hasStock(couponId.toString())).willReturn(true); // key 있음
@@ -363,6 +364,40 @@ class CouponServiceTest {
 
         // then: syncCouponStock 미호출 확인
         verify(couponStockRecoveryService, never()).syncCouponStock(any());
+    }
+
+    // =========================================================================
+    // [시나리오 11] 쿠폰 삭제 성공 (소프트 딜리트)
+    // =========================================================================
+
+    @Test
+    void deleteCoupon_success() {
+        // given
+        Coupon couponMock = mock(Coupon.class);
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.of(couponMock));
+
+        // when
+        couponService.deleteCoupon(couponId);
+
+        // then
+        verify(couponMock).softDelete(nullable(UUID.class));
+        verify(couponRedisRepository).deleteStock(couponId.toString());
+    }
+
+    // =========================================================================
+    // [시나리오 12] 존재하지 않는 쿠폰 삭제 → CouponNotFoundException
+    // =========================================================================
+
+    @Test
+    void deleteCoupon_notFound_throwsException() {
+        // given
+        given(couponRepository.findByCouponIdAndDeletedAtIsNull(couponId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> couponService.deleteCoupon(couponId))
+                .isInstanceOf(CouponNotFoundException.class);
+
+        verify(couponRedisRepository, never()).deleteStock(any());
     }
 
     // =========================================================================
