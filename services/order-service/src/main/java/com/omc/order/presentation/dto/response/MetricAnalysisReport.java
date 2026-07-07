@@ -1,4 +1,4 @@
-package com.omc.order.ai.dto;
+package com.omc.order.presentation.dto.response;
 
 import java.util.List;
 import java.util.Map;

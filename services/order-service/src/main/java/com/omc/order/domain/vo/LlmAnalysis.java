@@ -1,4 +1,4 @@
-package com.omc.order.ai.dto;
+package com.omc.order.domain.vo;
 
 import java.util.List;
 

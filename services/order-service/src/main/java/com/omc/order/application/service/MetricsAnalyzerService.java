@@ -1,8 +1,8 @@
-package com.omc.order.ai.service;
+package com.omc.order.application.service;
 
-import com.omc.order.ai.client.PrometheusClient;
-import com.omc.order.ai.dto.LlmAnalysis;
-import com.omc.order.ai.dto.MetricAnalysisReport;
+import com.omc.order.infrastructure.client.PrometheusClient;
+import com.omc.order.domain.vo.LlmAnalysis;
+import com.omc.order.presentation.dto.response.MetricAnalysisReport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;

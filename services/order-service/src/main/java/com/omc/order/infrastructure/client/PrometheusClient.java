@@ -1,4 +1,4 @@
-package com.omc.order.ai.client;
+package com.omc.order.infrastructure.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;

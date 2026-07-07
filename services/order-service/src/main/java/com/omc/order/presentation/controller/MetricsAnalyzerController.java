@@ -1,9 +1,9 @@
 package com.omc.order.presentation.controller;
 
 import com.omc.common.response.ApiResponse;
-import com.omc.order.ai.dto.AnalyzeRequest;
-import com.omc.order.ai.dto.MetricAnalysisReport;
-import com.omc.order.ai.service.MetricsAnalyzerService;
+import com.omc.order.presentation.dto.request.AnalyzeRequest;
+import com.omc.order.presentation.dto.response.MetricAnalysisReport;
+import com.omc.order.application.service.MetricsAnalyzerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

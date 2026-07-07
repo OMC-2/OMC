@@ -1,4 +1,4 @@
-package com.omc.order.ai.config;
+package com.omc.order.infrastructure.config;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.context.annotation.Bean;
