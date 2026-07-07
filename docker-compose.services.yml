@@ -63,6 +63,8 @@ services:
       REDIS_PORT: 6379
       SENTRY_DSN: ${SENTRY_DSN:-}
       APP_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m -XX:+UseG1GC"
+      TRACING_SAMPLING_PROBABILITY: 0.0
     depends_on:
       config-server:
         condition: service_healthy
@@ -81,7 +83,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 1024m
 
   user-service:
     build:
@@ -143,6 +145,7 @@ services:
       GATEWAY_SECRET: local-secret
       SENTRY_DSN: ${SENTRY_DSN:-}
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1g -XX:+UseG1GC"
+      TRACING_SAMPLING_PROBABILITY: 0.0
     depends_on:
       config-server:
         condition: service_healthy

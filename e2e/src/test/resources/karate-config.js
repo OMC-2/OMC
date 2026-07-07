@@ -3,6 +3,7 @@ function fn() {
         baseUrl: 'http://localhost:8080',
         couponServiceUrl: 'http://localhost:8087',
         paymentServiceUrl: 'http://localhost:8085',
+        orderServiceUrl: 'http://localhost:8083',
         kafkaBootstrapServers: 'localhost:9092',
         gatewaySecret: 'local-secret',
         adminSecret: 'local-admin-secret'
@@ -19,6 +20,9 @@ function fn() {
 
     var paymentServiceUrl = java.lang.System.getenv('PAYMENT_SERVICE_URL');
     if (paymentServiceUrl) config.paymentServiceUrl = paymentServiceUrl;
+
+    var orderServiceUrl = java.lang.System.getenv('ORDER_SERVICE_URL');
+    if (orderServiceUrl) config.orderServiceUrl = orderServiceUrl;
 
     var kafkaBootstrapServers = java.lang.System.getenv('KAFKA_BOOTSTRAP_SERVERS');
     if (kafkaBootstrapServers) config.kafkaBootstrapServers = kafkaBootstrapServers;
