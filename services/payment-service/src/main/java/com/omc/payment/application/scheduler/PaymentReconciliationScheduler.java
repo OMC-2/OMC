@@ -18,7 +18,7 @@ import java.time.ZoneId;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "payment.reconciliation.enabled", havingValue = "true")
-public class PaymentReconciliationSchedular {
+public class PaymentReconciliationScheduler {
 
     private final JobLauncher jobLauncher;
     private final Job paymentReconciliationJob;

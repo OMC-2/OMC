@@ -14,7 +14,7 @@ import java.time.Duration;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "payment.expiration.enabled", havingValue = "true", matchIfMissing = true)
-public class PaymentExpirationSchedular {
+public class PaymentExpirationScheduler {
 
     private final PaymentExpirationService paymentExpirationService;
 
