@@ -19,6 +19,9 @@ dependencies {
     // OpenFeign
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
+    // Batch
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+
     // Observability
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 

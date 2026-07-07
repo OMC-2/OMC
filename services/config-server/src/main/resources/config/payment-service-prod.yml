@@ -79,6 +79,19 @@ payment:
     fixed-delay-ms: 30000
     batch-size: 100
     max-retry-count: 3
+  expiration:
+    enabled: true
+    initial-delay-ms: 60000
+    fixed-delay-ms: 30000
+    batch-size: 100
+    ttl-ms: 300000
+  reconciliation:
+    enabled: true
+    cron: "0 0 4 * * *"
+    zone: Asia/Seoul
+    chunk-size: 50
+    page-size: 100
+    lookback-days: 3
 
 resilience4j:
   retry:
