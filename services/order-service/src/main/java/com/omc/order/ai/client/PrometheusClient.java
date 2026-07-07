@@ -20,7 +20,7 @@ import java.util.Map;
 @Component
 public class PrometheusClient {
 
-  private final String prometheusUrl;;
+  private final String prometheusUrl;
   private final RestClient restClient;
 
   public PrometheusClient(@Value("${diagnosis.prometheus-url}") String prometheusUrl) {
@@ -34,12 +34,14 @@ public class PrometheusClient {
   public Map<String, String> collectOrderMetrics() {
     Map<String, String> metrics = new LinkedHashMap<>();
 
+    //API 계층
     //1) API 응답시간 p99
     metrics.put("api_p99_response_seconds", query("histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application=\"order-service\"}[5m])) by (le))"));
 
     //2) API 처리량 (req/s)
     metrics.put("api_throughput_rps", query("sum(rate(http_server_requests_seconds_count{application=\"order-service\"}[1m]))"));
 
+    //이벤트(Outbox 발행) 계층
     //3) 아웃박스 발행 지연 p99(초) - 롤러 적체 지표
     metrics.put("outbox_publish_lag_p99_seconds", query("order_outbox_publish_lag_seconds{application=\"order-service\", quantile=\"0.99\"}"));
 
@@ -49,14 +51,33 @@ public class PrometheusClient {
     //5) 아웃박스 발행 DLQ 적재 수
     metrics.put("outbox_publish_dlq_total", query("sum(order_outbox_publish_dlq_total{application=\"order-service\"})"));
 
-    //6) Circuit Breaker OPEN 상태 여부 (product 연동)
+    //이벤트(Consumer 수신) 계층
+    //6) Consumer 처리 실패 DLQ 적재 수(product 장애 등 실패 신호)
+    metrics.put("consumer_dlq_total", query(
+        "sum(order_consumer_dlq_total{application=\"order-service\"})"));    //6) Circuit Breaker OPEN 상태 여부 (product 연동)
+
+    //외부 연동(Circuit Breaker)계층
+    //7) Circuit Breaker OPEN 상태 여부 (product 연동)
     metrics.put("circuitbreaker_open", query("resilience4j_circuitbreaker_state{application=\"order-service\", state=\"open\"}"));
 
-    //7) Circuit Breaker 실패 호출 수
+    //8) Circuit Breaker 실패 호출 수
     metrics.put("circuitbreaker_failed_calls", query("sum(resilience4j_circuitbreaker_calls{application=\"order-service\", kind=\"failed\"})"));
 
-    //8) JVM 힙 사용률
+    //리소스(JVM/DB/스레드) 계층
+    //9) JVM 힙 사용률(bytes)
     metrics.put("jvm_heap_used_bytes", query("sum(jvm_memory_used_bytes{application=\"order-service\", area=\"heap\"})"));
+
+    //10) DB 커넥션풀 사용률 (active/max, 0.0~1.0) -1.0 근접 시 풀 고갈
+    metrics.put("db_pool_usage_ratio", query(
+        "hikaricp_connections_active{application=\"order-service\"} / hikaricp_connections_max{application=\"order-service\"}"));
+
+    //11) DB 커넥션 대기 수 (pending) - 0보다 크면 커넥션을 못 얻어 대기 중(풀 부족)
+    metrics.put("db_connections_pending", query(
+        "hikaricp_connections_pending{application=\"order-service\"}"));
+
+    //12) JVM 라이브 스레드 수 (톰캣 busy 스레드 미노출 환경의 스레드 포화 근사 지표)
+    metrics.put("jvm_live_threads", query(
+        "jvm_threads_live_threads{application=\"order-service\"}"));
 
     return metrics;
   }

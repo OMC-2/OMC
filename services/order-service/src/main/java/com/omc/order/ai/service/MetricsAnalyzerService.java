@@ -35,13 +35,20 @@ Based on these metrics, answer the administrator's question while adhering to th
 - outbox_publish_lag_p99_seconds: Outbox publish lag. If high, indicates an event poller backlog.
 - outbox_publish_failure_total: Cumulative publish failures. > 0 indicates publish failure isolation.
 - outbox_publish_dlq_total: DLQ count. > 0 indicates a risk of event loss (CRITICAL).
+- consumer_dlq_total: Kafka consumer processing failures moved to DLQ. > 0 means inbound events (e.g. purchase.confirmed) failed to process, often due to a downstream dependency failure such as product-service being down (CRITICAL).
 - circuitbreaker_open: If 1, the connection to the product-service is blocked (CRITICAL).
 - circuitbreaker_failed_calls: If large, indicates external integration instability.
 - jvm_heap_used_bytes: Heap memory usage (bytes).
+- db_pool_usage_ratio: DB connection pool usage (active/max, 0.0~1.0). Near 1.0 means the pool is nearly exhausted.
+- db_connections_pending: Threads waiting to acquire a DB connection. > 0 means the pool is insufficient and requests are blocked (CRITICAL).
+- jvm_live_threads: Total live JVM threads. A sudden spike may indicate thread pool saturation or blocked threads.
+
 
 [Complex Analysis - IMPORTANT]
 Do not evaluate metrics in isolation. Interpret the causality of patterns where multiple metrics worsen together.
-Example: If 'circuitbreaker_open' == 1 and 'outbox_publish_dlq_total' increases simultaneously, infer a cascading failure such as "product-service integration failure blocks event processing, leading to a DLQ backlog."
+Examples:
+- If 'circuitbreaker_open' == 1 and 'outbox_publish_dlq_total' increases simultaneously, infer a cascading failure such as "product-service integration failure blocks event processing, so purchase.confirmed events pile up in the DLQ."
+- If db_connections_pending > 0 and api_p99 rises together, infer DB pool exhaustion causing request latency.
 
 [Unknown Territory - IMPORTANT]
 The provided metrics are core to the order-service's stability, but they are not exhaustive.
@@ -109,7 +116,7 @@ IMPORTANT: All text must be written concisely in Korean.
     List<String> alerts = new ArrayList<>();
 
     //1)외부 통신 단절(product 서비스 다운)
-    if ("1".equals(safeTrim(metrics.get("circuitbreaker_open")))) {
+    if (parseDouble(metrics.get("circuitbreaker_open")) >= 1.0) {
       alerts.add("circuitbreaker_open=1 : product 연동 차단 상태");
     }
 
@@ -118,9 +125,19 @@ IMPORTANT: All text must be written concisely in Korean.
       alerts.add("outbox_publish_dlq_total > 0: 이벤트 DLQ 적재(유실 위험)");
     }
 
-    //3) API 서비스 마비 수준의 극단적 지연
+    //3) Consumer 수신 처리 실패 (product 장애 등 실패로 이벤트 처리 불가)
+    if (parseDouble(metrics.get("consumer_dlq_total")) >0) {
+      alerts.add("consumer_dlq_total>0: 수신 이벤트 DLQ 적재(하류 장애 의심)");
+    }
+
+    //4) API 서비스 마비 수준의 극단적 지연
     if (parseDouble(metrics.get("api_p99_response_seconds")) > 5.0) {
       alerts.add("api_p99_response_seconds>5s: 응답 지연 심각(서비스 마비 수준)");
+    }
+
+    //5) DB 커넥션 풀 고갈 (커넥션을 못 얻어 대기 중인 요청 존재)
+    if (parseDouble(metrics.get("db_connections_pending")) > 0) {
+      alerts.add("db_connections_pending>0: DB 커넥션 풀 부족(요청 대기 발생)");
     }
 
     return alerts;
@@ -143,9 +160,5 @@ IMPORTANT: All text must be written concisely in Korean.
     } catch (NumberFormatException e) {
       return 0.0; // "N/A" 등은 0으로 간주 (Hard Rule 오탐 방지)
     }
-  }
-
-  private String safeTrim(String value) {
-    return value == null ? "" : value.trim();
   }
 }
