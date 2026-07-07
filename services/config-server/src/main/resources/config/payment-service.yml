@@ -10,7 +10,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -95,6 +95,13 @@ payment:
     fixed-delay-ms: 30000
     batch-size: 100
     ttl-ms: 300000
+  reconciliation:
+    enabled: true
+    cron: "0 0 4 * * *"
+    zone: Asia/Seoul
+    chunk-size: 50
+    page-size: 100
+    lookback-days: 3
 
 resilience4j:
   retry:
