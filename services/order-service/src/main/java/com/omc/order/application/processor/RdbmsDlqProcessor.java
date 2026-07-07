@@ -1,4 +1,4 @@
-package com.omc.order.infrastructure.kafka;
+package com.omc.order.application.processor;
 
 import com.omc.order.domain.entity.OrderDlqMessage;
 import com.omc.order.domain.repository.OrderDlqRepository;
@@ -14,12 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
-public class RdbmsDlqRecoverer implements ConsumerRecordRecoverer {
+public class RdbmsDlqProcessor implements ConsumerRecordRecoverer {
 
   private final OrderDlqRepository dlqRepository;
   private final Counter consumerDlqCounter; //Kafka consumer 처리 실패로 DLQ에 적재된 누적 수
 
-  public RdbmsDlqRecoverer(OrderDlqRepository dlqRepository, MeterRegistry meterRegistry) {
+  public RdbmsDlqProcessor(OrderDlqRepository dlqRepository, MeterRegistry meterRegistry) {
     this.dlqRepository = dlqRepository;
     this.consumerDlqCounter = Counter.builder("order.consumer.dlq")
         .description("Kafka consumer 처리 실패로 RDBMS DLQ에 적재된 누적 수")
