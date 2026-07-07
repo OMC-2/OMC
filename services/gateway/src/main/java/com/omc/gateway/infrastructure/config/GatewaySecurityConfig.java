@@ -55,6 +55,7 @@ public class GatewaySecurityConfig {
                 .pathMatchers(HttpMethod.GET, "/api/v1/drops", "/api/v1/drops/**").permitAll()
                 .pathMatchers(HttpMethod.GET, "/api/v1/raffles").permitAll()
                 .pathMatchers(HttpMethod.GET, "/api/v1/raffles/{raffleId:[0-9a-fA-F-]+}").permitAll()
+                .pathMatchers(HttpMethod.GET, "/api/v1/coupons").permitAll()
                 .pathMatchers("/internal/**").denyAll()
                 .pathMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/webjars/**").permitAll()
                 .anyExchange().authenticated()

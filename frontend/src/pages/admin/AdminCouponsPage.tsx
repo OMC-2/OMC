@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminCouponsApi } from '../../api/admin'
 import { formatDate } from '../../lib/utils'
-import { Plus, X, Copy, Check } from 'lucide-react'
+import { Plus, X, Copy, Check, Trash2 } from 'lucide-react'
 
 const INIT = {
   name: '', discountType: 'AMOUNT', discountValue: '',
@@ -21,6 +21,18 @@ export function AdminCouponsPage() {
     queryFn: () => adminCouponsApi.getAll(),
   })
   const coupons = data?.data?.data?.content ?? []
+
+  const deleteMutation = useMutation({
+    mutationFn: (couponId: string) => adminCouponsApi.delete(couponId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-coupons'] }),
+    onError: (e: any) => alert(e?.response?.data?.message ?? '삭제 실패'),
+  })
+
+  const handleDelete = (couponId: string, name: string) => {
+    if (confirm(`"${name}" 쿠폰을 삭제하시겠습니까?\n(소프트 딜리트 — 복구 가능)`)) {
+      deleteMutation.mutate(couponId)
+    }
+  }
 
   const createMutation = useMutation({
     mutationFn: () => adminCouponsApi.create({
@@ -133,7 +145,7 @@ export function AdminCouponsPage() {
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-white/5 bg-white/5">
-              {['이름', '타입', '할인', '잔여/전체', '만료', '쿠폰 ID'].map(h => (
+              {['이름', '타입', '할인', '잔여/전체', '만료', '쿠폰 ID', ''].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-[10px] font-bold tracking-widest text-white/30">{h}</th>
               ))}
             </tr>
@@ -142,7 +154,7 @@ export function AdminCouponsPage() {
             {isLoading ? (
               <tr><td colSpan={6} className="py-10 text-center text-white/20">로딩 중...</td></tr>
             ) : coupons.length === 0 ? (
-              <tr><td colSpan={6} className="py-10 text-center text-white/20">쿠폰 없음</td></tr>
+              <tr><td colSpan={7} className="py-10 text-center text-white/20">쿠폰 없음</td></tr>
             ) : coupons.map((c: any) => (
               <tr key={c.couponId} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                 <td className="px-4 py-3 font-medium text-white/80">{c.name}</td>
@@ -166,6 +178,16 @@ export function AdminCouponsPage() {
                   >
                     {copiedId === c.couponId ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
                     {c.couponId?.slice(0, 8)}...
+                  </button>
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => handleDelete(c.couponId, c.name)}
+                    disabled={deleteMutation.isPending}
+                    className="text-white/20 hover:text-red-400 transition-colors disabled:opacity-30"
+                    title="삭제"
+                  >
+                    <Trash2 size={13} />
                   </button>
                 </td>
               </tr>

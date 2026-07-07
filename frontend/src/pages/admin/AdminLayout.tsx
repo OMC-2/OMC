@@ -49,10 +49,9 @@ export function AdminLayout() {
     <div className="flex min-h-screen bg-gray-950 text-white">
       <aside className="w-56 shrink-0 border-r border-white/5 flex flex-col">
         <div className="px-5 py-6 border-b border-white/5">
-          <div className="flex items-center gap-1">
-            <span className="text-lg font-black tracking-tighter">SOLD</span>
-            <span className="text-lg font-black tracking-tighter text-red-500">OUT</span>
-          </div>
+          <NavLink to="/" className="flex items-center gap-1 w-fit">
+            <span className="text-lg font-black tracking-tighter">OMC</span>
+          </NavLink>
           <p className="text-[10px] text-white/30 tracking-widest mt-0.5">ADMIN</p>
         </div>
 

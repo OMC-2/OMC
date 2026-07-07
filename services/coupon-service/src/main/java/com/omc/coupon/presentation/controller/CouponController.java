@@ -34,9 +34,8 @@ public class CouponController {
         return ApiResponse.success(couponService.createCoupon(request));
     }
 
-    // ADMIN: 쿠폰 목록 조회
+    // 공개: 쿠폰 목록 조회 (비로그인 포함 전체 접근 가능)
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<PageResponse<CouponResponse>> getCoupons(Pageable pageable) {
         Page<CouponResponse> page = couponService.getCoupons(pageable);
         return ApiResponse.success(new PageResponse<>(page));
@@ -47,6 +46,14 @@ public class CouponController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<CouponResponse> getCoupon(@PathVariable UUID couponId) {
         return ApiResponse.success(couponService.getCoupon(couponId));
+    }
+
+    // ADMIN: 쿠폰 삭제
+    @DeleteMapping("/{couponId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteCoupon(@PathVariable UUID couponId) {
+        couponService.deleteCoupon(couponId);
     }
 
     // USER: 선착순 쿠폰 발급

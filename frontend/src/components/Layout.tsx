@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { SignupModal } from './SignupModal'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../store/authStore'
 import { notificationsApi } from '../api/notifications'
-import { ShoppingBag, Ticket, Package, Tag, User, LogOut, Menu, X, ShoppingCart, Settings, Bell, ChevronDown } from 'lucide-react'
+import { ShoppingBag, Ticket, Package, Tag, User, LogOut, Menu, X, ShoppingCart, Settings, Bell, ChevronDown, Plus } from 'lucide-react'
 import { formatDate } from '../lib/utils'
 
 function NotificationBell() {
@@ -160,11 +161,67 @@ function PolicyAccordion() {
   )
 }
 
+function AdminDropdown() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const items = [
+    { to: '/admin', label: '대시보드' },
+    { to: '/admin/products', label: '상품 관리' },
+    { to: '/admin/drops', label: '드롭 관리' },
+    { to: '/admin/raffles', label: '래플 관리', highlight: true },
+    { to: '/admin/coupons', label: '쿠폰 관리', highlight: true },
+    { to: '/admin/payments', label: '결제 내역' },
+  ]
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`text-gray-400 hover:text-black transition-colors ${open ? 'text-black' : ''}`}
+        title="관리자"
+      >
+        <Settings size={16} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-8 z-50 w-44 border border-gray-100 bg-white shadow-lg">
+          <div className="px-3 py-2 border-b border-gray-50">
+            <p className="text-[9px] font-black tracking-[0.2em] text-gray-300">ADMIN</p>
+          </div>
+          {items.map(item => (
+            <Link
+              key={item.to}
+              to={item.to}
+              onClick={() => setOpen(false)}
+              className={`flex items-center justify-between px-3 py-2.5 text-[11px] font-bold hover:bg-gray-50 transition-colors ${
+                item.highlight ? 'text-gray-900' : 'text-gray-500'
+              }`}
+            >
+              {item.label}
+              {item.highlight && <Plus size={11} className="text-gray-300" />}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Layout() {
   const { isAuthenticated, user, logout } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [signupOpen, setSignupOpen] = useState(false)
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -187,8 +244,7 @@ export function Layout() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 lg:px-8">
 
           <Link to="/" className="flex items-center gap-1">
-            <span className="text-2xl font-black tracking-tighter text-black">SOLD</span>
-            <span className="text-2xl font-black tracking-tighter text-red-500">OUT</span>
+            <span className="text-2xl font-black tracking-tighter text-black">OMC</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
@@ -219,11 +275,7 @@ export function Layout() {
                   <User size={16} />
                   {(user?.nickname ?? user?.username ?? 'MY PAGE').toUpperCase()}
                 </Link>
-                {user?.role === 'ADMIN' && (
-                  <Link to="/admin" className="text-gray-300 hover:text-black transition-colors" title="관리자">
-                    <Settings size={16} />
-                  </Link>
-                )}
+                {user?.role === 'ADMIN' && <AdminDropdown />}
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
@@ -236,12 +288,12 @@ export function Layout() {
                 <Link to="/login" className="text-xs font-bold tracking-wide text-gray-500 hover:text-black transition-colors">
                   LOGIN
                 </Link>
-                <Link
-                  to="/signup"
+                <button
+                  onClick={() => setSignupOpen(true)}
                   className="rounded-none bg-black px-5 py-2 text-xs font-bold tracking-widest text-white hover:bg-gray-800 transition-colors"
                 >
                   JOIN
-                </Link>
+                </button>
               </>
             )}
           </div>
@@ -274,7 +326,7 @@ export function Layout() {
                 ) : (
                   <>
                     <Link to="/login" onClick={() => setMobileOpen(false)} className="block px-3 py-3 text-sm font-bold tracking-wider text-gray-700">LOGIN</Link>
-                    <Link to="/signup" onClick={() => setMobileOpen(false)} className="block px-3 py-3 text-sm font-bold tracking-wider text-gray-700">JOIN</Link>
+                    <button onClick={() => { setMobileOpen(false); setSignupOpen(true) }} className="block w-full text-left px-3 py-3 text-sm font-bold tracking-wider text-gray-700">JOIN</button>
                   </>
                 )}
               </div>
@@ -282,6 +334,13 @@ export function Layout() {
           </div>
         )}
       </header>
+
+      {signupOpen && (
+        <SignupModal
+          onClose={() => setSignupOpen(false)}
+          onLoginClick={() => navigate('/login')}
+        />
+      )}
 
       <main className="mx-auto max-w-7xl px-4 lg:px-8 py-8">
         <Outlet />

@@ -85,4 +85,8 @@ public class Coupon extends BaseEntity {
     public void decreaseRemainingQuantity() {
         this.remainingQuantity--;
     }
+
+    public void increaseRemainingQuantity() {
+        this.remainingQuantity++;
+    }
 }

@@ -20,7 +20,13 @@ export function SignupPage() {
       alert('회원가입 완료! 로그인해주세요.')
       navigate('/login')
     } catch (err: any) {
-      setError(err.response?.data?.message ?? '회원가입에 실패했습니다.')
+      const res = err.response?.data
+      // 필드 validation 에러면 상세 메시지 조합
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        setError(res.data.map((f: any) => f.reason ?? f.message).join(' / '))
+      } else {
+        setError(res?.message ?? '회원가입에 실패했습니다.')
+      }
     } finally {
       setLoading(false)
     }
@@ -36,8 +42,7 @@ export function SignupPage() {
         />
         <div className="relative flex h-full flex-col justify-end p-12">
           <div className="flex items-center gap-1 mb-4">
-            <span className="text-3xl font-black tracking-tighter text-white">SOLD</span>
-            <span className="text-3xl font-black tracking-tighter text-red-500">OUT</span>
+            <span className="text-3xl font-black tracking-tighter text-white">OMC</span>
           </div>
           <p className="text-white/50 text-sm max-w-xs">
             가입하고 독점 래플과 드롭에 참여하세요.
