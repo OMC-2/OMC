@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 재고 통합 테스트
  * PostgreSQL, Kafka, Redis TestContainers + WireMock(Drop Service Feign 대체)
  */
-class InventoryIntegrationTest extends AbstractIntegrationTest{
+class InventoryIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;

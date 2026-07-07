@@ -27,6 +27,10 @@ import java.util.UUID;
  * ProcessedEvent, STOCK_DEDUCTED Outbox를 독립 트랜잭션으로 저장
  * 독립 트랜잭션으로 분리하지 않으면 이 저장이 실패할 경우 롤백되어
  * ProcessedEvent가 없는 상태에서 재처리 시 중복 차감이 발생할 수 있음
+ *
+ * self-invocation 방지:
+ * InventoryService 내부에서 직접 호출하면 Spring AOP 프록시를 우회하여
+ * REQUIRES_NEW가 동작하지 않으므로 별도 컴포넌트로 분리
  */
 @Slf4j
 @Component

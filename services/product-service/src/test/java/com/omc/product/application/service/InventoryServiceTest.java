@@ -120,7 +120,7 @@ class InventoryServiceTest {
     }
 
     @Test
-    @DisplayName("진행 중인 Drop이 있으면 재고 수정 시 ActiveDropExistsException 발생시킨다")
+    @DisplayName("진행 중인 Drop이 있으면 재고 수정 시 ActiveDropExistsException을 발생시킨다")
     void updateInventory_activeDropExists() {
         given(dropFeignClient.hasActiveDrop(any()))
                 .willReturn(ApiResponse.success(new ActiveDropResponse(true)));
