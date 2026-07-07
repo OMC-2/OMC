@@ -96,6 +96,11 @@ IMPORTANT: All text must be written concisely in Korean.
         .user(userMessage)
         .call()
         .entity(LlmAnalysis.class);
+
+    if (llm == null) {
+      llm = new LlmAnalysis("주의", "LLM 분석 결과를 가져오지 못했습니다.", List.of(), "LLM 응답이 비어 있어 지표 원본만 참고하세요.");
+    }
+
     log.info("[MetricsAnalyzerService] LLM 분석 완료, llmStatus={}", llm.status());
 
     //3)최종 status 결정: Hard Rule 발동 시 무조건 위험(코드 우선), 그 외는 LLM 판단
