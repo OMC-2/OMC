@@ -31,6 +31,9 @@ public class RaffleEntryRedisRepository {
         String key = buildKey(raffleId);
         try {
             Long result = redisTemplate.opsForSet().add(key, userId.toString());
+            if (result != null && result == 1L) {
+                redisTemplate.expire(key, 7, java.util.concurrent.TimeUnit.DAYS);
+            }
             return result != null && result > 0L;
         } catch (Exception e) {
             log.error("[Redis Error] 중복 검증 중 오류 발생: {}", e.getMessage());

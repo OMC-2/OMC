@@ -21,6 +21,7 @@ public interface RaffleRepository extends JpaRepository<Raffle, UUID> {
     List<Raffle> findAllByStatusAndStartedAtBefore(RaffleStatus status, LocalDateTime now);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @org.springframework.data.jpa.repository.Query("UPDATE Raffle r SET r.status = :newStatus WHERE r.id = :id AND r.status = 'OPEN'")
+    @org.springframework.cache.annotation.CacheEvict(cacheNames = "raffle", key = "#id")
+    @org.springframework.data.jpa.repository.Query("UPDATE Raffle r SET r.status = :newStatus WHERE r.id = :id AND r.status = com.omc.raffle.domain.enums.RaffleStatus.OPEN")
     int updateStatusIfOpen(@org.springframework.data.repository.query.Param("id") UUID id, @org.springframework.data.repository.query.Param("newStatus") RaffleStatus newStatus);
 }

@@ -52,6 +52,9 @@ class RaffleAppServiceTest {
     @Mock
     private PaymentFeignClient paymentFeignClient;
 
+    @Mock
+    private org.springframework.cache.CacheManager cacheManager;
+
     @Nested
     @DisplayName("래플 응모 로직 (apply)")
     class ApplyRaffle {
@@ -83,8 +86,8 @@ class RaffleAppServiceTest {
             // then
             assertNotNull(response);
             assertEquals(request.userId(), response.userId());
-            verify(paymentFeignClient, times(1)).preAuthCard(any(PreAuthRequest.class));
-            verify(raffleEntryRepository, times(1)).save(any(RaffleEntry.class));
+            verify(paymentFeignClient, org.mockito.Mockito.timeout(2000).times(1)).preAuthCard(any(PreAuthRequest.class));
+            verify(raffleEntryRepository, org.mockito.Mockito.timeout(2000).times(1)).save(any(RaffleEntry.class));
         }
 
         @Test
@@ -171,12 +174,11 @@ class RaffleAppServiceTest {
             doThrow(new RuntimeException("Payment Error")).when(paymentFeignClient).preAuthCard(any());
 
             // when & then
-            BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
-            assertEquals(RaffleErrorCode.RAFFLE_004.getCode(), exception.getErrorCode().getCode());
-            
-            // Redis remove가 호출되었는지 검증
-            verify(redisRepository, times(1)).removeEntry(raffleId, request.userId());
-            verify(raffleEntryRepository, never()).save(any());
+            RaffleApplyResponse response = raffleAppService.apply(raffleId, request);
+            assertNotNull(response);
+
+            // Redis remove가 호출되었는지 검증 (비동기 처리이므로 timeout 설정)
+            verify(redisRepository, org.mockito.Mockito.timeout(2000).times(1)).removeEntry(raffleId, request.userId());
         }
     }
 

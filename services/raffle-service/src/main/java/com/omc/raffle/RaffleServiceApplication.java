@@ -12,7 +12,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
  */
 @SpringBootApplication(exclude = { org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class })
 @EnableFeignClients
-@EnableScheduling
 @EnableJpaAuditing
 public class RaffleServiceApplication {
     public static void main(String[] args) {

@@ -70,4 +70,8 @@ public abstract class IntegrationTestSupport {
     // 하위 테스트에서 doNothing() 또는 doThrow()로 동작 제어
     @MockBean
     protected PaymentFeignClient paymentFeignClient;
+
+    // Kafka 브로커 부재 시 무한 연결 재시도 등 부작용 방지를 위한 전역 Mock
+    @MockBean
+    protected com.omc.raffle.application.port.out.EventProducerPort eventProducerPort;
 }

@@ -13,9 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(value = "app.scheduling.enable", matchIfMissing = true)
 public class OutboxPollerScheduler {
 
     private final OutboxEventRepository outboxEventRepository;
