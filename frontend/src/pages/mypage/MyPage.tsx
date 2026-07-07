@@ -20,7 +20,6 @@ function randomHex(len: number) {
 export function MyPage() {
   const { isAuthenticated, logout } = useAuthStore()
   const qc = useQueryClient()
-  const [couponInput, setCouponInput] = useState('')
   const [showCardForm, setShowCardForm] = useState(false)
   const [cardNum, setCardNum] = useState('')
   const [cardExpiry, setCardExpiry] = useState('')
@@ -134,17 +133,6 @@ export function MyPage() {
     onError: (e: any) => alert(e?.response?.data?.message ?? '탈퇴 실패'),
   })
 
-  const issueCouponMutation = useMutation({
-    mutationFn: () => couponsApi.issueCoupon(couponInput.trim()),
-    onSuccess: () => {
-      setCouponInput('')
-      refetchCoupons()
-    },
-    onError: (e: any) => {
-      const msg = e?.response?.data?.message ?? '쿠폰 발급 실패'
-      alert(msg)
-    },
-  })
 
   if (!isAuthenticated) return <Navigate to="/login" replace />
   if (isLoading) return <Spinner className="py-20" />
@@ -276,26 +264,14 @@ export function MyPage() {
         </div>
 
         <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-[10px] text-gray-400 mb-2">쿠폰 ID를 입력해 발급받으세요</p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              value={couponInput}
-              onChange={e => setCouponInput(e.target.value)}
-              className="flex-1 border border-gray-200 px-3 py-2 text-xs font-mono text-gray-900 placeholder:text-gray-300 outline-none focus:border-gray-400"
-            />
-            <button
-              onClick={() => issueCouponMutation.mutate()}
-              disabled={!couponInput.trim() || issueCouponMutation.isPending}
-              className="bg-black px-4 py-2 text-[10px] font-black text-white hover:bg-red-500 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
-            >
-              {issueCouponMutation.isPending ? '발급 중...' : '발급'}
-            </button>
-          </div>
-          {issueCouponMutation.isSuccess && (
-            <p className="mt-1.5 text-[10px] text-green-600 font-bold">쿠폰 발급 완료!</p>
-          )}
+          <p className="text-[10px] text-gray-400 mb-3">선착순 쿠폰을 발급받으세요</p>
+          <Link
+            to="/coupons"
+            className="inline-flex items-center gap-2 bg-black px-4 py-2.5 text-[10px] font-black tracking-widest text-white hover:bg-red-500 transition-colors"
+          >
+            <Tag size={11} />
+            쿠폰 발급받으러 가기 →
+          </Link>
         </div>
 
         {coupons.length === 0 ? (
@@ -306,7 +282,7 @@ export function MyPage() {
           <div className="divide-y divide-gray-100">
             {coupons.map((coupon: any) => {
               const isValid = coupon.status === 'AVAILABLE' || (!coupon.status && !coupon.used)
-              const discountText = coupon.discountType === 'FIXED'
+              const discountText = coupon.discountType === 'AMOUNT'
                 ? `${Number(coupon.discountValue).toLocaleString()}원 할인`
                 : `${(Number(coupon.discountValue) * 100).toFixed(0)}% 할인`
               return (
@@ -498,9 +474,11 @@ export function MyPage() {
                   <p className="text-[10px] text-gray-400 mt-0.5">{entry.enteredAt ? formatDate(entry.enteredAt) : ''}</p>
                 </div>
                 <span className={`text-[10px] font-black tracking-wider px-2 py-1 ${
-                  entry.result === 'WIN' ? 'text-yellow-600 bg-yellow-50' : 'text-green-600 bg-green-50'
+                  entry.result === 'WINNER' ? 'text-yellow-600 bg-yellow-50'
+                  : entry.result === 'LOSER' ? 'text-gray-400 bg-gray-50'
+                  : 'text-green-600 bg-green-50'
                 }`}>
-                  {entry.result === 'WIN' ? 'WIN' : 'ENTERED'}
+                  {entry.result === 'WINNER' ? '당첨' : entry.result === 'LOSER' ? '낙첨' : 'ENTERED'}
                 </span>
               </Link>
             ))}

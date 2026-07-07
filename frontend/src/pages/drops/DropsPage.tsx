@@ -13,10 +13,15 @@ export function DropsPage() {
     queryFn: () => productsApi.getAll(0, 100),
   })
 
-  const drops = data?.data?.data?.content ?? []
+  const allDrops = data?.data?.data?.content ?? []
   const productsArr = productsData?.data?.data?.content ?? productsData?.data?.data ?? []
   const productMap: Record<string, any> = {}
   for (const p of productsArr) productMap[p.productId] = p
+
+  // 상품 데이터 로드 완료 후 연결된 상품이 없는 고아 드롭 제거
+  const drops = productsData
+    ? allDrops.filter((d: any) => !!productMap[d.productId])
+    : allDrops
 
   return (
     <div>

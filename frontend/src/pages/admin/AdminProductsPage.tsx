@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminProductsApi, adminInventoryApi } from '../../api/admin'
 import { formatPrice } from '../../lib/utils'
-import { Plus, Trash2, X, ImageIcon, Boxes } from 'lucide-react'
+import { Plus, Trash2, X, Pencil, Boxes } from 'lucide-react'
 
 const INIT = { name: '', description: '', price: '', brand: '', category: '', imageUrl: '', initialQuantity: '' }
 
@@ -148,7 +148,7 @@ export function AdminProductsPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(INIT)
   const [editProduct, setEditProduct] = useState<any | null>(null)
-  const [editImageUrl, setEditImageUrl] = useState('')
+  const [editForm, setEditForm] = useState({ name: '', description: '', price: '', brand: '', category: '', imageUrl: '' })
   const [inventoryProduct, setInventoryProduct] = useState<any | null>(null)
 
   const { data, isLoading } = useQuery({ queryKey: ['admin-products'], queryFn: () => adminProductsApi.getAll() })
@@ -172,14 +172,14 @@ export function AdminProductsPage() {
     onError: (e: any) => alert(e?.response?.data?.message ?? '생성 실패'),
   })
 
-  const updateImageMutation = useMutation({
+  const updateProductMutation = useMutation({
     mutationFn: () => adminProductsApi.update(editProduct.productId, {
-      name: editProduct.name,
-      description: editProduct.description,
-      price: editProduct.price,
-      brand: editProduct.brand,
-      category: editProduct.category,
-      imageUrl: editImageUrl || undefined,
+      name: editForm.name,
+      description: editForm.description,
+      price: Number(editForm.price),
+      brand: editForm.brand,
+      category: editForm.category,
+      imageUrl: editForm.imageUrl || undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-products'] })
@@ -188,6 +188,9 @@ export function AdminProductsPage() {
     },
     onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
   })
+
+  const fe = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setEditForm(p => ({ ...p, [k]: e.target.value }))
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminProductsApi.delete(id),
@@ -274,17 +277,43 @@ export function AdminProductsPage() {
 
       {editProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-md rounded-lg border border-white/10 bg-gray-900 p-6">
+          <div className="w-full max-w-lg rounded-lg border border-white/10 bg-gray-900 p-6 max-h-[90vh] overflow-y-auto">
             <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-black tracking-wider">이미지 변경</h2>
-                <p className="text-[10px] text-white/30 mt-0.5">{editProduct.name}</p>
-              </div>
+              <h2 className="text-sm font-black tracking-wider">상품 수정</h2>
               <button onClick={() => setEditProduct(null)}>
                 <X size={18} className="text-white/40 hover:text-white" />
               </button>
             </div>
-            <ImagePresetPicker value={editImageUrl} onChange={setEditImageUrl} />
+            <div className="space-y-3">
+              {[
+                { label: '상품명 *', key: 'name', placeholder: '상품명' },
+                { label: '브랜드 *', key: 'brand', placeholder: '브랜드명' },
+                { label: '카테고리 *', key: 'category', placeholder: 'SNEAKERS, APPAREL...' },
+                { label: '가격 (원) *', key: 'price', placeholder: '100000', type: 'number' },
+              ].map(({ label, key, placeholder, type = 'text' }) => (
+                <div key={key}>
+                  <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">{label}</label>
+                  <input
+                    type={type}
+                    placeholder={placeholder}
+                    value={(editForm as any)[key]}
+                    onChange={fe(key)}
+                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30"
+                  />
+                </div>
+              ))}
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">설명</label>
+                <textarea
+                  placeholder="상품 설명"
+                  value={editForm.description}
+                  onChange={fe('description')}
+                  rows={2}
+                  className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 resize-none"
+                />
+              </div>
+              <ImagePresetPicker value={editForm.imageUrl} onChange={url => setEditForm(p => ({ ...p, imageUrl: url }))} />
+            </div>
             <div className="mt-5 flex gap-3">
               <button
                 onClick={() => setEditProduct(null)}
@@ -293,11 +322,11 @@ export function AdminProductsPage() {
                 취소
               </button>
               <button
-                disabled={!editImageUrl || updateImageMutation.isPending}
-                onClick={() => updateImageMutation.mutate()}
+                disabled={!editForm.name || !editForm.brand || !editForm.category || !editForm.price || updateProductMutation.isPending}
+                onClick={() => updateProductMutation.mutate()}
                 className="flex-1 bg-white py-2.5 text-xs font-black text-black hover:bg-red-500 hover:text-white disabled:bg-white/20 disabled:text-white/20 transition-colors"
               >
-                {updateImageMutation.isPending ? '저장 중...' : '저장'}
+                {updateProductMutation.isPending ? '저장 중...' : '저장'}
               </button>
             </div>
           </div>
@@ -332,11 +361,21 @@ export function AdminProductsPage() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => { setEditProduct(p); setEditImageUrl(p.imageUrl ?? '') }}
+                      onClick={() => {
+                        setEditProduct(p)
+                        setEditForm({
+                          name: p.name ?? '',
+                          description: p.description ?? '',
+                          price: String(p.price ?? ''),
+                          brand: p.brand ?? '',
+                          category: p.category ?? '',
+                          imageUrl: p.imageUrl ?? '',
+                        })
+                      }}
                       className="text-white/20 hover:text-blue-400 transition-colors"
-                      title="이미지 변경"
+                      title="상품 수정"
                     >
-                      <ImageIcon size={14} />
+                      <Pencil size={14} />
                     </button>
                     <button
                       onClick={() => setInventoryProduct(p)}

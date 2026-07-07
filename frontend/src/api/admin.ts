@@ -48,8 +48,11 @@ export const adminRafflesApi = {
     winnerCount: number; startedAt: string; endedAt: string
   }) => apiClient.post('/api/v1/admin/raffles', body),
 
-  update: (raffleId: string, body: { name: string; winnerCount: number }) =>
+  update: (raffleId: string, body: { name: string; winnerCount: number; startedAt?: string; endedAt?: string }) =>
     apiClient.put(`/api/v1/admin/raffles/${raffleId}`, body),
+
+  penalize: (raffleId: string, userId: string) =>
+    apiClient.post(`/api/v1/admin/raffles/${raffleId}/entries/${userId}/penalty`),
 
   updateStatus: (raffleId: string, status: string) =>
     apiClient.post(`/api/v1/admin/raffles/${raffleId}/status`, { status }),

@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../store/authStore'
 import { notificationsApi } from '../api/notifications'
-import { ShoppingBag, Ticket, Package, User, LogOut, Menu, X, ShoppingCart, Settings, Bell, ChevronDown } from 'lucide-react'
+import { ShoppingBag, Ticket, Package, Tag, User, LogOut, Menu, X, ShoppingCart, Settings, Bell, ChevronDown } from 'lucide-react'
 import { formatDate } from '../lib/utils'
 
 function NotificationBell() {
@@ -172,6 +172,7 @@ export function Layout() {
     { to: '/products', label: 'PRODUCTS', icon: Package },
     { to: '/drops', label: 'DROPS', icon: ShoppingBag },
     { to: '/raffles', label: 'RAFFLE', icon: Ticket },
+    { to: '/coupons', label: 'COUPON', icon: Tag },
   ]
 
   const isActive = (path: string) => location.pathname.startsWith(path)
@@ -301,11 +302,12 @@ export function Layout() {
           </div>
 
           {/* 빠른 링크 */}
-          <div className="grid grid-cols-3 gap-4 mb-8 border-t border-white/5 pt-8 text-center">
+          <div className="grid grid-cols-4 gap-4 mb-8 border-t border-white/5 pt-8 text-center">
             {[
               { label: 'PRODUCTS', to: '/products' },
               { label: 'DROPS', to: '/drops' },
               { label: 'RAFFLE', to: '/raffles' },
+              { label: 'COUPON', to: '/coupons' },
             ].map(({ label, to }) => (
               <Link key={to} to={to} className="text-[10px] font-black tracking-widest text-white/30 hover:text-white transition-colors">
                 {label}

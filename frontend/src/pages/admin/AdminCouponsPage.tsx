@@ -5,8 +5,9 @@ import { formatDate } from '../../lib/utils'
 import { Plus, X, Copy, Check } from 'lucide-react'
 
 const INIT = {
-  name: '', discountType: 'FIXED', discountValue: '',
+  name: '', discountType: 'AMOUNT', discountValue: '',
   maxDiscountAmount: '', totalQuantity: '', startedAt: '', expiredAt: '',
+  imageUrl: '',
 }
 
 export function AdminCouponsPage() {
@@ -28,10 +29,9 @@ export function AdminCouponsPage() {
       discountValue: Number(form.discountValue),
       maxDiscountAmount: form.maxDiscountAmount ? Number(form.maxDiscountAmount) : undefined,
       totalQuantity: Number(form.totalQuantity),
-      // 백엔드(Spring)는 KST 로컬 시간 기준으로 검증.
-      // datetime-local 값(YYYY-MM-DDTHH:MM)에 ':00'만 붙여 KST 로컬 시간 그대로 전송.
       startedAt: form.startedAt + ':00',
       expiredAt: form.expiredAt + ':00',
+      ...(form.imageUrl ? { imageUrl: form.imageUrl } : {}),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-coupons'] }); setShowForm(false); setForm(INIT) },
     onError: (e: any) => alert(e?.response?.data?.message ?? '생성 실패'),
@@ -76,15 +76,15 @@ export function AdminCouponsPage() {
                 <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">할인 유형 *</label>
                 <select value={form.discountType} onChange={f('discountType')}
                   className="w-full bg-gray-800 border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none">
-                  <option value="FIXED" className="bg-gray-800">정액 (FIXED)</option>
+                  <option value="AMOUNT" className="bg-gray-800">정액 (AMOUNT)</option>
                   <option value="RATE" className="bg-gray-800">정률 (RATE)</option>
                 </select>
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">
-                  할인 값 * {form.discountType === 'FIXED' ? '(원)' : '(%, 0.1 = 10%)'}
+                  할인 값 * {form.discountType === 'AMOUNT' ? '(원)' : '(%, 0.1 = 10%)'}
                 </label>
-                <input type="number" placeholder={form.discountType === 'FIXED' ? '5000' : '0.1'} value={form.discountValue} onChange={f('discountValue')}
+                <input type="number" placeholder={form.discountType === 'AMOUNT' ? '5000' : '0.1'} value={form.discountValue} onChange={f('discountValue')}
                   className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30" />
               </div>
               {form.discountType === 'RATE' && (
@@ -108,6 +108,11 @@ export function AdminCouponsPage() {
                 <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">만료 시간 *</label>
                 <input type="datetime-local" value={form.expiredAt} onChange={f('expiredAt')}
                   className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white/30" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">이미지 URL (선택)</label>
+                <input type="url" placeholder="https://..." value={form.imageUrl} onChange={f('imageUrl')}
+                  className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30" />
               </div>
             </div>
             <div className="mt-5 flex gap-3">
@@ -142,12 +147,12 @@ export function AdminCouponsPage() {
               <tr key={c.couponId} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                 <td className="px-4 py-3 font-medium text-white/80">{c.name}</td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 text-[10px] font-black ${c.discountType === 'FIXED' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                  <span className={`px-2 py-0.5 text-[10px] font-black ${c.discountType === 'AMOUNT' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
                     {c.discountType}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-white/70 font-bold">
-                  {c.discountType === 'FIXED'
+                  {c.discountType === 'AMOUNT'
                     ? `${Number(c.discountValue).toLocaleString()}원`
                     : `${(Number(c.discountValue) * 100).toFixed(0)}%`}
                 </td>

@@ -2,15 +2,17 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminRafflesApi, adminProductsApi } from '../../api/admin'
 import { formatDate } from '../../lib/utils'
-import { Plus, X, Shuffle, Trash2, Users } from 'lucide-react'
+import { Plus, X, Shuffle, Trash2, Users, Pencil, AlertTriangle } from 'lucide-react'
 
 const INIT = { productId: '', name: '', winnerCount: '', startedAt: '', endedAt: '' }
+const EDIT_INIT = { name: '', winnerCount: '', startedAt: '', endedAt: '' }
 const STATUS_OPTIONS = ['OPEN', 'CLOSED', 'DRAWN', 'CANCELLED']
 
 export function AdminRafflesPage() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(INIT)
+  const [editTarget, setEditTarget] = useState<{ raffleId: string } & typeof EDIT_INIT | null>(null)
   const [entriesRaffleId, setEntriesRaffleId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({ queryKey: ['admin-raffles'], queryFn: () => adminRafflesApi.getAll() })
@@ -34,9 +36,6 @@ export function AdminRafflesPage() {
       productId: form.productId,
       name: form.name,
       winnerCount: Number(form.winnerCount),
-      // 백엔드(Spring)는 KST 로컬 시간 기준으로 @Future 검증.
-      // toISOString()은 KST→UTC 변환(-9h)으로 과거 시간이 되어 검증 실패하므로
-      // datetime-local 값(YYYY-MM-DDTHH:MM)에 ':00'만 붙여 KST 로컬 시간 그대로 전송.
       startedAt: form.startedAt + ':00',
       endedAt: form.endedAt + ':00',
     }),
@@ -61,8 +60,36 @@ export function AdminRafflesPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-raffles'] }),
   })
 
+  const updateMutation = useMutation({
+    mutationFn: ({ raffleId, name, winnerCount, startedAt, endedAt }: {
+      raffleId: string; name: string; winnerCount: number; startedAt?: string; endedAt?: string
+    }) => adminRafflesApi.update(raffleId, {
+      name, winnerCount,
+      ...(startedAt ? { startedAt: startedAt + ':00' } : {}),
+      ...(endedAt   ? { endedAt: endedAt + ':00' }     : {}),
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-raffles'] }); setEditTarget(null) },
+    onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
+  })
+
+  const penalizeMutation = useMutation({
+    mutationFn: ({ raffleId, userId }: { raffleId: string; userId: string }) =>
+      adminRafflesApi.penalize(raffleId, userId),
+    onSuccess: () => {
+      alert('패널티가 부여되었습니다.')
+      qc.invalidateQueries({ queryKey: ['admin-raffle-entries', entriesRaffleId] })
+    },
+    onError: (e: any) => alert(e?.response?.data?.message ?? '패널티 부여 실패'),
+  })
+
   const f = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const fe = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setEditTarget(p => p ? { ...p, [k]: e.target.value } : p)
+
+  // datetime-local 값으로 변환 (YYYY-MM-DDTHH:MM)
+  const toDatetimeLocal = (s?: string) => s ? s.slice(0, 16) : ''
 
   return (
     <div className="p-8">
@@ -128,7 +155,7 @@ export function AdminRafflesPage() {
       {/* 응모자 모달 */}
       {entriesRaffleId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-lg rounded-lg border border-white/10 bg-gray-900 p-6 max-h-[80vh] flex flex-col">
+          <div className="w-full max-w-2xl rounded-lg border border-white/10 bg-gray-900 p-6 max-h-[80vh] flex flex-col">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-black tracking-wider">응모자 목록 ({entries.length}명)</h2>
               <button onClick={() => setEntriesRaffleId(null)}><X size={18} className="text-white/40 hover:text-white" /></button>
@@ -140,23 +167,99 @@ export function AdminRafflesPage() {
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-gray-900">
                     <tr className="border-b border-white/10">
-                      {['#', 'User ID', '응모 시간', '금액'].map(h => (
+                      {['#', 'User ID', '응모 시간', '금액', '결과', '패널티'].map(h => (
                         <th key={h} className="px-3 py-2 text-left text-[10px] text-white/30 font-bold">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {entries.map((e: any, i: number) => (
-                      <tr key={e.entryId} className="border-b border-white/5">
+                      <tr key={e.entryId} className="border-b border-white/5 hover:bg-white/5">
                         <td className="px-3 py-2 text-white/30">{i + 1}</td>
                         <td className="px-3 py-2 font-mono text-[10px] text-white/50">{e.userId?.slice(0, 12)}...</td>
                         <td className="px-3 py-2 text-white/40">{e.enteredAt ? formatDate(e.enteredAt) : '-'}</td>
                         <td className="px-3 py-2 text-white/60">{e.finalAmount?.toLocaleString()}원</td>
+                        <td className="px-3 py-2">
+                          <span className={`text-[10px] font-black px-1.5 py-0.5 ${
+                            e.result === 'WINNER' ? 'bg-yellow-500/20 text-yellow-400'
+                            : e.result === 'LOSER' ? 'bg-white/5 text-white/20'
+                            : 'text-white/20'
+                          }`}>
+                            {e.result ?? '-'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          {e.result === 'WINNER' && !e.penalized && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`${e.userId?.slice(0, 8)}... 유저에게 패널티를 부여하시겠습니까?\n(미결제 악성 당첨자 처리)`))
+                                  penalizeMutation.mutate({ raffleId: entriesRaffleId!, userId: e.userId })
+                              }}
+                              className="flex items-center gap-1 text-[10px] text-orange-400/60 hover:text-orange-400 transition-colors"
+                              title="패널티 부여"
+                            >
+                              <AlertTriangle size={11} />패널티
+                            </button>
+                          )}
+                          {e.penalized && (
+                            <span className="text-[10px] text-red-400/60 font-bold">부여됨</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 수정 모달 */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-sm rounded-lg border border-white/10 bg-gray-900 p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-sm font-black tracking-wider">래플 수정</h2>
+              <button onClick={() => setEditTarget(null)}><X size={18} className="text-white/40 hover:text-white" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">래플 이름 *</label>
+                <input type="text" value={editTarget.name} onChange={fe('name')}
+                  className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white/30" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">당첨 인원 *</label>
+                <input type="number" value={editTarget.winnerCount} onChange={fe('winnerCount')}
+                  className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white/30" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">시작 시간</label>
+                <input type="datetime-local" value={editTarget.startedAt} onChange={fe('startedAt')}
+                  className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white/30" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">종료 시간</label>
+                <input type="datetime-local" value={editTarget.endedAt} onChange={fe('endedAt')}
+                  className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white/30" />
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setEditTarget(null)}
+                className="flex-1 border border-white/10 py-2.5 text-xs font-bold text-white/40 hover:text-white transition-colors">취소</button>
+              <button
+                disabled={!editTarget.name || !editTarget.winnerCount || updateMutation.isPending}
+                onClick={() => updateMutation.mutate({
+                  raffleId: editTarget.raffleId,
+                  name: editTarget.name,
+                  winnerCount: Number(editTarget.winnerCount),
+                  startedAt: editTarget.startedAt || undefined,
+                  endedAt: editTarget.endedAt || undefined,
+                })}
+                className="flex-1 bg-white py-2.5 text-xs font-black text-black hover:bg-red-500 hover:text-white disabled:bg-white/20 disabled:text-white/20 transition-colors">
+                {updateMutation.isPending ? '저장 중...' : '저장'}
+              </button>
             </div>
           </div>
         </div>
@@ -196,6 +299,17 @@ export function AdminRafflesPage() {
                     <button onClick={() => setEntriesRaffleId(r.raffleId)}
                       className="text-white/20 hover:text-blue-400 transition-colors" title="응모자 조회">
                       <Users size={14} />
+                    </button>
+                    <button
+                      onClick={() => setEditTarget({
+                        raffleId: r.raffleId,
+                        name: r.name,
+                        winnerCount: String(r.winnerCount),
+                        startedAt: toDatetimeLocal(r.startedAt),
+                        endedAt: toDatetimeLocal(r.endedAt),
+                      })}
+                      className="text-white/20 hover:text-yellow-400 transition-colors" title="수정">
+                      <Pencil size={14} />
                     </button>
                     <button
                       onClick={() => { if (confirm(`"${r.name}" 추첨을 실행하시겠습니까?`)) drawMutation.mutate(r.raffleId) }}

@@ -311,6 +311,7 @@ services:
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
       SENTRY_DSN: ${SENTRY_DSN:-}
+      PAYMENT_SERVICE_URL: http://omc-toss-wiremock:8080
     depends_on:
       config-server:
         condition: service_healthy
