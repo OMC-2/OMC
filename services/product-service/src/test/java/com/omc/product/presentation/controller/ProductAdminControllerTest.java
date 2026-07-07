@@ -215,8 +215,7 @@ class ProductAdminControllerTest {
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", UUID.randomUUID().toString())
                             .header("X-User-Role", "ADMIN")
-                            .with(csrf())
-                            .header("X-User-Id", UUID.randomUUID().toString()))
+                            .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));
         }
@@ -232,8 +231,7 @@ class ProductAdminControllerTest {
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", UUID.randomUUID().toString())
                             .header("X-User-Role", "ADMIN")
-                            .with(csrf())
-                            .header("X-User-Id", UUID.randomUUID().toString()))
+                            .with(csrf()))
                     .andExpect(status().isBadRequest());
         }
 
@@ -252,20 +250,14 @@ class ProductAdminControllerTest {
         @DisplayName("상품 삭제 시 진행 중인 Drop이 있으면 409를 반환한다")
         void deleteProduct_activeDropExists() throws Exception {
 
-            ProductUpdateRequest request = new ProductUpdateRequest(
-                    "수정된 상품명", null, null, null, null
-            );
+            willThrow(new ActiveDropExistsException())
+                    .given(productService).deleteProduct(any(), any());
 
-            given(productService.updateProduct(any(), any()))
-                    .willThrow(new ActiveDropExistsException());
-
-            mockMvc.perform(patch("/api/v1/admin/products/{productId}", PRODUCT_ID)
+            mockMvc.perform(delete("/api/v1/admin/products/{productId}", PRODUCT_ID)
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", UUID.randomUUID().toString())
                             .header("X-User-Role", "ADMIN")
-                            .with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+                            .with(csrf()))
                     .andExpect(status().isConflict());
         }
     }
