@@ -209,23 +209,23 @@ async function seedCoupons(token) {
   section('🎁', '쿠폰 3개 생성')
   const configs = [
     {
-      name: '신규 가입 웰컴 1,000원 할인',
+      name: '1,000원 쿠폰',
       discountType: 'AMOUNT', discountValue: 1_000,
-      totalQuantity: 500,
+      totalQuantity: 10,
       startedAt: kst(addD(-1)), expiredAt: kst(addD(7)),
       imageUrl: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600&q=80',
     },
     {
-      name: '위켄드 스페셜 5,000원 할인',
+      name: '5,000원 쿠폰',
       discountType: 'AMOUNT', discountValue: 5_000,
-      totalQuantity: 200,
+      totalQuantity: 10,
       startedAt: kst(addD(-1)), expiredAt: kst(addD(5)),
       imageUrl: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=600&q=80',
     },
     {
-      name: '프리미엄 멤버 10,000원 할인',
+      name: '10,000원 쿠폰',
       discountType: 'AMOUNT', discountValue: 10_000,
-      totalQuantity: 50,
+      totalQuantity: 10,
       startedAt: kst(addD(-1)), expiredAt: kst(addD(3)),
       imageUrl: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&q=80',
     },

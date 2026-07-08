@@ -44,4 +44,9 @@ public class CouponRedisRepository {
     public boolean hasStock(String couponId) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(STOCK_KEY_PREFIX + couponId));
     }
+
+    public void deleteStock(String couponId) {
+        redisTemplate.delete(STOCK_KEY_PREFIX + couponId);
+        redisTemplate.delete(ISSUED_KEY_PREFIX + couponId);
+    }
 }

@@ -19,6 +19,7 @@ import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import com.omc.common.exception.BusinessException;
+import com.omc.common.security.SecurityUtil;
 import com.omc.common.util.UuidV7Generator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,7 +55,15 @@ public class CouponService {
 
     @Transactional(readOnly = true)
     public Page<CouponResponse> getCoupons(Pageable pageable) {
-        return couponRepository.findAll(pageable).map(CouponResponse::from);
+        return couponRepository.findAllByDeletedAtIsNull(pageable).map(CouponResponse::from);
+    }
+
+    @Transactional
+    public void deleteCoupon(UUID couponId) {
+        Coupon coupon = findCoupon(couponId);
+        coupon.softDelete(SecurityUtil.getCurrentUserId().orElse(null));
+        couponRedisRepository.deleteStock(couponId.toString());
+        log.info("[CouponService] 쿠폰 소프트 삭제 완료. couponId={}", couponId);
     }
 
     @Transactional(readOnly = true)
@@ -99,6 +108,9 @@ public class CouponService {
             throw new CouponOutOfStockException();
         }
 
+        // DB remaining_quantity 차감
+        coupon.decreaseRemainingQuantity();
+
         // DB 중복 체크 (Redis Set과 이중 방어)
         userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId).ifPresent(uc -> {
             couponRedisRepository.incrementStock(couponId.toString()); // 재고 롤백
@@ -115,6 +127,7 @@ public class CouponService {
             );
         } catch (DataIntegrityViolationException e) {
             couponRedisRepository.incrementStock(couponId.toString());
+            coupon.increaseRemainingQuantity(); // DB 롤백
             couponMetrics.incrementDuplicate(couponId.toString());
             throw new CouponAlreadyIssuedException();
         }
@@ -150,7 +163,7 @@ public class CouponService {
     }
 
     private Coupon findCoupon(UUID couponId) {
-        return couponRepository.findById(couponId).orElseThrow(CouponNotFoundException::new);
+        return couponRepository.findByCouponIdAndDeletedAtIsNull(couponId).orElseThrow(CouponNotFoundException::new);
     }
 
     private String toJson(Object obj) {

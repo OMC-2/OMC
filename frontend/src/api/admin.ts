@@ -110,4 +110,7 @@ export const adminCouponsApi = {
     maxDiscountAmount?: number; totalQuantity: number
     startedAt: string; expiredAt: string
   }) => apiClient.post('/api/v1/coupons', body),
+
+  delete: (couponId: string) =>
+    apiClient.delete(`/api/v1/coupons/${couponId}`),
 }

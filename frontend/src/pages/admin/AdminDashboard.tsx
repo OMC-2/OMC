@@ -40,7 +40,7 @@ export function AdminDashboard() {
     <div className="p-8">
       <div className="mb-8">
         <h1 className="text-xl font-black tracking-tight">대시보드</h1>
-        <p className="text-xs text-white/30 mt-1">SOLDOUT 관리자 패널</p>
+        <p className="text-xs text-white/30 mt-1">OMC 관리자 패널</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-10">

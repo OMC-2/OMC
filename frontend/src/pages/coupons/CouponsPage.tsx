@@ -29,12 +29,14 @@ const STATUS_CONFIG = {
 }
 
 export function CouponsPage() {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
+  const isAdmin = (user as any)?.role === 'ADMIN'
   const qc = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['coupons-all'],
     queryFn: () => couponsApi.getAll(),
+    retry: 1,
   })
 
   const { data: myData } = useQuery({
@@ -46,9 +48,10 @@ export function CouponsPage() {
   const issueMutation = useMutation({
     mutationFn: (couponId: string) => couponsApi.issueCoupon(couponId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['coupons-all'] })
-      qc.invalidateQueries({ queryKey: ['my-coupons'] })
       alert('쿠폰이 발급되었습니다!')
+      qc.invalidateQueries({ queryKey: ['coupons-all'] })
+      qc.invalidateQueries({ queryKey: ['coupons-home'] })
+      qc.invalidateQueries({ queryKey: ['my-coupons'] })
     },
     onError: (e: any) => {
       const msg = e?.response?.data?.message ?? ''
@@ -62,7 +65,14 @@ export function CouponsPage() {
     },
   })
 
-  const coupons: any[] = data?.data?.data?.content ?? data?.data?.data ?? []
+  // 응답 구조 다양하게 대응: { data: { content } } / { content } / 배열 직접
+  const allCoupons: any[] =
+    data?.data?.data?.content ??
+    data?.data?.content ??
+    (Array.isArray(data?.data?.data) ? data.data.data : null) ??
+    (Array.isArray(data?.data) ? data.data : null) ??
+    []
+  const coupons = allCoupons.slice(0, 4)
   const myIssuedIds = new Set(
     (myData?.data?.data?.content ?? myData?.data?.data ?? []).map((c: any) => c.couponId)
   )
@@ -78,7 +88,15 @@ export function CouponsPage() {
 
       {isLoading && <Spinner className="py-20" />}
 
-      {!isLoading && coupons.length === 0 && (
+      {isError && (
+        <div className="py-20 text-center border border-red-50">
+          <Tag size={36} className="mx-auto mb-4 text-red-200" />
+          <p className="text-sm font-black tracking-wider text-red-300">쿠폰 목록을 불러올 수 없습니다</p>
+          <p className="text-xs text-gray-300 mt-2">서버 연결을 확인해주세요</p>
+        </div>
+      )}
+
+      {!isLoading && !isError && coupons.length === 0 && (
         <div className="py-20 text-center border border-gray-100">
           <Tag size={36} className="mx-auto mb-4 text-gray-200" />
           <p className="text-sm font-black tracking-wider text-gray-300">현재 발급 가능한 쿠폰이 없습니다</p>
@@ -93,11 +111,14 @@ export function CouponsPage() {
           const remaining = coupon.remainingQuantity ?? 0
           const usedPct = total > 0 ? Math.round(((total - remaining) / total) * 100) : 0
           const alreadyIssued = myIssuedIds.has(coupon.couponId)
-          const canIssue = isAuthenticated && status === 'LIVE' && !alreadyIssued && !issueMutation.isPending
+          const canIssue = isAuthenticated && !isAdmin && status === 'LIVE' && !alreadyIssued && !issueMutation.isPending
 
+          const discountAmount = coupon.discountType === 'AMOUNT'
+            ? `${Number(coupon.discountValue).toLocaleString()}원`
+            : `${(Number(coupon.discountValue) * 100).toFixed(0)}%`
           const discountText = coupon.discountType === 'AMOUNT'
-            ? `${Number(coupon.discountValue).toLocaleString()}원 할인`
-            : `${(Number(coupon.discountValue) * 100).toFixed(0)}% 할인`
+            ? `${Number(coupon.discountValue).toLocaleString()}원 쿠폰`
+            : `${(Number(coupon.discountValue) * 100).toFixed(0)}% 할인 쿠폰`
 
           const imgIdx = coupons.indexOf(coupon) % DEFAULT_IMAGES.length
           const imgUrl = coupon.imageUrl || DEFAULT_IMAGES[imgIdx]
@@ -149,7 +170,7 @@ export function CouponsPage() {
                 {/* Discount amount */}
                 <div>
                   <p className="text-2xl font-black text-gray-900">{discountText}</p>
-                  <p className="text-sm text-gray-500 mt-0.5 font-medium">{coupon.name}</p>
+                  <p className="text-sm text-gray-500 mt-0.5 font-medium">{discountAmount} 즉시 할인</p>
                   {coupon.maxDiscountAmount && coupon.discountType === 'RATE' && (
                     <p className="text-[10px] text-gray-400 mt-0.5">
                       최대 {Number(coupon.maxDiscountAmount).toLocaleString()}원
@@ -205,6 +226,10 @@ export function CouponsPage() {
                     >
                       로그인 후 발급
                     </Link>
+                  ) : isAdmin ? (
+                    <div className="border border-white/10 py-3 text-center text-[10px] font-black tracking-widest text-gray-400">
+                      관리자 계정은 발급 불가
+                    </div>
                   ) : alreadyIssued ? (
                     <div className="flex items-center justify-center gap-2 border border-green-200 py-3 text-[10px] font-black tracking-widest text-green-600">
                       <CheckCircle size={13} />
