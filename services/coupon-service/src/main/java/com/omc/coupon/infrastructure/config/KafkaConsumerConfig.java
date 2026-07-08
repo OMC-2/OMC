@@ -53,25 +53,34 @@ public class KafkaConsumerConfig {
     public ConcurrentKafkaListenerContainerFactory<Object, Object> kafkaListenerContainerFactory(
             ConsumerFactory<Object, Object> consumerFactory,
             CommonErrorHandler kafkaCommonErrorHandler,
-            @Value("${spring.kafka.listener.concurrency:3}") int concurrency
+            @Value("${spring.kafka.listener.concurrency:3}") int concurrency,
+            @Value("${KAFKA_IDLE_BETWEEN_POLLS_MS:0}") long idleBetweenPollsMs
     ) {
         ConcurrentKafkaListenerContainerFactory<Object, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(kafkaCommonErrorHandler);
         factory.setConcurrency(concurrency);
+        factory.setBatchListener(true); // 배치 리스너 명시적 활성화
 
         // MANUAL_IMMEDIATE: listener 내부에서 acknowledge() 호출 시점에 바로 offset 커밋
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+
+        // poll 사이 딜레이 — 부하 테스트 시 힙 압박 완화용 (기본 0 = 비활성)
+        if (idleBetweenPollsMs > 0) {
+            factory.getContainerProperties().setIdleBetweenPolls(idleBetweenPollsMs);
+        }
+
         return factory;
     }
 
     private String resolveDltTopic(ConsumerRecord<?, ?> record) {
         return switch (record.topic()) {
-            case KafkaTopics.PAYMENT_COMPLETED -> KafkaTopics.PAYMENT_COMPLETED_DLT;
-            case KafkaTopics.PAYMENT_FAILED    -> KafkaTopics.PAYMENT_FAILED_DLT;
-            case KafkaTopics.HOLD_EXPIRED      -> KafkaTopics.HOLD_EXPIRED_DLT;
-            case KafkaTopics.REFUND_DONE       -> KafkaTopics.REFUND_DONE_DLT;
+            case KafkaTopics.PAYMENT_COMPLETED        -> KafkaTopics.PAYMENT_COMPLETED_DLT;
+            case KafkaTopics.PAYMENT_FAILED           -> KafkaTopics.PAYMENT_FAILED_DLT;
+            case KafkaTopics.HOLD_EXPIRED             -> KafkaTopics.HOLD_EXPIRED_DLT;
+            case KafkaTopics.REFUND_DONE              -> KafkaTopics.REFUND_DONE_DLT;
+            case KafkaTopics.COUPON_ISSUE_REQUESTED   -> KafkaTopics.COUPON_ISSUE_REQUESTED_DLT;
             default -> record.topic() + ".DLT";
         };
     }

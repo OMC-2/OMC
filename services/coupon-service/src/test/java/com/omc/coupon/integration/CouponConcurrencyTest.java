@@ -27,12 +27,16 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 /**
  * 쿠폰 발급 동시성 테스트.
@@ -75,6 +79,7 @@ class CouponConcurrencyTest {
     @Autowired RedisTemplate<String, String> redisTemplate;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         userCouponRepository.deleteAll();
         couponRepository.deleteAll();
@@ -82,6 +87,12 @@ class CouponConcurrencyTest {
             connection.serverCommands().flushAll();
             return null;
         });
+        // KafkaTemplate.send()가 null 대신 완료된 Future를 반환하도록 설정
+        org.springframework.kafka.support.SendResult<String, String> sendResult =
+                mock(org.springframework.kafka.support.SendResult.class);
+        CompletableFuture<org.springframework.kafka.support.SendResult<String, String>> future =
+                CompletableFuture.completedFuture(sendResult);
+        given(kafkaTemplate.send(anyString(), anyString(), anyString())).willReturn(future);
     }
 
     @Test
@@ -125,9 +136,8 @@ class CouponConcurrencyTest {
         doneLatch.await();
         executor.shutdown();
 
-        // then
-        assertThat(successCount.get()).isEqualTo(TOTAL_QUANTITY);          // 정확히 100명만 성공
-        assertThat(failCount.get()).isEqualTo(THREAD_COUNT - TOTAL_QUANTITY); // 나머지 100명은 품절
-        assertThat(userCouponRepository.count()).isEqualTo(TOTAL_QUANTITY); // DB에도 100개만 저장
+        // then: Redis DECR 원자성으로 정확히 100명만 성공 (DB 저장은 Consumer 비동기 처리)
+        assertThat(successCount.get()).isEqualTo(TOTAL_QUANTITY);
+        assertThat(failCount.get()).isEqualTo(THREAD_COUNT - TOTAL_QUANTITY);
     }
 }

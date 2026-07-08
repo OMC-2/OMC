@@ -50,6 +50,9 @@ Desktop.ini
 *.log
 logs/
 
+# k6 AES 티켓 캐시 (24h TTL, 로컬 전용)
+k6/ticket_cache.json
+
 # Claude Code (local only)
 CLAUDE.md
 

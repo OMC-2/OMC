@@ -73,14 +73,19 @@ Feature: [시나리오] 선착순 드롭 정상 구매 (쿠폰 적용 + 결제 �
     Then status 201
     * def couponId = response.data.couponId
 
-    # ── 4. 유저 쿠폰 발급 → userCouponId 확보 ───────────────────────
+    # ── 4. 유저 쿠폰 발급 (비동기 202) → Consumer 처리 대기 → userCouponId 확보 ─
     Given path '/api/v1/coupons/' + couponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userToken
     When method post
-    Then status 201
-    And match response.data.status == 'AVAILABLE'
-    * def userCouponId = response.data.userCouponId
+    Then status 202
+    * java.lang.Thread.sleep(3000)
+    Given path '/api/v1/coupons/me'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + userToken
+    When method get
+    Then status 200
+    * def userCouponId = response.data.content[0].userCouponId
 
     # ── 5. 상품 등록 ─────────────────────────────────────────────────
     Given path '/api/v1/admin/products'

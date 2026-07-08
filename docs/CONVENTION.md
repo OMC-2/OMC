@@ -101,6 +101,7 @@ com.omc.{service-name}
 │   ├── service/              ← 비즈니스 로직 (유스케이스)
 │   ├── processor/            ← 트랜잭션 분리가 필요한 처리 단위 (@Component, REQUIRES_NEW)
 │   ├── scheduler/            ← @Scheduled (드롭 오픈/종료, hold 만료, 배송, 추첨 등)
+│   ├── warmup/               ← 서비스 시작 시 초기화/캐싱 등의 처리 (@Component)
 │   └── event/
 │       ├── producer/         ← 이벤트 발행 (application이 "무엇을" 발행할지)
 │       └── consumer/         ← 이벤트 수신 핸들러 (수신 후 유스케이스 호출)

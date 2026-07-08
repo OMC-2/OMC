@@ -31,7 +31,6 @@ public class CouponStockRecoveryService {
             long issued = userCouponRepository.countByCoupon_CouponId(coupon.getCouponId());
             long remaining = Math.max(0L, coupon.getTotalQuantity() - issued);
             couponRedisRepository.initStock(coupon.getCouponId().toString(), remaining);
-            log.info("[CouponStockRecovery] 재고 동기화. couponId={}, remaining={}", coupon.getCouponId(), remaining);
         }
     }
 
@@ -42,6 +41,5 @@ public class CouponStockRecoveryService {
         long issued = userCouponRepository.countByCoupon_CouponId(couponId);
         long remaining = Math.max(0L, coupon.getTotalQuantity() - issued);
         couponRedisRepository.initStock(couponId.toString(), remaining);
-        log.info("[CouponStockRecovery] 단일 쿠폰 재고 복구. couponId={}, remaining={}", couponId, remaining);
     }
 }

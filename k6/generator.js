@@ -22,15 +22,23 @@ const http  = require('http');
 const fs    = require('fs');
 const path  = require('path');
 
-const BASE          = process.env.BASE_URL       || 'http://localhost:8080';
-const COUNT         = parseInt(process.env.COUNT || '1000', 10);
-const ADMIN_SECRET  = process.env.ADMIN_SECRET   || 'local-admin-secret';
-const GATEWAY_SECRET = process.env.GATEWAY_SECRET || 'local-secret';
-// Gateway RedisRateLimiter(replenishRate=10, burstCapacity=20)를 user-service 전체가 공유.
-// JMeter Constant Throughput Timer(300/min ≈ 5 req/sec)와 동일한 여유를 두고,
-// 회원가입+로그인 1쌍(2 request)마다 400ms 간격으로 순차 발사 → 평균 5 req/sec 유지.
-const REQUEST_INTERVAL_MS = parseInt(process.env.REQUEST_INTERVAL_MS || '400', 10);
-const OUTPUT_PATH  = path.join(__dirname, 'users.json');
+const BASE           = process.env.BASE_URL        || 'http://localhost:8080';
+const COUNT          = parseInt(process.env.COUNT  || '1000', 10);
+const ADMIN_SECRET   = process.env.ADMIN_SECRET    || 'local-admin-secret';
+const GATEWAY_SECRET = process.env.GATEWAY_SECRET  || 'local-secret';
+// ROLE=USER → 일반 signup (쿠폰 발급 등 USER 역할 필요한 테스트용)
+// ROLE=ADMIN(기본) → admin/signup (drop 구매 등 역할 무관 테스트용)
+const ROLE           = process.env.ROLE            || 'ADMIN';
+// X-Load-Test 헤더를 전송해 게이트웨이 Rate Limit을 우회하므로 간격을 50ms로 단축
+// (게이트웨이 KeyResolver가 Mono.empty() 반환 → deny-empty-key:false → 스킵)
+const REQUEST_INTERVAL_MS = parseInt(process.env.REQUEST_INTERVAL_MS || '50', 10);
+// RELOGIN 전용 간격: 로그인은 Keycloak까지 연결되며 Keycloak Brute Force Protection이
+// 20 req/s(50ms) 에서 반응하므로 기본값을 200ms(5 req/s)로 분리
+const RELOGIN_INTERVAL_MS = parseInt(process.env.RELOGIN_INTERVAL_MS || '200', 10);
+const LOAD_TEST_SECRET = 'local-loadtest-secret';
+const OUTPUT_PATH    = process.env.OUTPUT_PATH || path.join(__dirname, 'users.json');
+// RELOGIN=true → 기존 users.json의 email/password로 재로그인하여 토큰만 갱신
+const RELOGIN        = process.env.RELOGIN === 'true';
 
 // HTTP 요청 헬퍼
 function request(method, url, body, headers = {}) {
@@ -73,12 +81,21 @@ async function createUser(index) {
   const nickname = `loadtest_${index}`;
 
   // 회원가입
-  const signup = await request(
-    'POST',
-    `${BASE}/api/v1/users/admin/signup`,
-    { email, password, nickname },
-    { 'X-Admin-Secret': ADMIN_SECRET, 'X-Gateway-Secret': GATEWAY_SECRET }
-  );
+  // ROLE=USER → 일반 signup (USER 역할) / ROLE=ADMIN(기본) → admin/signup (ADMIN 역할)
+  // X-Load-Test 헤더: 게이트웨이 Rate Limit 우회 (로컬 전용)
+  const signup = ROLE === 'USER'
+    ? await request(
+        'POST',
+        `${BASE}/api/v1/users/signup`,
+        { email, password, nickname, slackId: '' },
+        { 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
+      )
+    : await request(
+        'POST',
+        `${BASE}/api/v1/users/admin/signup`,
+        { email, password, nickname },
+        { 'X-Admin-Secret': ADMIN_SECRET, 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
+      );
 
   if (signup.status !== 201 && signup.status !== 200) {
     console.warn(`[${index}] 회원가입 실패 (${signup.status}): ${email}`);
@@ -90,7 +107,7 @@ async function createUser(index) {
     'POST',
     `${BASE}/api/v1/users/login`,
     { email, password },
-    { 'X-Gateway-Secret': GATEWAY_SECRET }
+    { 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
   );
 
   const token = login.body?.data?.accessToken;
@@ -99,7 +116,63 @@ async function createUser(index) {
     return null;
   }
 
-  return { email, token };
+  return { email, password, role: ROLE, token };
+}
+
+// RELOGIN 모드: users.json의 email/password로 재로그인 → 토큰만 갱신
+async function reloginUsers() {
+  if (!fs.existsSync(OUTPUT_PATH)) {
+    console.error('[generator] users.json 없음 — RELOGIN 불가');
+    process.exit(1);
+  }
+  const existing = JSON.parse(fs.readFileSync(OUTPUT_PATH, 'utf-8'));
+  if (!existing[0]?.password) {
+    console.error('[generator] users.json에 password 없음 — 재생성 필요 (rm users.json 후 재실행)');
+    process.exit(1);
+  }
+
+  console.log(`[generator] 토큰 갱신 시작 (${existing.length}명, 요청 간격 ${RELOGIN_INTERVAL_MS}ms)`);
+  const updated = [];
+  let failed = 0;
+
+  for (let i = 0; i < existing.length; i++) {
+    const { email, password } = existing[i];
+
+    let login = await request(
+      'POST',
+      `${BASE}/api/v1/users/login`,
+      { email, password },
+      { 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
+    );
+    // 502/429 시 1회 재시도 (Keycloak 일시 과부하 대응)
+    if (!login.body?.data?.accessToken && (login.status === 502 || login.status === 429)) {
+      await new Promise((r) => setTimeout(r, 1000));
+      login = await request(
+        'POST',
+        `${BASE}/api/v1/users/login`,
+        { email, password },
+        { 'X-Gateway-Secret': GATEWAY_SECRET, 'X-Load-Test': LOAD_TEST_SECRET }
+      );
+    }
+
+    const token = login.body?.data?.accessToken;
+    if (!token) {
+      console.warn(`[${i}] 로그인 실패 (${login.status}): ${email}`);
+      failed++;
+    }
+    updated.push({ ...existing[i], token: token || existing[i].token });
+
+    if ((i + 1) % 50 === 0 || i + 1 === existing.length) {
+      console.log(`[generator] 진행률: ${i + 1}/${existing.length} (실패: ${failed})`);
+    }
+    if (i + 1 < existing.length) {
+      await new Promise((r) => setTimeout(r, RELOGIN_INTERVAL_MS));
+    }
+  }
+
+  fs.writeFileSync(OUTPUT_PATH, JSON.stringify(updated, null, 2), 'utf-8');
+  console.log(`[generator] 토큰 갱신 완료. 실패: ${failed}명`);
+  if (failed > 0) process.exit(1);
 }
 
 // 순차 처리: 배치 동시발사 대신 유저 1명(회원가입+로그인 2 request)마다
@@ -133,4 +206,4 @@ async function run() {
   }
 }
 
-run().catch(console.error);
+(RELOGIN ? reloginUsers() : run()).catch(console.error);

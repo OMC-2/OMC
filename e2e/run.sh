@@ -255,6 +255,27 @@ if [ -n "$TARGET" ]; then
   fi
 fi
 
+# ── Sentry 자동 비활성화 ──────────────────────────────────────────
+# 실행 중인 서비스에 실제 SENTRY_DSN이 설정된 경우 테스트 전 자동으로 끔
+# (테스트 에러가 Sentry 대시보드로 전송되지 않도록)
+_SENTRY_DISABLED=false
+if docker inspect omc-coupon-service --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+    | grep -q "^SENTRY_DSN=https"; then
+  echo "▶ Sentry 비활성화 (테스트 중 알람 방지)"
+  SENTRY_DSN="" docker compose -f docker-compose.yml -f docker-compose.services.yml up -d \
+    --no-build --force-recreate --no-deps \
+    coupon-service user-service gateway notification-service \
+    drop-service order-service payment-service product-service raffle-service 2>&1 | grep -E "Recreat|Start|Error"
+  echo "  ⏳ 주요 서비스 healthy 대기..."
+  for _c in omc-coupon-service omc-user-service omc-gateway; do
+    until docker inspect "$_c" --format '{{.State.Health.Status}}' 2>/dev/null | grep -q "^healthy$"; do
+      sleep 3
+    done
+  done
+  echo "  ✅ Sentry 비활성화 완료"
+  _SENTRY_DISABLED=true
+fi
+
 JAVA_HOME=$JAVA_HOME \
 GATEWAY_SECRET=$GATEWAY_SECRET \
 ADMIN_SECRET=$ADMIN_SECRET \
@@ -262,3 +283,8 @@ PAYMENT_SERVICE_URL=${PAYMENT_SERVICE_URL:-http://localhost:8085} \
 KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092} \
 ./gradlew :e2e:test -PrunE2E \
   $([ -n "$KARATE_OPTS" ] && echo "-Dkarate.options=$KARATE_OPTS")
+
+if [ "$_SENTRY_DISABLED" = true ]; then
+  echo ""
+  echo "ℹ Sentry가 비활성화된 상태입니다. 원래대로 복원하려면: bash docker-up.sh rebuild coupon-service"
+fi

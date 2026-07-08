@@ -37,7 +37,7 @@ import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 @Tag("integration")
@@ -56,7 +56,8 @@ import static org.mockito.Mockito.verify;
         "spring.kafka.consumer.auto-offset-reset=earliest",
         "spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
         "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
-        "spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer"
+        "spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer",
+        "notification.dispatch.fixed-delay-ms=50"
 })
 class NotificationKafkaIntegrationTest {
 
@@ -103,6 +104,14 @@ class NotificationKafkaIntegrationTest {
         given(userServiceClient.getSlackId(any(UUID.class)))
                 .willReturn(new UserServiceClient.SlackApiResponse(true, 200, "OK",
                         new UserServiceClient.UserSlackResponse(USER_ID, SLACK_ID)));
+        given(userServiceClient.getSlackIdsBatch(any())).willAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var userIds = (java.util.List<UUID>) invocation.getArgument(0);
+            var responses = userIds.stream()
+                    .map(userId -> new UserServiceClient.UserSlackResponse(userId, SLACK_ID))
+                    .toList();
+            return new UserServiceClient.SlackBatchApiResponse(true, 200, "OK", responses);
+        });
     }
 
     // =========================================================================
@@ -140,7 +149,7 @@ class NotificationKafkaIntegrationTest {
                 assertThat(notificationRepository.count()).isEqualTo(1)
         );
 
-        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+        verify(slackClient, timeout(5000).times(1)).sendMessage(eq(SLACK_ID), any(String.class));
     }
 
     // =========================================================================
@@ -165,7 +174,7 @@ class NotificationKafkaIntegrationTest {
         );
 
         assertThat(notificationRepository.count()).isEqualTo(1);
-        verify(slackClient, times(1)).sendMessage(any(), any());
+        verify(slackClient, timeout(5000).times(1)).sendMessage(any(), any());
     }
 
     // =========================================================================
@@ -189,7 +198,7 @@ class NotificationKafkaIntegrationTest {
 
         assertThat(notificationRepository.findAll())
                 .allMatch(n -> n.getNotificationType() == NotificationType.DROP_OPENED);
-        verify(slackClient, times(3)).sendMessage(any(), any());
+        verify(slackClient, timeout(5000).times(3)).sendMessage(any(), any());
     }
 
     // =========================================================================
@@ -210,7 +219,7 @@ class NotificationKafkaIntegrationTest {
         var saved = notificationRepository.findAll().get(0);
         assertThat(saved.getUserId()).isEqualTo(USER_ID);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.COUPON_USED);
-        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+        verify(slackClient, timeout(5000).times(1)).sendMessage(eq(SLACK_ID), any(String.class));
     }
 
     // =========================================================================
@@ -235,7 +244,7 @@ class NotificationKafkaIntegrationTest {
         );
 
         assertThat(notificationRepository.count()).isEqualTo(1);
-        verify(slackClient, times(1)).sendMessage(any(), any());
+        verify(slackClient, timeout(5000).times(1)).sendMessage(any(), any());
     }
 
     // =========================================================================
@@ -256,7 +265,7 @@ class NotificationKafkaIntegrationTest {
         var saved = notificationRepository.findAll().get(0);
         assertThat(saved.getUserId()).isEqualTo(USER_ID);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.ORDER_CANCELLED);
-        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+        verify(slackClient, timeout(5000).times(1)).sendMessage(eq(SLACK_ID), any(String.class));
     }
 
     // =========================================================================
@@ -277,7 +286,7 @@ class NotificationKafkaIntegrationTest {
         var saved = notificationRepository.findAll().get(0);
         assertThat(saved.getUserId()).isEqualTo(USER_ID);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.ORDER_SHIPPED);
-        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+        verify(slackClient, timeout(5000).times(1)).sendMessage(eq(SLACK_ID), any(String.class));
     }
 
     // =========================================================================
@@ -298,7 +307,7 @@ class NotificationKafkaIntegrationTest {
         var saved = notificationRepository.findAll().get(0);
         assertThat(saved.getUserId()).isEqualTo(USER_ID);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.RAFFLE_WIN);
-        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+        verify(slackClient, timeout(5000).times(1)).sendMessage(eq(SLACK_ID), any(String.class));
     }
 
     // =========================================================================
@@ -319,7 +328,7 @@ class NotificationKafkaIntegrationTest {
         var saved = notificationRepository.findAll().get(0);
         assertThat(saved.getUserId()).isEqualTo(USER_ID);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.RAFFLE_LOSE);
-        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+        verify(slackClient, timeout(5000).times(1)).sendMessage(eq(SLACK_ID), any(String.class));
     }
 
     // =========================================================================
@@ -340,7 +349,7 @@ class NotificationKafkaIntegrationTest {
         var saved = notificationRepository.findAll().get(0);
         assertThat(saved.getUserId()).isEqualTo(USER_ID);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.COUPON_ISSUED);
-        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+        verify(slackClient, timeout(5000).times(1)).sendMessage(eq(SLACK_ID), any(String.class));
     }
 
     // =========================================================================
@@ -361,7 +370,7 @@ class NotificationKafkaIntegrationTest {
         var saved = notificationRepository.findAll().get(0);
         assertThat(saved.getUserId()).isEqualTo(USER_ID);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.REFUND_COMPLETED);
-        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+        verify(slackClient, timeout(5000).times(1)).sendMessage(eq(SLACK_ID), any(String.class));
     }
 
     // =========================================================================
@@ -382,7 +391,7 @@ class NotificationKafkaIntegrationTest {
         var saved = notificationRepository.findAll().get(0);
         assertThat(saved.getUserId()).isEqualTo(USER_ID);
         assertThat(saved.getNotificationType()).isEqualTo(NotificationType.PAYMENT_FAILED);
-        verify(slackClient, times(1)).sendMessage(eq(SLACK_ID), any(String.class));
+        verify(slackClient, timeout(5000).times(1)).sendMessage(eq(SLACK_ID), any(String.class));
     }
 
     // =========================================================================
@@ -407,7 +416,7 @@ class NotificationKafkaIntegrationTest {
         );
 
         assertThat(notificationRepository.count()).isEqualTo(1);
-        verify(slackClient, times(1)).sendMessage(any(), any());
+        verify(slackClient, timeout(5000).times(1)).sendMessage(any(), any());
     }
 
     // =========================================================================

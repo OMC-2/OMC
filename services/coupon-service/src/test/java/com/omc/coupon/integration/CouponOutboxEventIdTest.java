@@ -2,13 +2,11 @@ package com.omc.coupon.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.coupon.application.scheduler.OutboxPollerScheduler;
-import com.omc.coupon.application.service.CouponService;
 import com.omc.coupon.application.service.CouponSagaService;
 import com.omc.coupon.domain.entity.Coupon;
 import com.omc.coupon.domain.entity.OutboxEvent;
 import com.omc.coupon.domain.entity.UserCoupon;
 import com.omc.coupon.domain.enums.DiscountType;
-import com.omc.coupon.domain.enums.UserCouponStatus;
 import com.omc.coupon.domain.repository.CouponRepository;
 import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.ProcessedEventRepository;
@@ -34,8 +32,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 /**
  * Outbox event_id == 메시지 payload eventId 동일성 및 UUID v7 여부 검증.
@@ -70,7 +72,6 @@ class CouponOutboxEventIdTest {
     @MockitoBean KafkaTemplate<String, String> kafkaTemplate;
     @MockitoBean OutboxPollerScheduler outboxPollerScheduler;
 
-    @Autowired CouponService couponService;
     @Autowired CouponSagaService couponSagaService;
     @Autowired CouponRepository couponRepository;
     @Autowired UserCouponRepository userCouponRepository;
@@ -81,6 +82,7 @@ class CouponOutboxEventIdTest {
     @Autowired ObjectMapper objectMapper;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         processedEventRepository.deleteAll();
         outboxEventRepository.deleteAll();
@@ -90,44 +92,15 @@ class CouponOutboxEventIdTest {
             connection.serverCommands().flushAll();
             return null;
         });
+        org.springframework.kafka.support.SendResult<String, String> sendResult =
+                mock(org.springframework.kafka.support.SendResult.class);
+        CompletableFuture<org.springframework.kafka.support.SendResult<String, String>> future =
+                CompletableFuture.completedFuture(sendResult);
+        given(kafkaTemplate.send(anyString(), anyString(), anyString())).willReturn(future);
     }
 
     // =========================================================================
-    // [1] issueCoupon → Outbox event_id == payload eventId
-    // =========================================================================
-
-    @Test
-    void issueCoupon_outboxEventId_equalsPayloadEventId() throws Exception {
-        Coupon coupon = createCoupon();
-        UUID userId = UUID.randomUUID();
-
-        couponService.issueCoupon(coupon.getCouponId(), userId);
-
-        OutboxEvent outbox = outboxEventRepository.findAll().get(0);
-        String payloadEventId = extractEventId(outbox.getPayload());
-
-        assertThat(outbox.getEventId().toString()).isEqualTo(payloadEventId);
-    }
-
-    // =========================================================================
-    // [2] issueCoupon → payload eventId가 UUID v7인지 확인
-    // =========================================================================
-
-    @Test
-    void issueCoupon_payloadEventId_isVersion7() throws Exception {
-        Coupon coupon = createCoupon();
-        UUID userId = UUID.randomUUID();
-
-        couponService.issueCoupon(coupon.getCouponId(), userId);
-
-        OutboxEvent outbox = outboxEventRepository.findAll().get(0);
-        String payloadEventId = extractEventId(outbox.getPayload());
-
-        assertThat(UUID.fromString(payloadEventId).version()).isEqualTo(7);
-    }
-
-    // =========================================================================
-    // [3] confirmCoupon → Outbox event_id == payload eventId
+    // [1] confirmCoupon → Outbox event_id == payload eventId
     // =========================================================================
 
     @Test
