@@ -32,7 +32,12 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJECT_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 SCENARIO_TYPE=${1:-"coupon"}
 COMMAND=${2:-""}    # setup | restore | all | smoke | load | stress-* | spike
-TAG=${3:-""}
+ARG3=${3:-""}
+ARG4=${4:-""}
+TAG=${ARG3}
+LOAD_REPEAT_ROUNDS=${LOAD_REPEAT:-10}
+COUPON_SCALE=${COUPON_SCALE:-1}
+
 
 COMPOSE="docker compose -f $PROJECT_ROOT/docker-compose.yml -f $PROJECT_ROOT/docker-compose.services.yml"
 
@@ -49,6 +54,19 @@ LOAD_REPEAT=${LOAD_REPEAT:-10}                  # load-repeat 반복 횟수
 COUPON_STRESS_QTY=${COUPON_STRESS_QTY:-10000}   # Stress Test 쿠폰 수량 (재고 소진이 아닌 서버 한계 탐색)
 USER_COUNT=${USER_COUNT:-1000}                   # 필요 유저 수
 REQUEST_INTERVAL_MS=${REQUEST_INTERVAL_MS:-50}   # 유저 생성 요청 간격 (ms) — 클수록 안정, 느림
+
+if [ "$COMMAND" = "load-repeat" ]; then
+  if [[ "$ARG3" =~ ^[0-9]+$ ]]; then
+    LOAD_REPEAT_ROUNDS="$ARG3"
+    TAG="$ARG4"
+  elif [ -n "$ARG3" ]; then
+    LOAD_REPEAT_ROUNDS="$LOAD_REPEAT"
+    TAG="$ARG3"
+  else
+    LOAD_REPEAT_ROUNDS="$LOAD_REPEAT"
+    TAG=""
+  fi
+fi
 
 POSTGRES_CONTAINER="omc-postgres"
 POSTGRES_USER="omc"
@@ -99,7 +117,11 @@ wait_gateway_route() {
 
 sentry_disable() {
   log "▶ Sentry 비활성화 (부하 테스트 중 에러 알림 차단)"
-  SENTRY_DSN="" $COMPOSE up -d --force-recreate --no-deps coupon-service > /dev/null 2>&1
+  local scale_opt=""
+  if [ "$COUPON_SCALE" -gt 1 ] 2>/dev/null; then
+    scale_opt="--scale coupon-service=$COUPON_SCALE"
+  fi
+  SENTRY_DSN="" $COMPOSE up -d --force-recreate --no-deps $scale_opt coupon-service > /dev/null 2>&1
   # Spring Boot 초기화 대기 (최대 90초)
   local i=0
   while [ $i -lt 90 ]; do
@@ -120,7 +142,11 @@ sentry_disable() {
 
 sentry_restore() {
   log "▶ Sentry 복원"
-  $COMPOSE up -d --force-recreate --no-deps coupon-service > /dev/null 2>&1
+  local scale_opt=""
+  if [ "$COUPON_SCALE" -gt 1 ] 2>/dev/null; then
+    scale_opt="--scale coupon-service=$COUPON_SCALE"
+  fi
+  $COMPOSE up -d --force-recreate --no-deps $scale_opt coupon-service > /dev/null 2>&1
   log "  ✅ coupon-service 재시작 완료 (Sentry 복원됨)"
 }
 
@@ -164,20 +190,32 @@ ensure_ticket_cache() {
   now=$(date +%s)
 
   if [ -f "$cache_file" ]; then
-    local issued_at count age
+    local issued_at count age valid_count
     issued_at=$(python3 -c "import json; print(json.load(open('$cache_file'))['issued_at'])" 2>/dev/null || echo 0)
-    count=$(python3 -c "import json; print(len(json.load(open('$cache_file'))['tickets']))" 2>/dev/null || echo 0)
+    # None이 아닌 유효한 티켓 개수만 카운트
+    valid_count=$(python3 -c "import json; print(len([t for t in json.load(open('$cache_file'))['tickets'] if t]))" 2>/dev/null || echo 0)
     age=$(( now - issued_at ))
-    if [ "$age" -lt "$ttl" ] && [ "$count" -ge "$USER_COUNT" ]; then
-      log "  ✅ 티켓 캐시 유효 ($(( age / 3600 ))시간 전 발급, ${count}개)"
+    if [ "$age" -lt "$ttl" ] && [ "$valid_count" -ge "$USER_COUNT" ]; then
+      log "  ✅ 티켓 캐시 유효 ($(( age / 3600 ))시간 전 발급, ${valid_count}개)"
       return 0
     fi
-    log "  ⚠️  티켓 캐시 만료 또는 부족 — 재발급 중..."
+    log "  ⚠️  티켓 캐시 만료 또는 유효 티켓 부족(${valid_count}/${USER_COUNT}) — 재발급 중..."
   else
     log "  ℹ️  티켓 캐시 없음 — 발급 중..."
   fi
 
-  python3 - "$cache_file" "$SCRIPT_DIR/users.json" "$BASE_URL" "$GATEWAY_SECRET" "$coupon_id" "$USER_COUNT" <<'PYEOF'
+  local retry_count=0
+  local max_retries=15
+  while [ $retry_count -lt $max_retries ]; do
+    log "  🔑 [시도 $((retry_count + 1))/$max_retries] AES 티켓 발급 시작..."
+
+    # Gateway가 Keycloak 인증 정보를 게이트웨이 기동 직후에 안전하게 땡겨오도록 1회성 더미 요청 후 3초 대기
+    curl -s -o /dev/null -H "Authorization: Bearer dummy" "$BASE_URL/api/v1/coupons/dummy/ticket" 2>/dev/null || true
+    sleep 3
+
+    # python 스크립트 실행하여 티켓 발급
+    local out
+    out=$(python3 - "$cache_file" "$SCRIPT_DIR/users.json" "$BASE_URL" "$GATEWAY_SECRET" "$coupon_id" "$USER_COUNT" <<'PYEOF'
 import json, sys, time
 import urllib.request
 
@@ -198,19 +236,37 @@ for i, user in enumerate(users):
         }
     )
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
             tickets.append(data['data']['ticket'])
             success += 1
-    except Exception:
+    except Exception as e:
+        if i < 3:
+            print(f"  [Error] User {i} ticket issue failed: {e}", file=sys.stderr)
         tickets.append(None)
-    if (i + 1) % 100 == 0:
-        print(f'  티켓 발급 중... {i+1}/{user_count}', flush=True)
 
 cache = {'issued_at': int(time.time()), 'tickets': tickets}
 json.dump(cache, open(cache_file, 'w'), indent=2)
-print(f'  ✅ 티켓 발급 완료: {success}/{user_count}개')
+print(f'SUCCESS_COUNT:{success}')
 PYEOF
+)
+
+    local success_cnt
+    success_cnt=$(echo "$out" | grep "SUCCESS_COUNT:" | cut -d':' -f2 || echo 0)
+    log "  -> 발급 결과: ${success_cnt}/${USER_COUNT}개 성공"
+
+    if [ "$success_cnt" -eq "$USER_COUNT" ]; then
+      log "  ✅ 모든 AES 티켓 발급 성공!"
+      return 0
+    fi
+
+    log "  ⚠️ 티켓 유실 발생 (${success_cnt}/${USER_COUNT}). Eureka 및 Gateway 라우팅 대기 중... (10초 후 재시도)"
+    retry_count=$((retry_count + 1))
+    sleep 10
+  done
+
+  log "❌ 치명적 오류: 최대 재시도 횟수를 초과하여 AES 티켓 발급에 실패했습니다."
+  exit 1
 }
 
 warmup_gateway_ticket_path() {
@@ -513,6 +569,7 @@ run_stage() {
   local qty=$2
   local vus=${3:-0}
   local expected_override=${4:-""}
+  local coupon_override=${5:-""}
   local stage_dir="$RESULT_DIR/$stage"
   mkdir -p "$stage_dir"
 
@@ -568,12 +625,17 @@ run_stage() {
 
   # 쿠폰 생성
   local coupon_id
-  coupon_id=$(create_coupon "$qty" "[$stage] 부하테스트 쿠폰")
-  if [ -z "$coupon_id" ]; then
-    log "❌ 쿠폰 생성 실패 → 중단 (서비스가 실행 중인지 확인하세요)"
-    exit 1
+  if [ -n "$coupon_override" ]; then
+    coupon_id="$coupon_override"
+    log "  (미리 생성된 쿠폰 사용: $coupon_id)"
+  else
+    coupon_id=$(create_coupon "$qty" "[$stage] 부하테스트 쿠폰")
+    if [ -z "$coupon_id" ]; then
+      log "❌ 쿠폰 생성 실패 → 중단 (서비스가 실행 중인지 확인하세요)"
+      exit 1
+    fi
+    log "  쿠폰 생성 완료: $coupon_id"
   fi
-  log "  쿠폰 생성 완료: $coupon_id"
 
   # k6 실행 전 게이트웨이 경로 대기
   wait_gateway_route
@@ -655,7 +717,11 @@ load_infra_start() {
   $COMPOSE down
 
   log "▶ 필수 서비스만 기동 중 (compose가 의존성 자동 해결)..."
-  $COMPOSE up -d gateway coupon-service
+  local scale_opt=""
+  if [ "$COUPON_SCALE" -gt 1 ] 2>/dev/null; then
+    scale_opt="--scale coupon-service=$COUPON_SCALE"
+  fi
+  $COMPOSE up -d $scale_opt gateway coupon-service
 
   echo ""
   log "  ✅ 기동 명령 완료"
@@ -670,11 +736,44 @@ load_infra_stop() {
   log "  ✅ 종료 완료"
 }
 
+# ------------------------------------------------------------
+# 헬스체크 대기 함수 (setup 시 사용)
+# ------------------------------------------------------------
+wait_container_healthy() {
+  local container=$1
+  local timeout=${2:-180}
+  local elapsed=0
+
+  log "  ⏳ $container 준비 대기 중..."
+  until docker inspect "$container" --format '{{.State.Health.Status}}' 2>/dev/null | grep -q "^healthy$"; do
+    if [ "$elapsed" -ge "$timeout" ]; then
+      log "  ❌ $container 헬스체크 타임아웃 (${timeout}s 초과)"
+      exit 1
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  log "  ✅ $container 준비 완료"
+}
+
 # ============================================================
 # 쿠폰 시나리오 — 유저 준비 + Sentry 비활성화 (setup 전용)
 # ============================================================
 coupon_setup() {
   local NEEDED_ROLE="USER"
+
+  # keycloak 및 user-service 상태 확인 후 미기동 시 기동
+  local keycloak_status=$(docker inspect -f '{{.State.Status}}' omc-keycloak 2>/dev/null || echo "not_found")
+  local user_status=$(docker inspect -f '{{.State.Status}}' omc-user-service 2>/dev/null || echo "not_found")
+
+  if [ "$keycloak_status" != "running" ] || [ "$user_status" != "running" ]; then
+    log "⚠️  keycloak 또는 user-service가 실행 중이 아닙니다."
+    log "▶ keycloak 및 user-service 기동을 시작합니다..."
+    $COMPOSE up -d keycloak user-service
+
+    wait_container_healthy omc-keycloak 180
+    wait_container_healthy omc-user-service 180
+  fi
 
   echo ""
   echo "=========================================="
@@ -748,25 +847,25 @@ coupon_run_stage() {
     smoke)        run_stage "smoke"       $COUPON_LOAD_QTY  0  5 ;;
     load)         run_stage "load"        $COUPON_LOAD_QTY ;;
     load-repeat)
-      local rounds=${TAG:-$LOAD_REPEAT}
-      if [[ "$rounds" =~ ^[0-9]+$ ]]; then
-        TAG="${5:-}"
-      else
-        rounds=$LOAD_REPEAT
-      fi
+      local rounds=${LOAD_REPEAT_ROUNDS:-$LOAD_REPEAT}
       log "▶ load-repeat: ${rounds}회 반복 (쿠폰 ${COUPON_LOAD_QTY}개 × ${rounds}회)"
 
       # Gateway AES 복호화 경로 JIT 워밍업 (기존 warmup은 GET/JWT 경로만 워밍업해서 미적용)
       warmup_gateway_ticket_path
 
-      # [격리] 부하 중 keycloak 중지로 CPU(~226%) 회수.
-      #  - 발급 버스트는 X-Coupon-Ticket AES 복호화 경로 → keycloak 불필요
-      #  - create_coupon은 coupon-service 직접 호출(X-Gateway-Secret), ensure_ticket_cache는
-      #    캐시 유효 시 keycloak 미사용 → warmup 통과 시점엔 안전
+      # [준비] 10개 쿠폰 일괄 선발급
+      log "  ▶ [준비] 10라운드용 쿠폰 ${rounds}개 일괄 선발급 중..."
+      declare -a precreated_coupons
+      for i in $(seq 1 "$rounds"); do
+        local c_id=$(create_coupon "$COUPON_LOAD_QTY" "[load-round-${i}] 부하테스트 쿠폰")
+        precreated_coupons+=("$c_id")
+      done
+
+      # [격리] 부하 중 불필요한 서비스 모두 중지하여 CPU 회수
       #  - 중단/종료 시 반드시 복구 (EXIT trap)
-      trap '$COMPOSE start keycloak >/dev/null 2>&1 || true' EXIT
-      log "  ▶ [격리] 부하 중 keycloak 중지 (AES 경로 무관 → ~226% 회수)"
-      $COMPOSE stop keycloak >/dev/null 2>&1 || true
+      trap '$COMPOSE start keycloak user-service drop-service order-service payment-service product-service raffle-service >/dev/null 2>&1 || true' EXIT
+      log "  ▶ [격리] 부하 중 불필요 서비스 전면 중지 (keycloak, user 등 → 코어 확보)"
+      $COMPOSE stop keycloak user-service drop-service order-service payment-service product-service raffle-service >/dev/null 2>&1 || true
 
       SKIP_SETUP_SLEEP=false
       for i in $(seq 1 "$rounds"); do
@@ -774,15 +873,20 @@ coupon_run_stage() {
         # 각 라운드 직전 coupon-service 힙 강제 청소
         # → 누적 워밍업 객체가 burst 중 GC 트리거를 당기는 것을 방지
         log "  🧹 GC 힙 청소 중..."
-        curl -s -X POST http://localhost:8087/actuator/forcegc >/dev/null 2>&1 || true
-        sleep 2  # ZGC concurrent phase 완료 대기
+        local port=8087
+        for ((s=0; s<COUPON_SCALE; s++)); do
+          curl -s -X POST "http://localhost:$port/actuator/forcegc" >/dev/null 2>&1 || true
+          port=$((port + 1))
+        done
+        sleep 10  # G1GC Full GC 완료 및 WAS 안정화 대기
         log "  ✅ GC 완료"
-        run_stage "load-round-${i}" "$COUPON_LOAD_QTY" || true
+        local current_coupon="${precreated_coupons[$((i-1))]}"
+        run_stage "load-round-${i}" "$COUPON_LOAD_QTY" "" "" "$current_coupon" || true
         SKIP_SETUP_SLEEP=true
         # 라운드 간 cooldown: 직전 세일의 GC 여파가 다음 세일로 번지지 않도록
         if [ "$i" -lt "$rounds" ]; then
-          log "  ⏳ cooldown 12초 (GC 여파 분리 → 다음 세일 깨끗한 힙에서 출발)"
-          sleep 12
+          log "  ⏳ cooldown 60초 (OS TCP 포트 회수 및 GC 여파 분리)"
+          sleep 60
         fi
       done
 
