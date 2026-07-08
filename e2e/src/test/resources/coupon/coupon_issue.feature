@@ -94,17 +94,15 @@ Feature: 쿠폰 발급
     * java.lang.Thread.sleep(200)
 
   # ----------------------------------------------------------------
-  # 시나리오 1: USER가 쿠폰을 발급하면 201과 함께 userCouponId를 반환한다
+  # 시나리오 1: USER가 쿠폰을 발급하면 202 Accepted를 반환한다 (비동기 발급)
   # ----------------------------------------------------------------
-  Scenario: [정상] 쿠폰 발급 성공 → 201, userCouponId 반환
+  Scenario: [정상] 쿠폰 발급 성공 → 202 Accepted
     Given path '/api/v1/coupons/' + normalCouponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userAccessToken
     When method post
-    Then status 201
-    And match response.data.userCouponId == '#uuid'
-    And match response.data.status == 'AVAILABLE'
-    And match response.data.couponId == normalCouponId
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'
 
   # ----------------------------------------------------------------
   # 시나리오 2: 동일 쿠폰을 2번 발급하면 409와 COUPON-003을 반환한다
@@ -117,7 +115,7 @@ Feature: 쿠폰 발급
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userAccessToken
     When method post
-    Then status 201
+    Then status 202
     # 2단계: 동일 쿠폰 재발급 → 409
     Given path '/api/v1/coupons/' + normalCouponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
@@ -149,7 +147,7 @@ Feature: 쿠폰 발급
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + otherAccessToken
     When method post
-    Then status 201
+    Then status 202
     # 2단계: USER로 동일 쿠폰 발급 시도 → 재고 없음 → 409
     Given path '/api/v1/coupons/' + limitedCouponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
@@ -178,16 +176,16 @@ Feature: 쿠폰 발급
     Then status 403
 
   # ----------------------------------------------------------------
-  # 시나리오 6: 서로 다른 유저 5명이 같은 쿠폰을 각각 발급받으면 모두 201을 반환한다
+  # 시나리오 6: 서로 다른 유저 5명이 같은 쿠폰을 각각 발급받으면 모두 202를 반환한다
   # ----------------------------------------------------------------
-  Scenario: [정상] 서로 다른 유저 5명 쿠폰 발급 성공 → 모두 201
+  Scenario: [정상] 서로 다른 유저 5명 쿠폰 발급 성공 → 모두 202
     # user1: Background에서 생성된 userAccessToken 사용
     Given path '/api/v1/coupons/' + normalCouponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userAccessToken
     When method post
-    Then status 201
-    And match response.data.status == 'AVAILABLE'
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'
 
     # user2
     * def user2Email = 'e2e-issue-multi2-' + java.util.UUID.randomUUID() + '@example.com'
@@ -206,8 +204,8 @@ Feature: 쿠폰 발급
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + user2Token
     When method post
-    Then status 201
-    And match response.data.status == 'AVAILABLE'
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'
 
     # user3
     * def user3Email = 'e2e-issue-multi3-' + java.util.UUID.randomUUID() + '@example.com'
@@ -226,8 +224,8 @@ Feature: 쿠폰 발급
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + user3Token
     When method post
-    Then status 201
-    And match response.data.status == 'AVAILABLE'
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'
 
     # user4
     * def user4Email = 'e2e-issue-multi4-' + java.util.UUID.randomUUID() + '@example.com'
@@ -246,8 +244,8 @@ Feature: 쿠폰 발급
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + user4Token
     When method post
-    Then status 201
-    And match response.data.status == 'AVAILABLE'
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'
 
     # user5
     * def user5Email = 'e2e-issue-multi5-' + java.util.UUID.randomUUID() + '@example.com'
@@ -266,8 +264,8 @@ Feature: 쿠폰 발급
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + user5Token
     When method post
-    Then status 201
-    And match response.data.status == 'AVAILABLE'
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'
 
   # ----------------------------------------------------------------
   # 시나리오 7: 만료된 쿠폰 발급 시도 시 400과 COUPON-006을 반환한다

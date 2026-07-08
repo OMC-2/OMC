@@ -86,6 +86,8 @@ Feature: 쿠폰 발급 Rate Limiting
   #   USER-A 토큰으로 15개를 동시에 발사 → 5개 이상 429
   # ----------------------------------------------------------------
   Scenario: [Rate Limit] burstCapacity 초과 시 429 반환
+    # Rate Limit 버킷 충전 대기 (이전 테스트에서 소진된 버킷이 있을 경우 대비)
+    * java.lang.Thread.sleep(3000)
     * def Helper = Java.type('e2e.ConcurrentIssueHelper')
     * def tokenList = []
     * eval for (var i = 0; i < 15; i++) tokenList.push(userAToken)
@@ -98,6 +100,8 @@ Feature: 쿠폰 발급 Rate Limiting
   #   USER-A 버킷 소진 후 USER-B는 429가 아닌 응답(201/409)을 받아야 함
   # ----------------------------------------------------------------
   Scenario: [Rate Limit] 다른 유저는 버킷이 독립적이다
+    # Rate Limit 버킷 충전 대기
+    * java.lang.Thread.sleep(3000)
     * def Helper = Java.type('e2e.ConcurrentIssueHelper')
 
     # USER-A 버킷 소진 (15개 동시 요청 → 5개 이상 429)
@@ -107,7 +111,7 @@ Feature: 쿠폰 발급 Rate Limiting
     * def statusesA = karate.map(resultsA, function(r){ return r.issueStatus })
     * assert statusesA.indexOf(429) >= 0
 
-    # USER-B는 별도 버킷이므로 영향 없음 (201 최초 발급 또는 409 중복)
+    # USER-B는 별도 버킷이므로 영향 없음 (202 최초 발급 또는 409 중복)
     Given path '/api/v1/coupons/' + couponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userBToken
@@ -119,6 +123,8 @@ Feature: 쿠폰 발급 Rate Limiting
   #   RateLimitErrorResponseFilter가 반환하는 JSON 바디 구조를 E2E로 검증
   # ----------------------------------------------------------------
   Scenario: [Rate Limit] 429 응답 포맷 검증
+    # Rate Limit 버킷 충전 대기
+    * java.lang.Thread.sleep(3000)
     * def Helper = Java.type('e2e.ConcurrentIssueHelper')
     * def tokenList = []
     * eval for (var i = 0; i < 15; i++) tokenList.push(userAToken)

@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -70,6 +71,13 @@ public class NotificationService {
     @Transactional
     public void retry(Notification notification) {
         sendToSlack(notification);
+    }
+
+    @Transactional
+    public void savePendingBatch(List<Notification> notifications) {
+        if (!notifications.isEmpty()) {
+            notificationRepository.saveAll(notifications);
+        }
     }
 
     private String resolveSlackId(UUID userId) {

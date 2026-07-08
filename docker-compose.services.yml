@@ -4,6 +4,7 @@ services:
     build:
       context: ./services/eureka-server
     container_name: omc-eureka-server
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
     ports:
       - "8761:8761"
     environment:
@@ -26,6 +27,7 @@ services:
     build:
       context: ./services/config-server
     container_name: omc-config-server
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
     ports:
       - "8888:8888"
     environment:
@@ -51,6 +53,7 @@ services:
     build:
       context: ./services/gateway
     container_name: omc-gateway
+    # cpuset: "4-5"        # [격리] CPU 격리를 해제하여 부하 시 코어를 모두 쓸 수 있게 함
     ports:
       - "8080:8080"
     environment:
@@ -59,12 +62,13 @@ services:
       EUREKA_URI: http://eureka-server:8761/eureka/
       GATEWAY_SECRET: local-secret
       KEYCLOAK_JWKS_URI: http://keycloak:8180/realms/omc/protocol/openid-connect/certs
+      COUPON_TICKET_AES_KEY: ${COUPON_TICKET_AES_KEY:-Y291cG9uLXRpY2tldC1hZXMtMjU2LXNlY3JldC1rZXk=}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SENTRY_DSN: ${SENTRY_DSN:-}
-      APP_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
-      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m -XX:+UseG1GC"
-      TRACING_SAMPLING_PROBABILITY: 0.0
+      JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -Xmx1500m -Xms1024m -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=20m"
+      TRACING_SAMPLING_PROBABILITY: "0.0"
+      MANAGEMENT_TRACING_ENABLED: "false"   # 샘플링 0으로는 Observation 객체 생성이 안 멈춤 → 트레이싱 자체 비활성으로 hot path 할당 제거
     depends_on:
       config-server:
         condition: service_healthy
@@ -83,7 +87,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1024m
+          memory: 2G
 
   user-service:
     build:
@@ -337,9 +341,10 @@ services:
   coupon-service:
     build:
       context: ./services/coupon-service
-    container_name: omc-coupon-service
+    # container_name: omc-coupon-service
+    cpuset: "0-3"        # [격리] hot 서비스 전용 코어 (가장 큰 CPU 소비처 → 4코어 배정)
     ports:
-      - "8087:8087"
+      - "8087-8088:8087"
     environment:
       TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
@@ -351,7 +356,13 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
+      COUPON_TICKET_AES_KEY: ${COUPON_TICKET_AES_KEY:-Y291cG9uLXRpY2tldC1hZXMtMjU2LXNlY3JldC1rZXk=}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      KAFKA_MAX_POLL_RECORDS: "50"
+      SPRING_KAFKA_LISTENER_CONCURRENCY: "3"
+      JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -Xms1500m -Xmx1500m"
+      TRACING_SAMPLING_PROBABILITY: "0.0"
+      MANAGEMENT_TRACING_ENABLED: "false"
     depends_on:
       config-server:
         condition: service_healthy
@@ -362,7 +373,7 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 30s
       retries: 10
@@ -372,14 +383,14 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 2G
 
   notification-service:
     build:
       context: ./services/notification-service
     container_name: omc-notification-service
     ports:
-      - "8088:8088"
+      - "8089:8088"
     environment:
       TZ: Asia/Seoul
       CONFIG_SERVER_URI: http://config-server:8888
@@ -392,6 +403,7 @@ services:
       USER_SERVICE_URL: http://user-service:8081
       SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      JAVA_TOOL_OPTIONS: "-XX:+UseZGC -XX:+ZGenerational -XX:ConcGCThreads=2 -Xmx512m -Xms128m"
     depends_on:
       config-server:
         condition: service_healthy
@@ -410,7 +422,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 1G
 
 networks:
   omc-network:

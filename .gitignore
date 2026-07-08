@@ -50,6 +50,9 @@ Desktop.ini
 *.log
 logs/
 
+# k6 AES 티켓 캐시 (24h TTL, 로컬 전용)
+k6/ticket_cache.json
+
 # Claude Code (local only)
 CLAUDE.md
 
@@ -95,3 +98,5 @@ apache-jmeter-5.6.3/
 
 # k6 부하 테스트 생성 데이터 (토큰 포함 — Git 비공개)
 k6/users.json
+# k6 부하 테스트 결과물 (로컬 전용)
+k6/results/

@@ -16,6 +16,10 @@ public final class KafkaTopics {
     public static final String HOLD_EXPIRED_DLT      = "hold.expired.DLT";
     public static final String REFUND_DONE_DLT       = "refund.done.DLT";
 
+    // 쿠폰 발급 요청 (Producer → Consumer 내부 처리)
+    public static final String COUPON_ISSUE_REQUESTED     = "coupon.issue.requested";
+    public static final String COUPON_ISSUE_REQUESTED_DLT = "coupon.issue.requested.DLT";
+
     // 발행 (Producer)
     public static final String COUPON_ISSUED     = "coupon.issued";
     public static final String COUPON_USED       = "coupon.used";

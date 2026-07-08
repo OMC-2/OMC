@@ -29,17 +29,19 @@ public class CommonArchRules {
                 .layer("Schedulers").definedBy("..scheduler..")
                 .layer("Events").definedBy("..event..")
                 .layer("Consumers").definedBy("..consumer..")
+                .layer("Warmup").definedBy("..warmup..")
                 .layer("Infrastructure").definedBy("..infrastructure..")
 
                 .whereLayer("Controllers").mayNotBeAccessedByAnyLayer()
-                .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services", "Schedulers", "Events", "Consumers")
+                .whereLayer("Services").mayOnlyBeAccessedByLayers("Controllers", "Services", "Schedulers", "Events", "Consumers", "Warmup")
                 .whereLayer("Processors").mayOnlyBeAccessedByLayers("Services")
-                .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Processors", "Repositories", "Schedulers", "Events", "Consumers")
-                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Processors", "Repositories", "Entities", "DTOs", "Schedulers", "Events", "Consumers", "Infrastructure")
-                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Processors", "Repositories", "Entities", "Schedulers", "Events", "Consumers", "Infrastructure")
+                .whereLayer("Repositories").mayOnlyBeAccessedByLayers("Services", "Processors", "Repositories", "Schedulers", "Events", "Consumers", "Warmup")
+                .whereLayer("Entities").mayOnlyBeAccessedByLayers("Controllers", "Services", "Processors", "Repositories", "Entities", "DTOs", "Schedulers", "Events", "Consumers", "Infrastructure", "Warmup")
+                .whereLayer("DTOs").mayOnlyBeAccessedByLayers("Controllers", "Services", "Processors", "Repositories", "Entities", "Schedulers", "Events", "Consumers", "Infrastructure", "Warmup")
                 .whereLayer("Consumers").mayNotBeAccessedByAnyLayer()
                 .whereLayer("Schedulers").mayNotBeAccessedByAnyLayer()
-                .whereLayer("Infrastructure").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Schedulers", "Events", "Consumers", "Infrastructure");
+                .whereLayer("Warmup").mayNotBeAccessedByAnyLayer()
+                .whereLayer("Infrastructure").mayOnlyBeAccessedByLayers("Controllers", "Services", "Repositories", "Schedulers", "Events", "Consumers", "Infrastructure", "Warmup");
     }
 
     // 2. MSA 직접 침범 금지 (No direct import across domains)

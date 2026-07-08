@@ -33,7 +33,12 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+import java.util.concurrent.CompletableFuture;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -85,6 +90,7 @@ class CouponApiIntegrationTest {
     private static final UUID OTHER_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000003");
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         processedEventRepository.deleteAll();
         outboxEventRepository.deleteAll();
@@ -94,6 +100,12 @@ class CouponApiIntegrationTest {
             connection.serverCommands().flushAll();
             return null;
         });
+        // KafkaTemplate.send()가 null 대신 완료된 Future를 반환하도록 설정
+        org.springframework.kafka.support.SendResult<String, String> sendResult =
+                mock(org.springframework.kafka.support.SendResult.class);
+        CompletableFuture<org.springframework.kafka.support.SendResult<String, String>> future =
+                CompletableFuture.completedFuture(sendResult);
+        given(kafkaTemplate.send(anyString(), anyString(), anyString())).willReturn(future);
     }
 
     private Coupon createAndSaveCoupon(int totalQuantity) {
@@ -137,8 +149,9 @@ class CouponApiIntegrationTest {
     }
 
     // =========================================================================
-    // [시나리오 2] POST /api/v1/coupons/{couponId}/issue → 201 Created
-    // 쿠폰 발급 시 DB 저장 + Redis 재고 감소 + Outbox 생성 + issued Set 추가 확인
+    // [시나리오 2] POST /api/v1/coupons/{couponId}/issue → 202 Accepted
+    // 발급 요청 수락 시 Redis 재고 감소 + issued Set 추가 확인
+    // DB 저장은 Kafka Consumer가 비동기 처리 (통합 테스트에서는 미검증)
     // =========================================================================
     @Test
     void issueCoupon_success() throws Exception {
@@ -149,11 +162,8 @@ class CouponApiIntegrationTest {
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", USER_ID.toString())
                         .header("X-User-Role", "USER"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("AVAILABLE"));
-
-        assertThat(userCouponRepository.count()).isEqualTo(1);
-        assertThat(outboxEventRepository.count()).isEqualTo(1);
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value("쿠폰이 발급되었습니다."));
 
         String stock = redisTemplate.opsForValue().get("coupon:stock:" + coupon.getCouponId());
         assertThat(stock).isEqualTo("99");
@@ -176,7 +186,7 @@ class CouponApiIntegrationTest {
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", USER_ID.toString())
                         .header("X-User-Role", "USER"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
         mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
@@ -184,8 +194,6 @@ class CouponApiIntegrationTest {
                         .header("X-User-Role", "USER"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("COUPON-004"));
-
-        assertThat(userCouponRepository.count()).isEqualTo(1);
     }
 
     // =========================================================================
@@ -201,7 +209,7 @@ class CouponApiIntegrationTest {
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", USER_ID.toString())
                         .header("X-User-Role", "USER"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
         mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
@@ -209,8 +217,6 @@ class CouponApiIntegrationTest {
                         .header("X-User-Role", "USER"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("COUPON-003"));
-
-        assertThat(userCouponRepository.count()).isEqualTo(1);
     }
 
     // =========================================================================
@@ -304,7 +310,7 @@ class CouponApiIntegrationTest {
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", USER_ID.toString())
                         .header("X-User-Role", "USER"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
         mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
@@ -329,7 +335,7 @@ class CouponApiIntegrationTest {
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", USER_ID.toString())
                         .header("X-User-Role", "USER"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
         mockMvc.perform(post("/api/v1/coupons/{couponId}/issue", coupon.getCouponId())
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
@@ -339,7 +345,6 @@ class CouponApiIntegrationTest {
 
         String stock = redisTemplate.opsForValue().get("coupon:stock:" + coupon.getCouponId());
         assertThat(stock).isEqualTo("99");
-        assertThat(userCouponRepository.count()).isEqualTo(1);
     }
 
     // =========================================================================

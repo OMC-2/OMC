@@ -1,5 +1,8 @@
 server:
   port: 8087
+  tomcat:
+    accept-count: 2000
+    max-connections: 2000
 
 spring:
   datasource:
@@ -7,6 +10,8 @@ spring:
     username: ${DB_USERNAME:omc}
     password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 50
 
   flyway:
     enabled: true
@@ -16,15 +21,15 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: coupon_db
         jdbc:
           time_zone: Asia/Seoul
-        generate_statistics: true
+        generate_statistics: false
 
   data:
     redis:
@@ -34,24 +39,27 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_URI:localhost:9092}
     producer:
+      acks: 1
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       properties:
-        delivery.timeout.ms: 10000
-        request.timeout.ms: 5000
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
     consumer:
       group-id: coupon-service
       auto-offset-reset: earliest
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      max-poll-records: 500
     listener:
+      type: batch
       ack-mode: manual_immediate
       missing-topics-fatal: false
 
 logging:
   level:
-    org.hibernate.stat: DEBUG
+    org.hibernate.stat: WARN
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
@@ -60,4 +68,4 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,forcegc

@@ -29,7 +29,6 @@ public class HoldExpiredConsumer {
             @Header(KafkaHeaders.OFFSET) long offset
     ) {
         HoldExpiredEvent event = readValue(message, HoldExpiredEvent.class, topic);
-        log.info("[HoldExpiredConsumer] 수신. topic={}, offset={}, eventId={}", topic, offset, event.eventId());
         couponSagaService.restoreCoupon(event.eventId(), topic, event.orderId());
         acknowledgment.acknowledge();
     }

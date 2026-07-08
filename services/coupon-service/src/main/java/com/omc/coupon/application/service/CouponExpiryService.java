@@ -25,6 +25,5 @@ public class CouponExpiryService {
                 List.of(UserCouponStatus.AVAILABLE, UserCouponStatus.RESERVED), now
         );
         expired.forEach(UserCoupon::expire);
-        log.info("[CouponExpiryService] 만료 처리 완료. count={}", expired.size());
     }
 }

@@ -29,10 +29,8 @@ public class RefundDoneConsumer {
             @Header(KafkaHeaders.OFFSET) long offset
     ) {
         RefundDoneEvent event = readValue(message, RefundDoneEvent.class, topic);
-        log.info("[RefundDoneConsumer] 수신. topic={}, offset={}, eventId={}", topic, offset, event.eventId());
 
         if (!"STOCK_DEDUCT_FAILED".equals(event.refundReason())) {
-            log.info("[RefundDoneConsumer] 쿠폰 소멸 처리 (복구 안 함). reason={}", event.refundReason());
             acknowledgment.acknowledge();
             return;
         }

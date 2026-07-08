@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 
 // 게이트웨이가 JWT 검증 후 주입한 헤더를 읽어 SecurityContext에 세팅하는 필터.
-// 각 서비스 SecurityConfig에서 addFilterBefore(new GatewayHeaderAuthFilter(gatewaySecret), ...) 로 등록.
 public class GatewayHeaderAuthFilter extends OncePerRequestFilter {
 
     private final String gatewaySecret;
@@ -49,7 +48,6 @@ public class GatewayHeaderAuthFilter extends OncePerRequestFilter {
         String requestSecret = request.getHeader("X-Gateway-Secret");
 
         if (!gatewaySecret.equals(requestSecret)) {
-            // 게이트웨이 우회 시도 → 보안 이슈로 Sentry에 기록
             SentryEvent event = new SentryEvent();
             event.setLevel(SentryLevel.WARNING);
             Message msg = new Message();

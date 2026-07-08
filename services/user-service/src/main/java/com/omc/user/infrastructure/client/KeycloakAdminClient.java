@@ -13,6 +13,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -175,6 +176,42 @@ public class KeycloakAdminClient {
             return (String) response.get("access_token");
         } catch (Exception e) {
             log.error("Failed to get Keycloak admin token", e);
+            throw new BusinessException(CommonErrorCode.REMOTE_CALL_FAILED);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void setDbUserId(String keycloakUserId, String nickname, String dbUserId) {
+        String adminToken = getAdminToken();
+        try {
+            // 1. GET 현재 사용자 표현 전체 조회 (PUT은 full-replace이므로 기존 필드를 보존해야 함)
+            Map<String, Object> currentUser = restClient.get()
+                    .uri(adminUrl("/users/" + keycloakUserId))
+                    .header("Authorization", "Bearer " + adminToken)
+                    .retrieve()
+                    .body(Map.class);
+
+            // 2. 기존 attributes에 db_user_id 병합 (nickname 포함)
+            Map<String, Object> attributes = new HashMap<>();
+            if (currentUser.get("attributes") instanceof Map<?, ?> existing) {
+                existing.forEach((k, v) -> attributes.put((String) k, v));
+            }
+            attributes.put("db_user_id", List.of(dbUserId));
+            attributes.put("nickname", List.of(nickname));
+
+            Map<String, Object> updated = new HashMap<>(currentUser);
+            updated.put("attributes", attributes);
+
+            // 3. PUT 전체 표현 업데이트
+            restClient.put()
+                    .uri(adminUrl("/users/" + keycloakUserId))
+                    .header("Authorization", "Bearer " + adminToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(updated)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception e) {
+            log.error("Failed to set db_user_id attribute for keycloak user {}", keycloakUserId, e);
             throw new BusinessException(CommonErrorCode.REMOTE_CALL_FAILED);
         }
     }
