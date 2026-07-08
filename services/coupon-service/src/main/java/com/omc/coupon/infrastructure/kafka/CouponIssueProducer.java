@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.coupon.application.event.dto.inbound.CouponIssueRequestedEvent;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
-import com.omc.coupon.infrastructure.store.CouponLocalStore;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +26,6 @@ public class CouponIssueProducer {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final CouponRedisRepository couponRedisRepository;
-    private final CouponLocalStore couponLocalStore;
     private final ObjectMapper objectMapper;
 
     private final BlockingQueue<CouponIssueTask> queue = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
@@ -62,7 +60,7 @@ public class CouponIssueProducer {
     public void publish(UUID couponId, UUID userId) {
         if (!queue.offer(new CouponIssueTask(couponId, userId))) {
             log.warn("[CouponIssueProducer] 내부 큐 포화. couponId={}", couponId);
-            couponLocalStore.rollback(couponId.toString(), userId.toString());
+            rollbackRedis(couponId, userId);
         }
     }
 
@@ -74,9 +72,7 @@ public class CouponIssueProducer {
         } catch (JsonProcessingException e) {
             // 응답은 이미 202로 반환된 뒤이므로 동기 실패 불가 → Kafka 실패와 동일하게 보상(롤백)
             log.error("[CouponIssueProducer] 직렬화 실패 — 롤백. couponId={}, userId={}", task.couponId(), task.userId(), e);
-            couponLocalStore.rollback(task.couponId().toString(), task.userId().toString());
-            couponRedisRepository.incrementStock(task.couponId().toString());
-            couponRedisRepository.removeIssued(task.couponId().toString(), task.userId().toString());
+            rollbackRedis(task.couponId(), task.userId());
             return;
         }
 
@@ -84,11 +80,14 @@ public class CouponIssueProducer {
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
                         log.error("[CouponIssueProducer] Kafka 발행 실패 — 롤백. couponId={}, userId={}", task.couponId(), task.userId(), ex);
-                        couponLocalStore.rollback(task.couponId().toString(), task.userId().toString());
-                        couponRedisRepository.incrementStock(task.couponId().toString());
-                        couponRedisRepository.removeIssued(task.couponId().toString(), task.userId().toString());
+                        rollbackRedis(task.couponId(), task.userId());
                     }
                 });
+    }
+
+    private void rollbackRedis(UUID couponId, UUID userId) {
+        couponRedisRepository.incrementStock(couponId.toString());
+        couponRedisRepository.removeIssued(couponId.toString(), userId.toString());
     }
 
     private record CouponIssueTask(UUID couponId, UUID userId) {}

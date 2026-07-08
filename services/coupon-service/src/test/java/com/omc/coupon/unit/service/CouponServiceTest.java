@@ -116,7 +116,7 @@ class CouponServiceTest {
     @Test
     void issueCoupon_success() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(5L);
+        given(couponRedisRepository.tryIssueWithStockCheck(couponId.toString(), userId.toString())).willReturn(5L);
 
         couponService.issueCoupon(couponId, userId);
 
@@ -130,7 +130,7 @@ class CouponServiceTest {
     @Test
     void issueCoupon_outOfStock_throwsException() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(-1L);
+        given(couponRedisRepository.tryIssueWithStockCheck(couponId.toString(), userId.toString())).willReturn(-1L);
 
         assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
                 .isInstanceOf(CouponOutOfStockException.class);
@@ -145,7 +145,7 @@ class CouponServiceTest {
     @Test
     void issueCoupon_alreadyIssuedInRedis_throwsException() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(-2L);
+        given(couponRedisRepository.tryIssueWithStockCheck(couponId.toString(), userId.toString())).willReturn(-2L);
 
         assertThatThrownBy(() -> couponService.issueCoupon(couponId, userId))
                 .isInstanceOf(CouponAlreadyIssuedException.class);
@@ -252,7 +252,7 @@ class CouponServiceTest {
     @Test
     void issueCoupon_redisKeyMissing_syncsThenIssues() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.hasStock(couponId.toString())).willReturn(false);
+        given(couponRedisRepository.tryIssueWithStockCheck(couponId.toString(), userId.toString())).willReturn(-3L);
         given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(69L);
 
         couponService.issueCoupon(couponId, userId);
@@ -268,8 +268,7 @@ class CouponServiceTest {
     @Test
     void issueCoupon_redisKeyExists_skipsSync() {
         given(couponCacheRepository.get(couponId)).willReturn(Optional.of(validCouponCacheDto()));
-        given(couponRedisRepository.hasStock(couponId.toString())).willReturn(true);
-        given(couponRedisRepository.tryIssue(couponId.toString(), userId.toString())).willReturn(5L);
+        given(couponRedisRepository.tryIssueWithStockCheck(couponId.toString(), userId.toString())).willReturn(5L);
 
         couponService.issueCoupon(couponId, userId);
 

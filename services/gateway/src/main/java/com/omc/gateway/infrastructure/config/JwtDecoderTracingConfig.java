@@ -24,7 +24,7 @@ public class JwtDecoderTracingConfig {
                 .jwsAlgorithm(SignatureAlgorithm.ES256)
                 .build();
 
-        // 같은 JWT 토큰의 재검증을 5초간 캐싱 — 선착순 연타 트래픽 ES256 중복 연산 방지
+        // 같은 JWT 토큰의 재검증을 5초간 캐싱 — 티켓 발급 단계 ES256 중복 연산 방지
         Cache<String, Jwt> tokenCache = Caffeine.newBuilder()
                 .maximumSize(2000)
                 .expireAfterWrite(Duration.ofSeconds(5))

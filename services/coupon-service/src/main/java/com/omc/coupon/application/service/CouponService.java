@@ -13,7 +13,6 @@ import com.omc.coupon.infrastructure.metrics.CouponMetrics;
 import com.omc.coupon.infrastructure.redis.CouponCacheDto;
 import com.omc.coupon.infrastructure.redis.CouponCacheRepository;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
-import com.omc.coupon.infrastructure.store.CouponLocalStore;
 import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
@@ -39,14 +38,12 @@ public class CouponService {
     private final CouponMetrics couponMetrics;
     private final CouponStockRecoveryService couponStockRecoveryService;
     private final CouponIssueProducer couponIssueProducer;
-    private final CouponLocalStore couponLocalStore;
 
     @Transactional
     public CouponResponse createCoupon(CouponCreateRequest request) {
         Coupon coupon = couponRepository.save(request.toEntity());
         couponRedisRepository.initStock(coupon.getCouponId().toString(), coupon.getTotalQuantity());
         couponCacheRepository.put(coupon);
-        couponLocalStore.initCoupon(coupon.getCouponId().toString(), coupon.getTotalQuantity());
         return CouponResponse.from(coupon);
     }
 
@@ -76,18 +73,14 @@ public class CouponService {
             throw new BusinessException(CouponErrorCode.COUPON_NOT_STARTED);
         }
 
-        // 인메모리 CAS 기반 재고 차감 + 중복 확인 (Redis 왕복 없음)
-        // -3: LocalStore 미초기화 → Redis Lua fallback
-        long result = couponLocalStore.tryIssue(couponIdStr, userIdStr);
+        // Scale-out safe: Redis Lua를 단일 원장으로 사용해 모든 인스턴스가 같은 재고/중복 상태를 본다.
+        long result = couponMetrics.recordRedisDuration(
+                couponIdStr,
+                () -> couponRedisRepository.tryIssueWithStockCheck(couponIdStr, userIdStr)
+        );
         if (result == -3) {
-            result = couponMetrics.recordRedisDuration(
-                    couponIdStr,
-                    () -> couponRedisRepository.tryIssueWithStockCheck(couponIdStr, userIdStr)
-            );
-            if (result == -3) {
-                couponStockRecoveryService.syncCouponStock(couponId);
-                result = couponRedisRepository.tryIssue(couponIdStr, userIdStr);
-            }
+            couponStockRecoveryService.syncCouponStock(couponId);
+            result = couponRedisRepository.tryIssue(couponIdStr, userIdStr);
         }
         if (result == -2) {
             couponMetrics.incrementDuplicate(couponIdStr);

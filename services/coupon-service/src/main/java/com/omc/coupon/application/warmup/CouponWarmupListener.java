@@ -48,8 +48,8 @@ import java.util.UUID;
 public class CouponWarmupListener {
 
     private static final int POOL_SIZE = 10;
-    private static final int WARMUP_ISSUE_COUNT = 2000;
-    private static final int WARMUP_LUA_COUNT = 15000;
+    private static final int WARMUP_ISSUE_COUNT = 100;
+    private static final int WARMUP_LUA_COUNT = 500;
     private static final int WARMUP_COUPON_LIMIT = 50;
 
     @Value("${server.port:8087}")
