@@ -17,14 +17,14 @@ docker compose up -d
 ### 원커맨드 실행 (권장)
 
 ```bash
-./k6/run.sh coupon <태그>
+./k6/run.sh coupon all <태그>
 ```
 
 태그는 결과 폴더명에 포함돼 나중에 비교할 때 쓴다.
 
 ```bash
-./k6/run.sh coupon pool-size-10   # 개선 전 (HikariCP 기본값)
-./k6/run.sh coupon pool-size-50   # 개선 후 (커넥션 풀 확장)
+./k6/run.sh coupon all pool-size-10   # 개선 전
+./k6/run.sh coupon all pool-size-50   # 개선 후
 ```
 
 ### 자동 처리 순서
@@ -42,11 +42,13 @@ docker compose up -d
      ├── summary.txt  (p95, 에러율, DB건수, Redis stock 요약)
      └── raw.json     (k6 원본 메트릭)
 
-4. cleanup 여부 확인 (DB/Grafana 검증 완료 후 실행)
+4. 단계 사이 60초 cooldown, 각 단계 전 GC/라우팅 확인
+
+5. 실패 단계를 모두 요약하고 하나라도 실패하면 비정상 exit code 반환
 ```
 
-> Smoke / Load Test 임계값 초과 시 자동 중단  
-> Stress Test 임계값 초과 시 "다음 레벨 계속할까요?" 확인 후 진행
+> 기본 기준: 202 성공률 99% 초과, HTTP 실패율 1%(load/spike 5%) 미만, p95 10초 미만, DB 발급 건수 일치
+> `STAGE_COOLDOWN_SEC`, `FORCE_GC_BEFORE_STAGE`, `P95_LIMIT_MS`, `AUTO_CLEANUP`으로 실행 정책을 조정할 수 있다.
 
 ---
 
@@ -54,14 +56,14 @@ docker compose up -d
 
 | 단계 | VU | 쿠폰 수량 | 목적 |
 |---|---|---|---|
-| smoke | 5명 × 1회 | 100 | 스크립트/인증/라우팅 확인 |
-| load | 0→100명 (ramp-up) | 100 | 정상 부하 응답시간 측정 |
-| stress-200 | 200명 | 10000 | 한계치 탐색 시작 |
-| stress-400 | 400명 | 10000 | 한계치 탐색 |
-| stress-600 | 600명 | 10000 | 한계치 탐색 |
-| stress-800 | 800명 | 10000 | 한계치 탐색 |
-| stress-1000 | 1000명 | 10000 | SA 문서 기준 최대치 |
-| spike | 0→200명 (5초) | 100 | 순간 트래픽 대응 확인 |
+| smoke | 5명 × 1회 | 1000 | 스크립트/인증/라우팅 확인 |
+| load | 1000명 동시 (1인 1회) | 1000 | 정상 부하 응답시간 측정 |
+| stress-200 | 200명 동시 (1인 1회) | 10000 | 한계치 탐색 시작 |
+| stress-400 | 400명 동시 (1인 1회) | 10000 | 한계치 탐색 |
+| stress-600 | 600명 동시 (1인 1회) | 10000 | 한계치 탐색 |
+| stress-800 | 800명 동시 (1인 1회) | 10000 | 한계치 탐색 |
+| stress-1000 | 1000명 동시 (1인 1회) | 10000 | SA 문서 기준 최대치 |
+| spike | 200명 즉시 동시 (1인 1회) | 1000 | 순간 트래픽 대응 확인 |
 
 ---
 

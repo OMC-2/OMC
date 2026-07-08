@@ -45,7 +45,6 @@ COMPOSE="docker compose -f $PROJECT_ROOT/docker-compose.yml -f $PROJECT_ROOT/doc
 # 설정값 — 필요 시 수정
 # ============================================================
 BASE_URL="http://localhost:8080"
-COUPON_SERVICE_URL="http://localhost:8087"
 GATEWAY_SECRET="local-secret"
 ADMIN_USER_ID="00000000-0000-0000-0000-000000000001"
 
@@ -54,6 +53,10 @@ LOAD_REPEAT=${LOAD_REPEAT:-10}                  # load-repeat 반복 횟수
 COUPON_STRESS_QTY=${COUPON_STRESS_QTY:-10000}   # Stress Test 쿠폰 수량 (재고 소진이 아닌 서버 한계 탐색)
 USER_COUNT=${USER_COUNT:-1000}                   # 필요 유저 수
 REQUEST_INTERVAL_MS=${REQUEST_INTERVAL_MS:-50}   # 유저 생성 요청 간격 (ms) — 클수록 안정, 느림
+STAGE_COOLDOWN_SEC=${STAGE_COOLDOWN_SEC:-60}     # all 단계 사이 안정화 대기
+FORCE_GC_BEFORE_STAGE=${FORCE_GC_BEFORE_STAGE:-true}
+P95_LIMIT_MS=${P95_LIMIT_MS:-10000}
+AUTO_CLEANUP=${AUTO_CLEANUP:-false}
 
 if [ "$COMMAND" = "load-repeat" ]; then
   if [[ "$ARG3" =~ ^[0-9]+$ ]]; then
@@ -90,6 +93,16 @@ log() {
   echo "[$(date +%H:%M:%S)] $*"
 }
 
+coupon_service_url() {
+  local index=${1:-1}
+  local mapping
+  mapping=$($COMPOSE port --index "$index" coupon-service 8087 2>/dev/null | head -n 1)
+  if [ -z "$mapping" ]; then
+    return 1
+  fi
+  echo "http://localhost:${mapping##*:}"
+}
+
 wait_gateway_route() {
   log "  ⏳ Gateway → coupon-service 경로 활성화 대기 중..."
   local gw_wait=0
@@ -115,6 +128,32 @@ wait_gateway_route() {
   return 1
 }
 
+prepare_stage() {
+  local stage=$1
+  if [ "$FORCE_GC_BEFORE_STAGE" = "true" ]; then
+    log "  🧹 $stage 시작 전 coupon-service GC 및 안정화"
+    local failed=0
+    local index url
+    for ((index=1; index<=COUPON_SCALE; index++)); do
+      url=$(coupon_service_url "$index") || { failed=1; continue; }
+      curl --fail --silent --show-error -X POST "$url/actuator/forcegc" >/dev/null || failed=1
+    done
+    if [ "$failed" -ne 0 ]; then
+      log "❌ forcegc 호출 실패"
+      return 1
+    fi
+    sleep 10
+  fi
+}
+
+cooldown_between_stages() {
+  if [ "$STAGE_COOLDOWN_SEC" -gt 0 ] 2>/dev/null; then
+    log "  ⏳ 단계 간 cooldown ${STAGE_COOLDOWN_SEC}초"
+    sleep "$STAGE_COOLDOWN_SEC"
+  fi
+  wait_gateway_route
+}
+
 sentry_disable() {
   log "▶ Sentry 비활성화 (부하 테스트 중 에러 알림 차단)"
   local scale_opt=""
@@ -124,8 +163,11 @@ sentry_disable() {
   SENTRY_DSN="" $COMPOSE up -d --force-recreate --no-deps $scale_opt coupon-service > /dev/null 2>&1
   # Spring Boot 초기화 대기 (최대 90초)
   local i=0
+  local coupon_url
+  coupon_url=$(coupon_service_url 1) || true
   while [ $i -lt 90 ]; do
-    if curl -s "http://localhost:8087/actuator/health" 2>/dev/null | grep -q '"UP"'; then
+    coupon_url=$(coupon_service_url 1) || true
+    if [ -n "$coupon_url" ] && curl -s "$coupon_url/actuator/health/readiness" 2>/dev/null | grep -q '"UP"'; then
       log "  ✅ coupon-service 준비 완료 (Sentry 비활성화됨)"
       break
     fi
@@ -146,8 +188,25 @@ sentry_restore() {
   if [ "$COUPON_SCALE" -gt 1 ] 2>/dev/null; then
     scale_opt="--scale coupon-service=$COUPON_SCALE"
   fi
-  $COMPOSE up -d --force-recreate --no-deps $scale_opt coupon-service > /dev/null 2>&1
-  log "  ✅ coupon-service 재시작 완료 (Sentry 복원됨)"
+  if ! $COMPOSE up -d --force-recreate --no-deps $scale_opt coupon-service > /dev/null 2>&1; then
+    log "  ❌ coupon-service 재생성 실패"
+    return 1
+  fi
+
+  local waited=0
+  local coupon_url
+  while [ "$waited" -lt 90 ]; do
+    coupon_url=$(coupon_service_url 1) || true
+    if [ -n "$coupon_url" ] && curl -s "$coupon_url/actuator/health/readiness" 2>/dev/null | grep -q '"UP"'; then
+      wait_gateway_route || return 1
+      log "  ✅ coupon-service 준비 완료 (Sentry 복원됨)"
+      return 0
+    fi
+    sleep 3
+    waited=$((waited + 3))
+  done
+  log "  ❌ coupon-service Sentry 복원 후 준비 타임아웃"
+  return 1
 }
 
 _verify_users_json() {
@@ -163,8 +222,12 @@ _verify_users_json() {
 create_coupon() {
   local qty=$1
   local name=$2
-  local response
-  response=$(curl -s -X POST "$COUPON_SERVICE_URL/api/v1/coupons" \
+  local response coupon_url
+  coupon_url=$(coupon_service_url 1) || {
+    log "❌ coupon-service 할당 포트를 찾지 못했습니다" >&2
+    return 1
+  }
+  response=$(curl -s -X POST "$coupon_url/api/v1/coupons" \
     -H "Content-Type: application/json" \
     -H "X-Gateway-Secret: $GATEWAY_SECRET" \
     -H "X-User-Id: $ADMIN_USER_ID" \
@@ -327,6 +390,7 @@ verify_and_save() {
   local total_qty=$3
   local expected_count=${4:-$total_qty}   # 예상 발급 건수 (stress: VUS 수, 그 외: totalQuantity)
   local stage_dir="$RESULT_DIR/$stage"
+  local validation_failed=0
   mkdir -p "$stage_dir"
 
   echo ""
@@ -363,16 +427,19 @@ verify_and_save() {
     if [ "$DB_COUNT" -gt "$total_qty" ] 2>/dev/null; then
       log "  ❌ DB 발급 건수: ${DB_COUNT}건 (초과! totalQuantity: ${total_qty})"
       db_status="초과 (${DB_COUNT}건 / 예상: ${expected_count}건)"
+      validation_failed=1
     elif [ "$DB_COUNT" -eq "$expected_count" ] 2>/dev/null; then
       log "  ✅ DB 발급 건수: ${DB_COUNT}건 / 예상: ${expected_count}건"
       db_status="정상 (${DB_COUNT}건 / 예상: ${expected_count}건)"
     else
       log "  ⚠️  DB 발급 건수: ${DB_COUNT}건 / 예상: ${expected_count}건 (일부 요청 실패)"
       db_status="부족 (${DB_COUNT}건 / 예상: ${expected_count}건)"
+      validation_failed=1
     fi
   else
     log "  ⚠️  DB 연결 실패"
     db_status="연결 실패"
+    validation_failed=1
   fi
 
   REDIS_STOCK=$(redis-cli GET "coupon:stock:$coupon_id" 2>/dev/null || true)
@@ -385,6 +452,7 @@ verify_and_save() {
     else
       log "  ❌ Redis stock: $REDIS_STOCK (음수! 정합성 문제)"
       redis_status="오류 (stock: $REDIS_STOCK)"
+      validation_failed=1
     fi
   else
     log "  ⚠️  Redis 키 없음 (재고 소진 또는 키 만료)"
@@ -562,6 +630,7 @@ PYEOF
   log "    - summary.txt  (텍스트 요약)"
   log "    - report.html  (HTML 보고서)"
   log "    - raw.json     (k6 원본 메트릭)"
+  return "$validation_failed"
 }
 
 run_stage() {
@@ -574,6 +643,8 @@ run_stage() {
   mkdir -p "$stage_dir"
 
   echo ""
+
+  prepare_stage "$stage" || return 1
   echo "=========================================="
   log "▶ 단계: $stage"
   echo "=========================================="
@@ -602,14 +673,14 @@ run_stage() {
       duration="약 2분"
       ;;
     stress-*)
-      purpose="서버 한계치 탐색 — 에러율·응답시간 변화 관찰"
-      vu_desc="0 → ${vus}명 ramp-up → 1분 유지 → 0명"
-      duration="약 1분 30초"
+      purpose="서버 한계치 탐색 — 고유 사용자 동시 발급"
+      vu_desc="${vus}명 동시 도착 (1인 1회)"
+      duration="최대 2분"
       ;;
     spike)
       purpose="순간 트래픽 급증 시 대응 확인"
-      vu_desc="0 → 200명 (5초 급증) → 30초 유지 → 0명"
-      duration="약 40초"
+      vu_desc="200명 즉시 동시 도착 (1인 1회)"
+      duration="최대 30초"
       ;;
   esac
 
@@ -632,13 +703,13 @@ run_stage() {
     coupon_id=$(create_coupon "$qty" "[$stage] 부하테스트 쿠폰")
     if [ -z "$coupon_id" ]; then
       log "❌ 쿠폰 생성 실패 → 중단 (서비스가 실행 중인지 확인하세요)"
-      exit 1
+      return 1
     fi
     log "  쿠폰 생성 완료: $coupon_id"
   fi
 
   # k6 실행 전 게이트웨이 경로 대기
-  wait_gateway_route
+  wait_gateway_route || return 1
 
   # 티켓 캐시 확인/갱신 (bash에서 관리 — k6 컨텍스트 격리 우회)
   ensure_ticket_cache "$coupon_id"
@@ -647,52 +718,36 @@ run_stage() {
   local k6_scenario="$stage"
   if [[ "$stage" == load-round-* ]]; then
     k6_scenario="load"
+  elif [[ "$stage" == stress-* ]]; then
+    k6_scenario="stress"
   fi
 
   local k6_exit=0
-  if [ "$vus" -gt 0 ]; then
-    k6 run \
-      --env SCENARIO=stress \
-      --env VUS="$vus" \
-      --env COUPON_ID="$coupon_id" \
-      --env BASE_URL="$BASE_URL" \
-      --env GATEWAY_SECRET="$GATEWAY_SECRET" \
-      --env SKIP_SLEEP="${SKIP_SETUP_SLEEP:-false}" \
-      --out "json=$stage_dir/raw.json" \
-      --summary-export "$stage_dir/k6-summary.json" \
-      "$SCRIPT_DIR/03-coupon-issue.js" || k6_exit=$?
-  else
-    k6 run \
-      --vus 1000 \
-      --iterations 1000 \
-      --env SCENARIO="$k6_scenario" \
-      --env COUPON_ID="$coupon_id" \
-      --env BASE_URL="$BASE_URL" \
-      --env GATEWAY_SECRET="$GATEWAY_SECRET" \
-      --env SKIP_SLEEP="${SKIP_SETUP_SLEEP:-false}" \
-      --out "json=$stage_dir/raw.json" \
-      --summary-export "$stage_dir/k6-summary.json" \
-      "$SCRIPT_DIR/03-coupon-issue.js" || k6_exit=$?
-  fi
+  k6 run \
+    --env SCENARIO="$k6_scenario" \
+    --env VUS="$expected" \
+    --env P95_LIMIT="$P95_LIMIT_MS" \
+    --env COUPON_ID="$coupon_id" \
+    --env BASE_URL="$BASE_URL" \
+    --env GATEWAY_SECRET="$GATEWAY_SECRET" \
+    --env SKIP_SLEEP="${SKIP_SETUP_SLEEP:-false}" \
+    --out "json=$stage_dir/raw.json" \
+    --summary-export "$stage_dir/k6-summary.json" \
+    "$SCRIPT_DIR/03-coupon-issue.js" || k6_exit=$?
 
   # DB/Redis 검증 + summary.txt 저장
-  verify_and_save "$stage" "$coupon_id" "$qty" "$expected"
+  local verify_exit=0
+  verify_and_save "$stage" "$coupon_id" "$qty" "$expected" || verify_exit=$?
 
   # Smoke/Load Test 실패 시 중단
   if [[ "$stage" == "smoke" || "$stage" == "load" ]] && [ "$k6_exit" -ne 0 ]; then
     log "❌ $stage 임계값 초과 → 다음 단계로 넘어가지 않습니다"
-    exit 1
+    return 1
   fi
 
-  # Stress Test: 임계값 초과 시 다음 레벨 여부 확인
-  if [[ "$stage" == stress-* ]] && [ "$k6_exit" -ne 0 ]; then
-    echo ""
-    log "⚠️  임계값 초과 감지 (에러율 1% 초과)"
-    read -rp "다음 Stress 레벨로 계속할까요? [y/N] " answer
-    if [[ ! "$answer" =~ ^[Yy]$ ]]; then
-      log "Stress Test 중단 — 현재까지 결과: $RESULT_DIR"
-      return 1
-    fi
+  if [ "$k6_exit" -ne 0 ] || [ "$verify_exit" -ne 0 ]; then
+    log "❌ $stage 실패 (k6=$k6_exit, 정합성=$verify_exit)"
+    return 1
   fi
 
   return 0
@@ -782,7 +837,7 @@ coupon_setup() {
   echo ""
 
   # Sentry 비활성화 (restore는 사용자가 수동으로 실행)
-  sentry_disable
+  sentry_disable || { log "❌ Sentry 비활성화/라우팅 준비 실패"; return 1; }
   echo ""
 
   # 유저 확인 → role 불일치/부족이면 재생성, 맞으면 토큰만 갱신
@@ -826,6 +881,7 @@ coupon_setup() {
 # ============================================================
 coupon_run_stage() {
   local stage=$1
+  local stage_exit=0
 
   # users.json 없으면 setup 먼저 안내
   if [ ! -f "$SCRIPT_DIR/users.json" ]; then
@@ -844,8 +900,8 @@ coupon_run_stage() {
   echo "=========================================="
 
   case "$stage" in
-    smoke)        run_stage "smoke"       $COUPON_LOAD_QTY  0  5 ;;
-    load)         run_stage "load"        $COUPON_LOAD_QTY ;;
+    smoke)        run_stage "smoke"       $COUPON_LOAD_QTY  0  5 || stage_exit=$? ;;
+    load)         run_stage "load"        $COUPON_LOAD_QTY || stage_exit=$? ;;
     load-repeat)
       local rounds=${LOAD_REPEAT_ROUNDS:-$LOAD_REPEAT}
       log "▶ load-repeat: ${rounds}회 반복 (쿠폰 ${COUPON_LOAD_QTY}개 × ${rounds}회)"
@@ -870,23 +926,14 @@ coupon_run_stage() {
       SKIP_SETUP_SLEEP=false
       for i in $(seq 1 "$rounds"); do
         log "  ▶ round ${i}/${rounds}"
-        # 각 라운드 직전 coupon-service 힙 강제 청소
-        # → 누적 워밍업 객체가 burst 중 GC 트리거를 당기는 것을 방지
-        log "  🧹 GC 힙 청소 중..."
-        local port=8087
-        for ((s=0; s<COUPON_SCALE; s++)); do
-          curl -s -X POST "http://localhost:$port/actuator/forcegc" >/dev/null 2>&1 || true
-          port=$((port + 1))
-        done
-        sleep 10  # G1GC Full GC 완료 및 WAS 안정화 대기
-        log "  ✅ GC 완료"
         local current_coupon="${precreated_coupons[$((i-1))]}"
-        run_stage "load-round-${i}" "$COUPON_LOAD_QTY" "" "" "$current_coupon" || true
+        run_stage "load-round-${i}" "$COUPON_LOAD_QTY" "" "" "$current_coupon" || stage_exit=$?
+        if [ "$stage_exit" -ne 0 ]; then
+          break
+        fi
         SKIP_SETUP_SLEEP=true
-        # 라운드 간 cooldown: 직전 세일의 GC 여파가 다음 세일로 번지지 않도록
         if [ "$i" -lt "$rounds" ]; then
-          log "  ⏳ cooldown 60초 (OS TCP 포트 회수 및 GC 여파 분리)"
-          sleep 60
+          cooldown_between_stages || { stage_exit=1; break; }
         fi
       done
 
@@ -894,23 +941,26 @@ coupon_run_stage() {
       $COMPOSE start keycloak >/dev/null 2>&1 || true
       trap - EXIT
       ;;
-    stress-200)   run_stage "stress-200"  $COUPON_STRESS_QTY  200  || true ;;
-    stress-400)   run_stage "stress-400"  $COUPON_STRESS_QTY  400  || true ;;
-    stress-600)   run_stage "stress-600"  $COUPON_STRESS_QTY  600  || true ;;
-    stress-800)   run_stage "stress-800"  $COUPON_STRESS_QTY  800  || true ;;
-    stress-1000)  run_stage "stress-1000" $COUPON_STRESS_QTY 1000  || true ;;
-    spike)        run_stage "spike"       $COUPON_LOAD_QTY         || true ;;
+    stress-200)   run_stage "stress-200"  $COUPON_STRESS_QTY  200  || stage_exit=$? ;;
+    stress-400)   run_stage "stress-400"  $COUPON_STRESS_QTY  400  || stage_exit=$? ;;
+    stress-600)   run_stage "stress-600"  $COUPON_STRESS_QTY  600  || stage_exit=$? ;;
+    stress-800)   run_stage "stress-800"  $COUPON_STRESS_QTY  800  || stage_exit=$? ;;
+    stress-1000)  run_stage "stress-1000" $COUPON_STRESS_QTY 1000  || stage_exit=$? ;;
+    spike)        run_stage "spike"       $COUPON_LOAD_QTY 0 200  || stage_exit=$? ;;
   esac
 
   echo ""
   log "  결과 위치: $RESULT_DIR"
+  return "$stage_exit"
 }
 
 # ============================================================
 # 쿠폰 시나리오 — 전체 실행 (setup + 전체 단계 + restore)
 # ============================================================
 coupon_all() {
-  coupon_setup
+  # setup 중 중단되어도 Sentry를 복원한다.
+  trap 'sentry_restore' EXIT
+  coupon_setup || return 1
 
   echo ""
   echo "=========================================="
@@ -922,35 +972,54 @@ coupon_all() {
   echo "=========================================="
   echo ""
 
-  # 중단/완료 시 Sentry 복원
-  trap 'sentry_restore' EXIT
+  local suite_failed=0
+  local failed_stages=()
+  local completed=0
 
-  # 전체 단계 (smoke/load 실패 시 중단)
-  run_stage "smoke"       $COUPON_LOAD_QTY  0  5
-  run_stage "load"        $COUPON_LOAD_QTY
-  run_stage "stress-200"  $COUPON_STRESS_QTY  200  || true
-  run_stage "stress-400"  $COUPON_STRESS_QTY  400  || true
-  run_stage "stress-600"  $COUPON_STRESS_QTY  600  || true
-  run_stage "stress-800"  $COUPON_STRESS_QTY  800  || true
-  run_stage "stress-1000" $COUPON_STRESS_QTY 1000  || true
-  run_stage "spike"       $COUPON_LOAD_QTY         || true
+  run_all_stage() {
+    if [ "$completed" -gt 0 ]; then
+      if ! cooldown_between_stages; then
+        suite_failed=1
+        failed_stages+=("$1(cooldown)")
+        return 0
+      fi
+    fi
+    completed=$((completed + 1))
+    if ! run_stage "$@"; then
+      suite_failed=1
+      failed_stages+=("$1")
+    fi
+  }
+
+  run_all_stage "smoke"       "$COUPON_LOAD_QTY"   0    5
+  run_all_stage "load"        "$COUPON_LOAD_QTY"
+  run_all_stage "stress-200"  "$COUPON_STRESS_QTY" 200
+  run_all_stage "stress-400"  "$COUPON_STRESS_QTY" 400
+  run_all_stage "stress-600"  "$COUPON_STRESS_QTY" 600
+  run_all_stage "stress-800"  "$COUPON_STRESS_QTY" 800
+  run_all_stage "stress-1000" "$COUPON_STRESS_QTY" 1000
+  run_all_stage "spike"       "$COUPON_LOAD_QTY"   0    200
 
   trap - EXIT
   sentry_restore
   echo ""
   echo "=========================================="
-  log "  모든 테스트 완료"
+  if [ "$suite_failed" -eq 0 ]; then
+    log "  ✅ 모든 테스트 PASS"
+  else
+    log "  ❌ 전체 테스트 FAIL: ${failed_stages[*]}"
+  fi
   log "  결과 위치: $RESULT_DIR"
   echo "=========================================="
   echo ""
 
-  log "⚠️  cleanup 전 DB/Redis/Grafana 검증을 먼저 완료하세요."
-  read -rp "테스트 유저를 정리(cleanup)할까요? [y/N] " answer
-  if [[ "$answer" =~ ^[Yy]$ ]]; then
+  if [ "$AUTO_CLEANUP" = "true" ]; then
     node "$SCRIPT_DIR/cleanup.js"
   else
-    log "cleanup 스킵 — 나중에 'node k6/cleanup.js' 로 실행하세요."
+    log "cleanup 스킵 (AUTO_CLEANUP=true로 자동 정리 가능)"
   fi
+
+  return "$suite_failed"
 }
 
 # ============================================================
