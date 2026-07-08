@@ -1,60 +1,64 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# ============================================================
-# EC2 2호기 (Private Subnet) 배포 스크립트
-# 역할: gateway, config-server, eureka-server 및 WAS Core 8개 기동
-# 통신: 1호기(Edge)를 Bastion/ProxyJump 삼아 프라이빗 접속 수행
-# ============================================================
+# EC2 2호기: gateway, eureka, config-server, application services
+EDGE_IP=${EDGE_IP:-}
+WAS_IP=${WAS_IP:-}
+EDGE_HOST_IP=${EDGE_HOST_IP:-}
+INFRA_HOST_IP=${INFRA_HOST_IP:-}
+SSH_KEY=${SSH_KEY:-$HOME/.ssh/id_rsa}
 
-EDGE_IP=${EDGE_IP:-""}       # 1호기 퍼블릭 IP (Bastion 경유지)
-WAS_IP=${WAS_IP:-""}         # 2호기 프라이빗 IP (대상지)
-SSH_KEY=${SSH_KEY:-"~/.ssh/id_rsa"}
+GITHUB_OWNER=${GITHUB_OWNER:-}
+GHCR_USERNAME=${GHCR_USERNAME:-}
+GHCR_TOKEN=${GHCR_TOKEN:-}
+GATEWAY_SECRET=${GATEWAY_SECRET:-}
+JWT_SECRET=${JWT_SECRET:-}
+ADMIN_SECRET=${ADMIN_SECRET:-}
+KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-}
+KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-}
+POSTGRES_USER=${POSTGRES_USER:-}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
+TOSS_SECRET_KEY=${TOSS_SECRET_KEY:-}
+SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
+SENTRY_DSN=${SENTRY_DSN:-}
 
-# 프라이빗 망 환경 변수
-EDGE_HOST_IP=${EDGE_HOST_IP:-""}   # 1호기 프라이빗 IP (Keycloak 타겟용)
-INFRA_HOST_IP=${INFRA_HOST_IP:-""} # 3호기 프라이빗 IP (DB/Redis/Kafka 타겟용)
+required=(EDGE_IP WAS_IP EDGE_HOST_IP INFRA_HOST_IP GITHUB_OWNER GATEWAY_SECRET JWT_SECRET ADMIN_SECRET KEYCLOAK_ADMIN KEYCLOAK_ADMIN_PASSWORD POSTGRES_USER POSTGRES_PASSWORD SENTRY_DSN)
+for name in "${required[@]}"; do
+  if [ -z "${!name:-}" ]; then
+    echo "ERROR: $name 환경변수는 필수입니다." >&2
+    exit 1
+  fi
+done
 
-# 서비스 관련 보안 변수
-GITHUB_OWNER=${GITHUB_OWNER:-"ro-dong-wan"}
-GATEWAY_SECRET=${GATEWAY_SECRET:-"local-secret"}
-JWT_SECRET=${JWT_SECRET:-"local-jwt-secret-key-32bytes-must-be-long"}
-POSTGRES_USER=${POSTGRES_USER:-"omc"}
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-"password"}
-TOSS_SECRET_KEY=${TOSS_SECRET_KEY:-""}
-SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-""}
+SSH_OPTS=(-i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new)
+PROXY_OPTS=(-o "ProxyCommand=ssh -i $SSH_KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new -W %h:%p ubuntu@$EDGE_IP")
 
-if [ -z "$EDGE_IP" ] || [ -z "$WAS_IP" ] || [ -z "$EDGE_HOST_IP" ] || [ -z "$INFRA_HOST_IP" ]; then
-  echo "❌ 에러: EDGE_IP, WAS_IP, EDGE_HOST_IP, INFRA_HOST_IP 환경변수는 필수입니다."
-  echo "사용법: EDGE_IP=1.1.1.1 WAS_IP=10.0.2.x EDGE_HOST_IP=10.0.1.y INFRA_HOST_IP=10.0.2.z ./deploy-was.sh"
-  exit 1
+ssh "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" ubuntu@"$WAS_IP" "mkdir -p /home/ubuntu/omc"
+scp "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" docker-compose.prod.was.yml ubuntu@"$WAS_IP":/home/ubuntu/omc/
+
+for name in GITHUB_OWNER EDGE_HOST_IP INFRA_HOST_IP GATEWAY_SECRET JWT_SECRET ADMIN_SECRET \
+  KEYCLOAK_ADMIN KEYCLOAK_ADMIN_PASSWORD POSTGRES_USER POSTGRES_PASSWORD TOSS_SECRET_KEY SLACK_BOT_TOKEN SENTRY_DSN; do
+  printf -v "${name}_Q" '%q' "${!name}"
+done
+printf -v ghcr_user_q '%q' "$GHCR_USERNAME"
+printf -v ghcr_token_q '%q' "$GHCR_TOKEN"
+
+login_command=":"
+if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USERNAME" ]; then
+  login_command="printf '%s' $ghcr_token_q | docker login ghcr.io -u $ghcr_user_q --password-stdin"
 fi
 
-echo "🚀 [2호기 WAS] 원격 배포 프로세스 시작 (경유: $EDGE_IP ➔ 대상: $WAS_IP)..."
-
-# SSH / SCP 공통 프록시 연결 인자 정의
-PROXY_OPT="-o ProxyCommand=\"ssh -i $SSH_KEY -W %h:%p ubuntu@$EDGE_IP\""
-
-# 1. 원격 디렉토리 생성
-ssh -i "$SSH_KEY" -o ProxyCommand="ssh -i $SSH_KEY -W %h:%p ubuntu@$EDGE_IP" ubuntu@"$WAS_IP" "mkdir -p ~/omc"
-
-# 2. 컴포즈 파일 전송 (Bastion 경유)
-scp -i "$SSH_KEY" $PROXY_OPT docker-compose.prod.was.yml ubuntu@"$WAS_IP":~/omc/
-
-# 3. 원격 컨테이너 기동
-ssh -i "$SSH_KEY" -o ProxyCommand="ssh -i $SSH_KEY -W %h:%p ubuntu@$EDGE_IP" ubuntu@"$WAS_IP" "
-  cd ~/omc && \
-  export GITHUB_OWNER=$GITHUB_OWNER && \
-  export EDGE_HOST_IP=$EDGE_HOST_IP && \
-  export INFRA_HOST_IP=$INFRA_HOST_IP && \
-  export GATEWAY_SECRET=$GATEWAY_SECRET && \
-  export JWT_SECRET=$JWT_SECRET && \
-  export POSTGRES_USER=$POSTGRES_USER && \
-  export POSTGRES_PASSWORD=$POSTGRES_PASSWORD && \
-  export TOSS_SECRET_KEY=$TOSS_SECRET_KEY && \
-  export SLACK_BOT_TOKEN=$SLACK_BOT_TOKEN && \
+remote_command="cd /home/ubuntu/omc && \
+  export GITHUB_OWNER=$GITHUB_OWNER_Q EDGE_HOST_IP=$EDGE_HOST_IP_Q INFRA_HOST_IP=$INFRA_HOST_IP_Q \
+  GATEWAY_SECRET=$GATEWAY_SECRET_Q JWT_SECRET=$JWT_SECRET_Q ADMIN_SECRET=$ADMIN_SECRET_Q \
+  KEYCLOAK_ADMIN=$KEYCLOAK_ADMIN_Q KEYCLOAK_ADMIN_PASSWORD=$KEYCLOAK_ADMIN_PASSWORD_Q \
+  POSTGRES_USER=$POSTGRES_USER_Q POSTGRES_PASSWORD=$POSTGRES_PASSWORD_Q \
+  TOSS_SECRET_KEY=$TOSS_SECRET_KEY_Q SLACK_BOT_TOKEN=$SLACK_BOT_TOKEN_Q SENTRY_DSN=$SENTRY_DSN_Q && \
+  $login_command && \
+  docker compose -f docker-compose.prod.was.yml config --quiet && \
   docker compose -f docker-compose.prod.was.yml pull && \
-  docker compose -f docker-compose.prod.was.yml up -d --remove-orphans
-"
+  docker compose -f docker-compose.prod.was.yml up -d --remove-orphans"
 
-echo "✅ [2호기 WAS] 배포 및 기동 명령 완료!"
+echo "[WAS] 배포 시작: $WAS_IP (bastion: $EDGE_IP)"
+ssh "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" ubuntu@"$WAS_IP" "$remote_command"
+echo "[WAS] 배포 완료"

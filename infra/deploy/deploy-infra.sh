@@ -1,53 +1,49 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# ============================================================
-# EC2 3호기 (Private Subnet) 배포 스크립트
-# 역할: postgres, redis, kafka, zookeeper 및 모니터링 인프라 기동
-# 통신: 1호기(Edge)를 Bastion/ProxyJump 삼아 프라이빗 접속 수행
-# ============================================================
+# EC2 3호기: postgres, redis, kafka, monitoring
+EDGE_IP=${EDGE_IP:-}
+INFRA_IP=${INFRA_IP:-}
+INFRA_HOST_IP=${INFRA_HOST_IP:-}
+WAS_HOST_IP=${WAS_HOST_IP:-${WAS_IP:-}}
+SSH_KEY=${SSH_KEY:-$HOME/.ssh/id_rsa}
+POSTGRES_USER=${POSTGRES_USER:-}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
 
-EDGE_IP=${EDGE_IP:-""}       # 1호기 퍼블릭 IP (Bastion 경유지)
-INFRA_IP=${INFRA_IP:-""}     # 3호기 프라이빗 IP (대상지)
-SSH_KEY=${SSH_KEY:-"~/.ssh/id_rsa"}
+required=(EDGE_IP INFRA_IP INFRA_HOST_IP WAS_HOST_IP POSTGRES_USER POSTGRES_PASSWORD)
+for name in "${required[@]}"; do
+  if [ -z "${!name:-}" ]; then
+    echo "ERROR: $name 환경변수는 필수입니다." >&2
+    exit 1
+  fi
+done
 
-# 프라이빗 망 환경 변수 (3호기 자신의 IP를 주입)
-INFRA_HOST_IP=${INFRA_HOST_IP:-""}
+SSH_OPTS=(-i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new)
+PROXY_OPTS=(-o "ProxyCommand=ssh -i $SSH_KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new -W %h:%p ubuntu@$EDGE_IP")
+target=/home/ubuntu/omc
 
-# DB 보안 변수
-POSTGRES_USER=${POSTGRES_USER:-"omc"}
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-"password"}
+ssh "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" ubuntu@"$INFRA_IP" \
+  "mkdir -p $target/docker/postgres/init $target/docker/prometheus $target/docker/loki $target/docker/promtail $target/docker/grafana"
 
-if [ -z "$EDGE_IP" ] || [ -z "$INFRA_IP" ] || [ -z "$INFRA_HOST_IP" ]; then
-  echo "❌ 에러: EDGE_IP, INFRA_IP, INFRA_HOST_IP 환경변수는 필수입니다."
-  echo "사용법: EDGE_IP=1.1.1.1 INFRA_IP=10.0.2.z INFRA_HOST_IP=10.0.2.z ./deploy-infra.sh"
-  exit 1
-fi
+scp "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" docker-compose.prod.infra.yml ubuntu@"$INFRA_IP":"$target/"
+scp "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" -r docker/postgres/init/. ubuntu@"$INFRA_IP":"$target/docker/postgres/init/"
+scp "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" docker/prometheus/prometheus.prod.yml.template ubuntu@"$INFRA_IP":"$target/docker/prometheus/"
+scp "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" docker/loki/loki-config.yml ubuntu@"$INFRA_IP":"$target/docker/loki/"
+scp "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" docker/promtail/promtail-config.yml ubuntu@"$INFRA_IP":"$target/docker/promtail/"
+scp "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" -r docker/grafana/. ubuntu@"$INFRA_IP":"$target/docker/grafana/"
 
-echo "🚀 [3호기 Infra] 원격 배포 프로세스 시작 (경유: $EDGE_IP ➔ 대상: $INFRA_IP)..."
+printf -v infra_q '%q' "$INFRA_HOST_IP"
+printf -v was_q '%q' "$WAS_HOST_IP"
+printf -v pg_user_q '%q' "$POSTGRES_USER"
+printf -v pg_password_q '%q' "$POSTGRES_PASSWORD"
 
-# SSH / SCP 공통 프록시 연결 인자 정의
-PROXY_OPT="-o ProxyCommand=\"ssh -i $SSH_KEY -W %h:%p ubuntu@$EDGE_IP\""
-
-# 1. 원격 디렉토리 생성
-ssh -i "$SSH_KEY" -o ProxyCommand="ssh -i $SSH_KEY -W %h:%p ubuntu@$EDGE_IP" ubuntu@"$INFRA_IP" \
-  "mkdir -p ~/omc/docker/postgres/init ~/omc/docker/prometheus ~/omc/docker/loki ~/omc/docker/promtail ~/omc/docker/grafana"
-
-# 2. 로컬 인프라 설정 파일 전송 (Bastion 경유)
-scp -i "$SSH_KEY" $PROXY_OPT -r docker/postgres/init/* ubuntu@"$INFRA_IP":~/omc/docker/postgres/init/
-scp -i "$SSH_KEY" $PROXY_OPT docker/prometheus/prometheus.yml ubuntu@"$INFRA_IP":~/omc/docker/prometheus/
-scp -i "$SSH_KEY" $PROXY_OPT docker/loki/loki-config.yml ubuntu@"$INFRA_IP":~/omc/docker/loki/
-scp -i "$SSH_KEY" $PROXY_OPT docker/promtail/promtail-config.yml ubuntu@"$INFRA_IP":~/omc/docker/promtail/
-scp -i "$SSH_KEY" $PROXY_OPT docker-compose.prod.infra.yml ubuntu@"$INFRA_IP":~/omc/
-
-# 3. 원격 컨테이너 기동
-ssh -i "$SSH_KEY" -o ProxyCommand="ssh -i $SSH_KEY -W %h:%p ubuntu@$EDGE_IP" ubuntu@"$INFRA_IP" "
-  cd ~/omc && \
-  export INFRA_HOST_IP=$INFRA_HOST_IP && \
-  export POSTGRES_USER=$POSTGRES_USER && \
-  export POSTGRES_PASSWORD=$POSTGRES_PASSWORD && \
+remote_command="cd $target && \
+  sed 's/__WAS_HOST_IP__/$was_q/g' docker/prometheus/prometheus.prod.yml.template > docker/prometheus/prometheus.prod.yml && \
+  export INFRA_HOST_IP=$infra_q POSTGRES_USER=$pg_user_q POSTGRES_PASSWORD=$pg_password_q && \
+  docker compose -f docker-compose.prod.infra.yml config --quiet && \
   docker compose -f docker-compose.prod.infra.yml pull && \
-  docker compose -f docker-compose.prod.infra.yml up -d --remove-orphans
-"
+  docker compose -f docker-compose.prod.infra.yml up -d --remove-orphans"
 
-echo "✅ [3호기 Infra] 배포 및 기동 명령 완료!"
+echo "[Infra] 배포 시작: $INFRA_IP (bastion: $EDGE_IP)"
+ssh "${SSH_OPTS[@]}" "${PROXY_OPTS[@]}" ubuntu@"$INFRA_IP" "$remote_command"
+echo "[Infra] 배포 완료"
