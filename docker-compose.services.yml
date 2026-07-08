@@ -424,6 +424,18 @@ services:
         limits:
           memory: 1G
 
+  nginx:
+    image: nginx:alpine
+    container_name: omc-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - gateway
+    networks:
+      - omc-network
+
 networks:
   omc-network:
     external: true
