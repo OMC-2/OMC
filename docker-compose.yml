@@ -5,6 +5,7 @@ services:
     image: postgres:18-alpine
     container_name: omc-postgres
     cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
+    command: postgres -c max_connections=300
     environment:
       POSTGRES_USER: omc
       POSTGRES_PASSWORD: password

@@ -3,6 +3,9 @@
   "displayName": "OMC",
   "enabled": true,
   "sslRequired": "none",
+  "attributes": {
+    "userProfileEnabled": "false"
+  },
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
@@ -12,6 +15,21 @@
   "accessTokenLifespan": 86400,
   "ssoSessionIdleTimeout": 86400,
   "ssoSessionMaxLifespan": 86400,
+  "components": {
+    "org.keycloak.keys.KeyProvider": [
+      {
+        "name": "ecdsa-generated",
+        "providerId": "ecdsa-generated",
+        "subComponents": {},
+        "config": {
+          "priority": ["200"],
+          "ecdsaEllipticCurveKey": ["P-256"],
+          "active": ["true"],
+          "enabled": ["true"]
+        }
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "omc-client",
@@ -26,6 +44,9 @@
       "webOrigins": ["*"],
       "bearerOnly": false,
       "protocol": "openid-connect",
+      "attributes": {
+        "access.token.signed.response.alg": "ES256"
+      },
       "protocolMappers": [
         {
           "name": "db-user-id-mapper",
