@@ -30,8 +30,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -89,6 +93,7 @@ class CouponStockRecoveryIntegrationTest {
     private static final UUID ISSUE_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000099");
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         outboxEventRepository.deleteAll();
         userCouponRepository.deleteAll();
@@ -97,6 +102,11 @@ class CouponStockRecoveryIntegrationTest {
             connection.serverCommands().flushAll();
             return null;
         });
+        org.springframework.kafka.support.SendResult<String, String> sendResult =
+                mock(org.springframework.kafka.support.SendResult.class);
+        CompletableFuture<org.springframework.kafka.support.SendResult<String, String>> future =
+                CompletableFuture.completedFuture(sendResult);
+        given(kafkaTemplate.send(anyString(), anyString(), anyString())).willReturn(future);
     }
 
     private Coupon createAndSaveCoupon(int totalQuantity) {
@@ -161,7 +171,7 @@ class CouponStockRecoveryIntegrationTest {
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", ISSUE_USER_ID.toString())
                         .header("X-User-Role", "USER"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
         // then: 70(복구) - 1(DECR) = 69
         assertThat(redisTemplate.opsForValue().get("coupon:stock:" + coupon.getCouponId()))
@@ -193,7 +203,7 @@ class CouponStockRecoveryIntegrationTest {
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", ISSUE_USER_ID.toString())
                         .header("X-User-Role", "USER"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
         // then: 70(복구) - 1(DECR) = 69
         assertThat(redisTemplate.opsForValue().get("coupon:stock:" + coupon.getCouponId()))

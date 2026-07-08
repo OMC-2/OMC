@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -47,9 +48,10 @@ public class UserService {
             User user = userRepository.save(
                     User.create(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
+            keycloakAdminClient.setDbUserId(keycloakUserId, request.nickname(), user.getUserId().toString());
             return new SignupResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getRole().name());
         } catch (Exception e) {
-            log.error("DB save failed after Keycloak user creation, rolling back keycloak user {}", keycloakUserId, e);
+            log.error("signup failed after Keycloak user creation, rolling back keycloak user {}", keycloakUserId, e);
             keycloakAdminClient.deleteUser(keycloakUserId);
             throw new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
@@ -69,9 +71,10 @@ public class UserService {
             User user = userRepository.save(
                     User.createAdmin(keycloakUserId, request.email(), request.nickname(), request.slackId())
             );
+            keycloakAdminClient.setDbUserId(keycloakUserId, request.nickname(), user.getUserId().toString());
             return new SignupResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getRole().name());
         } catch (Exception e) {
-            log.error("DB save failed after Keycloak admin creation, rolling back keycloak user {}", keycloakUserId, e);
+            log.error("adminSignup failed after Keycloak admin creation, rolling back keycloak user {}", keycloakUserId, e);
             keycloakAdminClient.deleteUser(keycloakUserId);
             throw new BusinessException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
@@ -87,6 +90,13 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(UserNotFoundException::new);
         return new UserSlackResponse(user.getUserId(), user.getSlackId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserSlackResponse> findSlackIdsByUserIds(List<UUID> userIds) {
+        return userRepository.findAllByUserIdIn(userIds).stream()
+                .map(u -> new UserSlackResponse(u.getUserId(), u.getSlackId()))
+                .toList();
     }
 
     @Transactional(readOnly = true)

@@ -13,7 +13,10 @@ import com.omc.coupon.domain.exception.CouponOutOfStockException;
 import com.omc.coupon.domain.repository.CouponRepository;
 import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
+import com.omc.coupon.infrastructure.kafka.CouponIssueProducer;
 import com.omc.coupon.infrastructure.metrics.CouponMetrics;
+import com.omc.coupon.infrastructure.redis.CouponCacheDto;
+import com.omc.coupon.infrastructure.redis.CouponCacheRepository;
 import com.omc.coupon.infrastructure.redis.CouponRedisRepository;
 import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
@@ -41,15 +44,16 @@ public class CouponService {
     private final UserCouponRepository userCouponRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final CouponRedisRepository couponRedisRepository;
-    private final ObjectMapper objectMapper;
+    private final CouponCacheRepository couponCacheRepository;
     private final CouponMetrics couponMetrics;
     private final CouponStockRecoveryService couponStockRecoveryService;
+    private final CouponIssueProducer couponIssueProducer;
 
     @Transactional
     public CouponResponse createCoupon(CouponCreateRequest request) {
         Coupon coupon = couponRepository.save(request.toEntity());
         couponRedisRepository.initStock(coupon.getCouponId().toString(), coupon.getTotalQuantity());
-        log.info("[CouponService] 쿠폰 생성 완료. couponId={}", coupon.getCouponId());
+        couponCacheRepository.put(coupon);
         return CouponResponse.from(coupon);
     }
 
@@ -71,82 +75,43 @@ public class CouponService {
         return CouponResponse.from(findCoupon(couponId));
     }
 
-    @Transactional
-    public UserCouponResponse issueCoupon(UUID couponId, UUID userId) {
-        Coupon coupon = findCoupon(couponId);
+    public void issueCoupon(UUID couponId, UUID userId) {
+        // UUID -> String 변환 캐싱 (요청당 단 1회만 변환하여 GC 압박 극단적 감소)
+        String couponIdStr = couponId.toString();
+        String userIdStr = userId.toString();
 
-        if (!coupon.isIssuable()) {
-            if (coupon.getExpiredAt().isBefore(java.time.LocalDateTime.now())) {
-                throw new BusinessException(CouponErrorCode.COUPON_EXPIRED);
-            }
-            if (coupon.getStartedAt().isAfter(java.time.LocalDateTime.now())) {
-                throw new BusinessException(CouponErrorCode.COUPON_NOT_STARTED);
-            }
-            couponMetrics.incrementOutOfStock(couponId.toString());
-            throw new CouponOutOfStockException();
+        CouponCacheDto couponDto = findCouponDto(couponId);
+
+        // System.currentTimeMillis() 기반 무객체(No-Object) 시간 검증
+        long nowMillis = System.currentTimeMillis();
+        if (couponDto.getExpiredAtMillis() < nowMillis) {
+            throw new BusinessException(CouponErrorCode.COUPON_EXPIRED);
+        }
+        if (couponDto.getStartedAtMillis() > nowMillis) {
+            throw new BusinessException(CouponErrorCode.COUPON_NOT_STARTED);
         }
 
-        // Redis 이중 방어: 이미 발급 여부 확인
-        if (couponRedisRepository.isAlreadyIssued(couponId.toString(), userId.toString())) {
-            couponMetrics.incrementDuplicate(couponId.toString());
-            throw new CouponAlreadyIssuedException();
-        }
-
-        // Redis key 없으면 DB COUNT로 즉시 복구 (케이스 1: Redis만 죽은 경우)
-        if (!couponRedisRepository.hasStock(couponId.toString())) {
-            couponStockRecoveryService.syncCouponStock(couponId);
-        }
-
-        // Redis 원자적 재고 차감
-        long remaining = couponMetrics.recordRedisDuration(
-                couponId.toString(),
-                () -> couponRedisRepository.decrementStock(couponId.toString())
+        // Scale-out safe: Redis Lua를 단일 원장으로 사용해 모든 인스턴스가 같은 재고/중복 상태를 본다.
+        long result = couponMetrics.recordRedisDuration(
+                couponIdStr,
+                () -> couponRedisRepository.tryIssueWithStockCheck(couponIdStr, userIdStr)
         );
-        if (remaining < 0) {
-            couponRedisRepository.incrementStock(couponId.toString()); // 롤백
-            couponMetrics.incrementOutOfStock(couponId.toString());
+        if (result == -3) {
+            couponStockRecoveryService.syncCouponStock(couponId);
+            result = couponRedisRepository.tryIssue(couponIdStr, userIdStr);
+        }
+        if (result == -2) {
+            couponMetrics.incrementDuplicate(couponIdStr);
+            throw new CouponAlreadyIssuedException();
+        }
+        if (result == -1) {
+            couponMetrics.incrementOutOfStock(couponIdStr);
             throw new CouponOutOfStockException();
         }
 
-        // DB remaining_quantity 차감
-        coupon.decreaseRemainingQuantity();
+        couponIssueProducer.publish(couponId, userId); // 비동기 발행 — 실패 시 whenComplete에서 Redis 롤백
 
-        // DB 중복 체크 (Redis Set과 이중 방어)
-        userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId).ifPresent(uc -> {
-            couponRedisRepository.incrementStock(couponId.toString()); // 재고 롤백
-            couponRedisRepository.markIssued(couponId.toString(), userId.toString()); // Redis Set 동기화
-            couponMetrics.incrementDuplicate(couponId.toString());
-            throw new CouponAlreadyIssuedException();
-        });
-
-        // UserCoupon 저장 (saveAndFlush로 즉시 INSERT → UNIQUE 위반 시 여기서 예외 발생, 재고 롤백)
-        UserCoupon userCoupon;
-        try {
-            userCoupon = userCouponRepository.saveAndFlush(
-                    UserCoupon.create(userId, coupon, coupon.getExpiredAt())
-            );
-        } catch (DataIntegrityViolationException e) {
-            couponRedisRepository.incrementStock(couponId.toString());
-            coupon.increaseRemainingQuantity(); // DB 롤백
-            couponMetrics.incrementDuplicate(couponId.toString());
-            throw new CouponAlreadyIssuedException();
-        }
-
-        UUID outboxEventId = UuidV7Generator.generate();
-        String payload = toJson(Map.of(
-                "eventId", outboxEventId.toString(),
-                "couponId", couponId.toString(),
-                "userId", userId.toString()
-        ));
-        outboxEventRepository.save(OutboxEvent.create(
-                outboxEventId, "UserCoupon", userCoupon.getUserCouponId(), OutboxEventType.COUPON_ISSUED, payload
-        ));
-
-        couponRedisRepository.markIssued(couponId.toString(), userId.toString());
-
-        couponMetrics.incrementIssueSuccess(couponId.toString());
-        log.info("[CouponService] 쿠폰 발급 완료. couponId={}, userId={}", couponId, userId);
-        return UserCouponResponse.from(userCoupon);
+        couponMetrics.incrementIssueSuccess(couponIdStr);
     }
 
     @Transactional(readOnly = true)
@@ -166,11 +131,14 @@ public class CouponService {
         return couponRepository.findByCouponIdAndDeletedAtIsNull(couponId).orElseThrow(CouponNotFoundException::new);
     }
 
-    private String toJson(Object obj) {
-        try {
-            return objectMapper.writeValueAsString(obj);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("JSON 직렬화 실패", e);
-        }
+    private CouponCacheDto findCouponDto(UUID couponId) {
+        return couponCacheRepository.get(couponId)
+                .orElseGet(() -> {
+                    Coupon coupon = couponRepository.findById(couponId)
+                            .orElseThrow(CouponNotFoundException::new);
+                    couponCacheRepository.put(coupon);
+                    return CouponCacheDto.from(coupon);
+                });
     }
+
 }

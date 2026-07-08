@@ -116,10 +116,10 @@ Feature: 쿠폰 인증·인가 보안
   # ----------------------------------------------------------------
   # 시나리오 6: USER 토큰으로 쿠폰 발급 시 201을 반환한다
   # ----------------------------------------------------------------
-  Scenario: [정상] USER 토큰으로 쿠폰 발급 → 201
+  Scenario: [정상] USER 토큰으로 쿠폰 발급 → 202
     Given path '/api/v1/coupons/' + couponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userAccessToken
     When method post
-    Then status 201
-    And match response.data.userCouponId == '#uuid'
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'

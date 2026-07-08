@@ -1,5 +1,7 @@
 package com.omc.gateway.infrastructure.filter;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
@@ -26,9 +28,11 @@ public class AuthHeaderInjectionFilter implements GlobalFilter, Ordered {
     private String gatewaySecret;
 
     private final WebClient webClient;
+    private final Tracer tracer;
 
-    public AuthHeaderInjectionFilter(@LoadBalanced WebClient.Builder webClientBuilder) {
+    public AuthHeaderInjectionFilter(@LoadBalanced WebClient.Builder webClientBuilder, Tracer tracer) {
         this.webClient = webClientBuilder.baseUrl("lb://user-service").build();
+        this.tracer = tracer;
     }
 
     @Override
@@ -43,7 +47,15 @@ public class AuthHeaderInjectionFilter implements GlobalFilter, Ordered {
                     Jwt jwt = jwtAuth.getToken();
                     String keycloakId = jwt.getSubject();
                     String role = extractRole(jwt);
+                    String dbUserIdClaim = jwt.getClaim("db_user_id");
 
+                    if (dbUserIdClaim != null && !dbUserIdClaim.isBlank()) {
+                        requestBuilder.header("X-User-Id", dbUserIdClaim);
+                        requestBuilder.header("X-User-Role", role);
+                        return Mono.just(exchange.mutate().request(requestBuilder.build()).build());
+                    }
+
+                    log.debug("[AuthHeader] db_user_id claim 없음, user-service fallback (keycloakId={})", keycloakId);
                     return fetchDbUserId(keycloakId)
                         .map(dbUserId -> {
                             requestBuilder.header("X-User-Id", dbUserId);
@@ -67,11 +79,13 @@ public class AuthHeaderInjectionFilter implements GlobalFilter, Ordered {
     }
 
     private Mono<String> fetchDbUserId(String keycloakId) {
+        Span span = tracer.nextSpan().name("gateway.fetch-db-user-id").start();
         return webClient.get()
             .uri("/internal/v1/users/keycloak/" + keycloakId)
             .retrieve()
             .bodyToMono(UserIdApiResponse.class)
-            .map(response -> response.data().userId().toString());
+            .map(response -> response.data().userId().toString())
+            .doFinally(signal -> span.end());
     }
 
     @SuppressWarnings("unchecked")

@@ -87,6 +87,24 @@ public class Notification extends BaseEntity {
                 .build();
     }
 
+    public static Notification createPending(UUID userId, NotificationType type,
+                                             String title, String content,
+                                             UUID referenceId, String referenceType) {
+        return Notification.builder()
+                .userId(userId)
+                .slackId(null)
+                .notificationType(type)
+                .title(title)
+                .content(content)
+                .referenceId(referenceId)
+                .referenceType(referenceType)
+                .build();
+    }
+
+    public void updateSlackId(String slackId) {
+        this.slackId = slackId;
+    }
+
     public void markSuccess() {
         this.status = NotificationStatus.SUCCESS;
         this.sentAt = LocalDateTime.now();

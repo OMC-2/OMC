@@ -4,6 +4,8 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: omc-postgres
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
+    command: postgres -c max_connections=300
     environment:
       POSTGRES_USER: omc
       POSTGRES_PASSWORD: password
@@ -13,6 +15,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    restart: on-failure
     networks:
       - omc-network
     healthcheck:
@@ -24,10 +27,12 @@ services:
   redis:
     image: redis:7.2-alpine
     container_name: omc-redis
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    restart: on-failure
     networks:
       - omc-network
     command: redis-server --appendonly yes
@@ -40,17 +45,23 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: omc-zookeeper
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
+    init: true
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_HEAP_OPTS: "-Xms128m -Xmx256m"
     ports:
       - "2181:2181"
+    restart: on-failure
     networks:
       - omc-network
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: omc-kafka
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
+    init: true
     depends_on:
       - zookeeper
     ports:
@@ -63,6 +74,10 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+      KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS: "60000"
+      KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: "30000"
+    restart: on-failure
     networks:
       - omc-network
     healthcheck:
@@ -83,8 +98,10 @@ services:
       KAFKA_CLUSTERS_0_NAME: omc-local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    restart: on-failure
     networks:
       - omc-network
+
 
   kafka-rest-proxy:
     image: confluentinc/cp-kafka-rest:7.5.0
@@ -97,6 +114,8 @@ services:
       KAFKA_REST_HOST_NAME: kafka-rest-proxy
       KAFKA_REST_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_REST_LISTENERS: http://0.0.0.0:8082
+      KAFKAREST_HEAP_OPTS: "-Xms128m -Xmx256m"
+    restart: on-failure
     networks:
       - omc-network
     healthcheck:
@@ -108,7 +127,8 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
     container_name: omc-keycloak
-    command: start-dev --import-realm
+    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리 (부하 중엔 run.sh가 stop)
+    command: start-dev --import-realm --cache=local
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
@@ -118,7 +138,8 @@ services:
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
       KC_HTTP_PORT: 8180
       KC_HEALTH_ENABLED: "true"
-      JAVA_OPTS_APPEND: "-Xms256m -Xmx512m"
+      KC_CACHE: local
+      JAVA_OPTS_APPEND: "-Xms256m -Xmx1024m"
     ports:
       - "8180:8180"
     volumes:
@@ -148,6 +169,7 @@ services:
     command:
       - "--global-response-templating"
       - "--verbose"
+    restart: on-failure
     networks:
       - omc-network
 
@@ -157,7 +179,8 @@ services:
     ports:
       - "19411:9411"
     environment:
-      JAVA_OPTS: "-Xms128m -Xmx256m"
+      JAVA_OPTS: "-Xms256m -Xmx1g"
+    restart: on-failure
     networks:
       - omc-network
 
@@ -168,6 +191,7 @@ services:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "19090:9090"
+    restart: on-failure
     networks:
       - omc-network
 
@@ -180,6 +204,7 @@ services:
       - "19121:9121"
     depends_on:
       - redis
+    restart: on-failure
     networks:
       - omc-network
 
@@ -192,6 +217,7 @@ services:
       - ./docker/loki/loki-config.yml:/etc/loki/local-config.yaml
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
+    restart: on-failure
     networks:
       - omc-network
 
@@ -204,6 +230,7 @@ services:
     command: -config.file=/etc/promtail/config.yml
     depends_on:
       - loki
+    restart: on-failure
     networks:
       - omc-network
 
@@ -221,6 +248,7 @@ services:
     depends_on:
       - prometheus
       - loki
+    restart: on-failure
     networks:
       - omc-network
 

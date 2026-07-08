@@ -3,15 +3,33 @@
   "displayName": "OMC",
   "enabled": true,
   "sslRequired": "none",
+  "attributes": {
+    "userProfileEnabled": "false"
+  },
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
   "editUsernameAllowed": false,
   "bruteForceProtected": false,
-  "accessTokenLifespan": 3600,
+  "accessTokenLifespan": 86400,
   "ssoSessionIdleTimeout": 86400,
   "ssoSessionMaxLifespan": 86400,
+  "components": {
+    "org.keycloak.keys.KeyProvider": [
+      {
+        "name": "ecdsa-generated",
+        "providerId": "ecdsa-generated",
+        "subComponents": {},
+        "config": {
+          "priority": ["200"],
+          "ecdsaEllipticCurveKey": ["P-256"],
+          "active": ["true"],
+          "enabled": ["true"]
+        }
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "omc-client",
@@ -25,7 +43,26 @@
       "redirectUris": ["*"],
       "webOrigins": ["*"],
       "bearerOnly": false,
-      "protocol": "openid-connect"
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.signed.response.alg": "ES256"
+      },
+      "protocolMappers": [
+        {
+          "name": "db-user-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "db_user_id",
+            "claim.name": "db_user_id",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "roles": {

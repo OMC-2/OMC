@@ -43,7 +43,6 @@ public class CouponSagaService {
                 userCouponRepository.findByOrderIdAndStatus(orderId, UserCouponStatus.RESERVED);
 
         if (userCoupon.isEmpty()) {
-            log.info("[CouponSagaService] 선점된 쿠폰 없음 (쿠폰 미사용 주문). orderId={}", orderId);
             return;
         }
 
@@ -60,7 +59,6 @@ public class CouponSagaService {
         outboxEventRepository.save(OutboxEvent.create(outboxEventId, "UserCoupon", uc.getUserCouponId(), OutboxEventType.COUPON_USED, payload));
 
         couponMetrics.incrementSagaConfirmed();
-        log.info("[CouponSagaService] 쿠폰 사용 확정. orderId={}, userCouponId={}", orderId, uc.getUserCouponId());
     }
 
     /**
@@ -74,14 +72,11 @@ public class CouponSagaService {
                 userCouponRepository.findByOrderIdAndStatus(orderId, UserCouponStatus.RESERVED);
 
         if (userCoupon.isEmpty()) {
-            log.info("[CouponSagaService] 복구할 선점 쿠폰 없음. orderId={}", orderId);
             return;
         }
 
         userCoupon.get().restore();
         couponMetrics.incrementSagaRestored();
-        log.info("[CouponSagaService] 쿠폰 복구 완료. orderId={}, userCouponId={}",
-                orderId, userCoupon.get().getUserCouponId());
     }
 
     /**
@@ -95,13 +90,10 @@ public class CouponSagaService {
                 userCouponRepository.findByOrderIdAndStatus(orderId, UserCouponStatus.USED);
 
         if (userCoupon.isEmpty()) {
-            log.info("[CouponSagaService] 복구할 USED 쿠폰 없음. orderId={}", orderId);
             return;
         }
 
         userCoupon.get().restoreFromUsed();
-        log.info("[CouponSagaService] 쿠폰 USED→AVAILABLE 복구 완료 (Case B). orderId={}, userCouponId={}",
-                orderId, userCoupon.get().getUserCouponId());
     }
 
     private String toJson(Object obj) {

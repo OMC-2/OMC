@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
  /**
- * 이벤트 처리 실패 기록 (p_failed_events_logs)
+ * 이벤트 처리 실패 기록 (p_failed_event_logs)
  *
  * - Consumer 처리 실패 시 원본 메시지 및 컨텍스트 보관
  * - 재처리 및 장애 분석을 위한 Audit / Recovery 기반 데이터

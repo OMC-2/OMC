@@ -56,7 +56,7 @@ import static org.awaitility.Awaitility.await;
         partitions = 1,
         topics = {
                 "payment.completed", "payment.failed", "hold.expired", "refund.done",
-                "payment.completed.DLT"
+                "payment.completed.DLT", "coupon.issue.requested"
         },
         bootstrapServersProperty = "spring.kafka.bootstrap-servers"
 )

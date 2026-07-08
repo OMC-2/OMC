@@ -58,13 +58,19 @@ Feature: 내 쿠폰 조회
     Then status 200
     * def userAccessToken = response.data.accessToken
 
-    # 사전 준비 4: 쿠폰 발급 → userCouponId 확보
+    # 사전 준비 4: 쿠폰 발급 (비동기 202) → Consumer 처리 대기 → userCouponId 확보
     Given path '/api/v1/coupons/' + couponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userAccessToken
     When method post
-    Then status 201
-    * def userCouponId = response.data.userCouponId
+    Then status 202
+    * java.lang.Thread.sleep(3000)
+    Given path '/api/v1/coupons/me'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + userAccessToken
+    When method get
+    Then status 200
+    * def userCouponId = response.data.content[0].userCouponId
 
   # ----------------------------------------------------------------
   # 시나리오 1: 내 쿠폰 목록 조회 시 페이징 형식으로 반환한다

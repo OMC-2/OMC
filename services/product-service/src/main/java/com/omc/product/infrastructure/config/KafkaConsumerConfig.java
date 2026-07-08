@@ -19,7 +19,7 @@ import org.springframework.util.backoff.FixedBackOff;
 /**
  * payment.completed 컨슈머의 재시도/DLT 정책
  *
- * 배경: 오늘 k6 부하테스트 중 payment.completed 이벤트의 orderId/userId/dropId가
+ * 배경: 트러블슈팅 기간 중 k6 부하테스트에서 payment.completed 이벤트의 orderId/userId/dropId가
  * UUID 형식이 아니어서 역직렬화가 계속 실패, 컨슈머가 같은 오프셋에서 무한 재시도에
  * 빠져 해당 파티션의 이후 정상 메시지 처리까지 막혔던 사고가 있었음
  * (Kafka 컨슈머 그룹 오프셋을 수동으로 리셋해서 복구)

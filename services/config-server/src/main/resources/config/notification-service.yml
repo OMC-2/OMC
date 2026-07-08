@@ -33,8 +33,12 @@ spring:
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        fetch.min.bytes: 10240
+        fetch.max.wait.ms: 1000
     listener:
       ack-mode: manual_immediate
+      concurrency: 1
       missing-topics-fatal: false
 
 gateway:
