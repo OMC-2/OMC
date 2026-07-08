@@ -13,8 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -23,7 +21,7 @@ public class OutboxPollerScheduler {
     private final OutboxEventRepository outboxEventRepository;
     private final EventProducerPort eventProducerPort;
 
-    @Scheduled(fixedDelay = 5000) // 5ì´ˆë§ˆ???¤í–‰
+    @Scheduled(fixedDelay = 5000)
     @SchedulerLock(name = "pollAndPublishOutboxEvents", lockAtLeastFor = "PT4S", lockAtMostFor = "PT10S")
     @Transactional
     public void pollAndPublishOutboxEvents() {
@@ -39,8 +37,8 @@ public class OutboxPollerScheduler {
 
         for (OutboxEvent event : pendingEvents) {
             try {
-                // ?¤ëŠ” aggregateId (raffleId) ë¡??¤ì •?˜ì—¬ ?Œí‹°???œì„œ ë³´ìž¥
-                boolean success = eventProducerPort.send(event.getEventType(), event.getAggregateId(), event.getPayload());
+                boolean success = eventProducerPort.send(
+                        event.getEventType(), event.getAggregateId(), event.getPayload());
                 if (success) {
                     event.markAsPublished();
                     log.info("OutboxEvent {} published successfully", event.getId());

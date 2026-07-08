@@ -6,12 +6,21 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8180/realms/omc/protocol/openid-connect/certs}
+          jwk-set-cache-duration: 3600s
+          jwk-set-cache-refresh-duration: 60s
   cloud:
     gateway:
       httpclient:
         pool:
           max-connections: 2000
           acquire-timeout: 3000
+          pending-acquire-max-count: 4000
+          pending-acquire-timeout: 60000ms
       routes:
         - id: user-service
           uri: lb://user-service
@@ -106,19 +115,9 @@ spring:
           predicates:
             - Path=/api/v1/coupons/**
 
-      httpclient:
-        pool:
-          max-connections: 2000
-          pending-acquire-max-count: 4000
-          pending-acquire-timeout: 60000ms
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8180/realms/omc/protocol/openid-connect/certs}
-          jwk-set-cache-duration: 3600s
-          jwk-set-cache-refresh-duration: 60s
+
+
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}

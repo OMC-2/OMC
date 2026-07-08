@@ -1,0 +1,63 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: omc-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/default.prod.conf.template:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      WAS_HOST_IP: ${WAS_HOST_IP}
+      NGINX_ENVSUBST_FILTER: WAS_HOST_IP
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  toss-wiremock:
+    image: wiremock/wiremock:3.9.1
+    container_name: omc-toss-wiremock
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./docker/toss-wiremock/mappings:/home/wiremock/mappings
+      - ./docker/toss-wiremock/__files:/home/wiremock/__files
+    command:
+      - "--global-response-templating"
+      - "--verbose"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 192m
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    container_name: omc-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://${INFRA_HOST_IP}:5432/omc?currentSchema=keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HTTP_PORT: 8180
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import
+    ports:
+      - "8180:8180"
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8180'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s

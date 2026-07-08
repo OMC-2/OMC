@@ -1,8 +1,6 @@
 package com.omc.gateway.unit;
 
 import com.omc.gateway.infrastructure.filter.AuthHeaderInjectionFilter;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -32,8 +30,6 @@ class AuthHeaderInjectionFilterTest {
 
     private WebClient.Builder webClientBuilder;
     private WebClient mockWebClient;
-    private Tracer tracer;
-    private Span span;
     private AuthHeaderInjectionFilter filter;
 
     @BeforeEach
@@ -41,16 +37,10 @@ class AuthHeaderInjectionFilterTest {
     void setUp() {
         webClientBuilder = mock(WebClient.Builder.class);
         mockWebClient = mock(WebClient.class);
-        tracer = mock(Tracer.class);
-        span = mock(Span.class);
-
         when(webClientBuilder.baseUrl(anyString())).thenReturn(webClientBuilder);
         when(webClientBuilder.build()).thenReturn(mockWebClient);
-        when(tracer.nextSpan()).thenReturn(span);
-        when(span.name(anyString())).thenReturn(span);
-        when(span.start()).thenReturn(span);
 
-        filter = new AuthHeaderInjectionFilter(webClientBuilder, tracer);
+        filter = new AuthHeaderInjectionFilter(webClientBuilder);
     }
 
     @Test

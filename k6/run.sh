@@ -44,7 +44,7 @@ COMPOSE="docker compose -f $PROJECT_ROOT/docker-compose.yml -f $PROJECT_ROOT/doc
 # ============================================================
 # 설정값 — 필요 시 수정
 # ============================================================
-BASE_URL="http://localhost:8080"
+BASE_URL="http://localhost"
 GATEWAY_SECRET="local-secret"
 ADMIN_USER_ID="00000000-0000-0000-0000-000000000001"
 
@@ -251,6 +251,34 @@ ensure_ticket_cache() {
   local ttl=86400
   local now
   now=$(date +%s)
+
+  # [자동 검증] users.json이 존재할 때 캐시된 Access Token의 유효성을 테스트해 세션 만료 시 자동 복구
+  if [ -f "$SCRIPT_DIR/users.json" ]; then
+    local test_token
+    test_token=$(python3 -c "import json; d=json.load(open('$SCRIPT_DIR/users.json')); print(d[0].get('token','')) if d else print('')" 2>/dev/null)
+
+    if [ -n "$test_token" ]; then
+      local test_code
+      test_code=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer $test_token" \
+        "$BASE_URL/api/v1/coupons/me" 2>/dev/null || echo "000")
+
+      if [ "$test_code" = "401" ] || [ "$test_code" = "403" ] || [ "$test_code" = "000" ]; then
+        log "  ⚠️  세션 만료 감지 (HTTP $test_code) → Keycloak/DB가 초기화되었을 가능성이 있습니다."
+        log "  🧹 기존 만료 캐시(users.json / ticket_cache.json)를 리셋하고 유저를 신규 가입시킵니다..."
+        rm -f "$SCRIPT_DIR/users.json"
+        rm -f "$cache_file"
+        
+        # 자동으로 setup 단계 재실행하여 유효한 신규 토큰 발급 완수
+        coupon_setup || { log "❌ 자동 셋업 재기동 실패"; return 1; }
+      fi
+    else
+      log "  ⚠️  캐시된 토큰 없음 → 리셋 및 신규 가입 진행"
+      rm -f "$SCRIPT_DIR/users.json"
+      rm -f "$cache_file"
+      coupon_setup || { log "❌ 자동 셋업 재기동 실패"; return 1; }
+    fi
+  fi
 
   if [ -f "$cache_file" ]; then
     local issued_at count age valid_count
@@ -776,12 +804,12 @@ load_infra_start() {
   if [ "$COUPON_SCALE" -gt 1 ] 2>/dev/null; then
     scale_opt="--scale coupon-service=$COUPON_SCALE"
   fi
-  $COMPOSE up -d $scale_opt gateway coupon-service
+  $COMPOSE up -d $scale_opt gateway coupon-service nginx
 
   echo ""
   log "  ✅ 기동 명령 완료"
   log "  ⏳ keycloak 초기화 + gateway 헬스체크 통과까지 최대 2분 소요됩니다"
-  log "  ℹ️  준비 확인: curl -s http://localhost:8080/actuator/health"
+  log "  ℹ️  준비 확인: curl -s http://localhost/actuator/health"
 }
 
 load_infra_stop() {
@@ -839,6 +867,33 @@ coupon_setup() {
   # Sentry 비활성화 (restore는 사용자가 수동으로 실행)
   sentry_disable || { log "❌ Sentry 비활성화/라우팅 준비 실패"; return 1; }
   echo ""
+
+  # 사전 검증: users.json이 있으면 캐시된 Access Token의 유효성을 테스트해 세션 만료 여부를 자동 확인
+  if [ -f "$SCRIPT_DIR/users.json" ]; then
+    local test_token
+    test_token=$(python3 -c "import json; d=json.load(open('$SCRIPT_DIR/users.json')); print(d[0].get('token','')) if d else print('')" 2>/dev/null)
+
+    if [ -n "$test_token" ]; then
+      log "  🧪 기존 Access Token 유효성 사전 검증 (API 호출)..."
+      local test_code
+      test_code=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer $test_token" \
+        "$BASE_URL/api/v1/coupons/me" 2>/dev/null || echo "000")
+
+      if [ "$test_code" = "401" ] || [ "$test_code" = "403" ] || [ "$test_code" = "000" ]; then
+        log "  ⚠️  사전 토큰 검증 실패 (HTTP $test_code) → Keycloak/DB 리셋 감지"
+        log "  🧹 기존 캐시(users.json / ticket_cache.json)를 자동 제거합니다."
+        rm -f "$SCRIPT_DIR/users.json"
+        rm -f "$SCRIPT_DIR/ticket_cache.json"
+      else
+        log "  ✅ 사전 토큰 검증 성공 (HTTP $test_code)"
+      fi
+    else
+      log "  ⚠️  캐시된 토큰 없음 → 리셋 처리"
+      rm -f "$SCRIPT_DIR/users.json"
+      rm -f "$SCRIPT_DIR/ticket_cache.json"
+    fi
+  fi
 
   # 유저 확인 → role 불일치/부족이면 재생성, 맞으면 토큰만 갱신
   if [ -f "$SCRIPT_DIR/users.json" ]; then

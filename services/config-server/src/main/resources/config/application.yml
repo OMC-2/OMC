@@ -16,7 +16,7 @@ spring:
   kafka:
     listener:
       observation:
-        enabled: true
+        enabled: false
     producer:
       observation:
-        enabled: true
+        enabled: false
