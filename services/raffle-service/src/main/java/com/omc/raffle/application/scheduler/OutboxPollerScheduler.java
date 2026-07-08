@@ -23,7 +23,7 @@ public class OutboxPollerScheduler {
     private final OutboxEventRepository outboxEventRepository;
     private final EventProducerPort eventProducerPort;
 
-    @Scheduled(fixedDelay = 5000) // 5초마???�행
+    @Scheduled(fixedDelay = 5000) // 5초마???�행
     @SchedulerLock(name = "pollAndPublishOutboxEvents", lockAtLeastFor = "PT4S", lockAtMostFor = "PT10S")
     @Transactional
     public void pollAndPublishOutboxEvents() {
@@ -39,7 +39,7 @@ public class OutboxPollerScheduler {
 
         for (OutboxEvent event : pendingEvents) {
             try {
-                // ?�는 aggregateId (raffleId) �??�정?�여 ?�티???�서 보장
+                // ?�는 aggregateId (raffleId) �??�정?�여 ?�티???�서 보장
                 boolean success = eventProducerPort.send(event.getEventType(), event.getAggregateId(), event.getPayload());
                 if (success) {
                     event.markAsPublished();

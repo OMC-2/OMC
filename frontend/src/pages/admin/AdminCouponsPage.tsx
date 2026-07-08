@@ -1,3 +1,4 @@
+import { toast } from '../../components/ui/Toast'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminCouponsApi } from '../../api/admin'
@@ -25,7 +26,7 @@ export function AdminCouponsPage() {
   const deleteMutation = useMutation({
     mutationFn: (couponId: string) => adminCouponsApi.delete(couponId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-coupons'] }),
-    onError: (e: any) => alert(e?.response?.data?.message ?? '삭제 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '삭제 실패'),
   })
 
   const handleDelete = (couponId: string, name: string) => {
@@ -46,7 +47,7 @@ export function AdminCouponsPage() {
       ...(form.imageUrl ? { imageUrl: form.imageUrl } : {}),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-coupons'] }); setShowForm(false); setForm(INIT) },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '생성 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '생성 실패'),
   })
 
   const copyId = (id: string) => {

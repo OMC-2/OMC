@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, Link } from 'react-router-dom'
 import { rafflesApi } from '../../api/raffles'
 import { productsApi } from '../../api/products'
+import { couponsApi } from '../../api/coupons'
 import { Spinner } from '../../components/ui/Spinner'
 import { formatDate, getRaffleDisplayStatus } from '../../lib/utils'
 import { getPlaceholderImage } from '../../lib/images'
 import { useAuthStore } from '../../store/authStore'
-import { ArrowLeft, Trophy, Clock, Timer, Users } from 'lucide-react'
+import { ArrowLeft, Trophy, Clock, Timer, Users, Tag } from 'lucide-react'
 import { useCountdown } from '../../hooks/useCountdown'
+import { toast } from '../../components/ui/Toast'
 
 export function RaffleDetailPage() {
   const { raffleId } = useParams<{ raffleId: string }>()
@@ -18,6 +20,7 @@ export function RaffleDetailPage() {
   const [billingKeyId, setBillingKeyId] = useState(() => localStorage.getItem('omc_billing_key') ?? '')
   const [originalAmount, setOriginalAmount] = useState('0')
   const [discountAmount, setDiscountAmount] = useState('0')
+  const [selectedCouponId, setSelectedCouponId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['raffle', raffleId],
@@ -56,6 +59,16 @@ export function RaffleDetailPage() {
   })
   const participantsCount: number = countData?.data?.data ?? 0
 
+  const { data: couponsData } = useQuery({
+    queryKey: ['my-coupons'],
+    queryFn: () => couponsApi.getMyCoupons(0, 50),
+    enabled: isAuthenticated,
+    retry: false,
+  })
+  const availableCoupons: any[] = (couponsData?.data?.data?.content ?? []).filter(
+    (c: any) => c.status === 'AVAILABLE'
+  )
+
   const displayStatus = getRaffleDisplayStatus(raffle)
   const isOpen = displayStatus === 'LIVE'
   const isUpcoming = displayStatus === 'UPCOMING'
@@ -64,26 +77,42 @@ export function RaffleDetailPage() {
 
   const price = product?.price ?? 0
   const imageUrl = product?.imageUrl || getPlaceholderImage(0)
-  const finalAmount = Math.max(0, (parseFloat(originalAmount) || 0) - (parseFloat(discountAmount) || 0))
+
+  // 쿠폰 선택 시 할인금액 자동 계산
+  const selectedCoupon = availableCoupons.find((c: any) => c.couponId === selectedCouponId)
+  const computedDiscount = (() => {
+    if (!selectedCoupon) return parseFloat(discountAmount) || 0
+    const orig = parseFloat(originalAmount) || 0
+    if (selectedCoupon.discountType === 'AMOUNT') {
+      return Number(selectedCoupon.discountValue)
+    } else if (selectedCoupon.discountType === 'RATE') {
+      // discountValue는 0.1 = 10% 형태로 저장됨 (AdminCoupons에서 0.1 = 10%로 입력)
+      const rate = orig * Number(selectedCoupon.discountValue)
+      const max = selectedCoupon.maxDiscountAmount ? Number(selectedCoupon.maxDiscountAmount) : Infinity
+      return Math.min(rate, max)
+    }
+    return parseFloat(discountAmount) || 0
+  })()
+  const finalAmount = Math.max(0, (parseFloat(originalAmount) || 0) - computedDiscount)
 
   const entryMutation = useMutation({
     mutationFn: () => rafflesApi.enter(raffleId!, {
       billingKeyId: billingKeyId.trim() || null,
-      couponId: null,
+      couponId: selectedCouponId,
       originalAmount: parseFloat(originalAmount) || 0,
-      discountAmount: parseFloat(discountAmount) || 0,
+      discountAmount: computedDiscount,
       finalAmount,
     }),
     onSuccess: () => {
-      alert('응모 완료! 추첨 결과를 기다려주세요.')
+      toast.success('응모 완료! 추첨 결과를 기다려주세요.')
       queryClient.invalidateQueries({ queryKey: ['my-raffle-result', raffleId] })
     },
     onError: (e: any) => {
       const msg = e?.response?.data?.message ?? ''
       if (msg.includes('입력값') || msg.includes('billing') || e?.response?.status === 400) {
-        alert('응모 실패: ' + (msg || '결제 정보(빌링키/금액)를 확인해주세요.'))
+        toast.error('응모 실패: ' + (msg || '결제 정보(빌링키/금액)를 확인해주세요.'))
       } else {
-        alert(msg || '응모 실패. 이미 응모했거나 래플이 종료되었습니다.')
+        toast.error(msg || '응모 실패. 이미 응모했거나 래플이 종료되었습니다.')
       }
     },
   })
@@ -208,29 +237,53 @@ export function RaffleDetailPage() {
                   className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">상품 금액 (원)</label>
-                  <input
-                    type="number"
-                    value={originalAmount}
-                    onChange={e => setOriginalAmount(e.target.value)}
-                    className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">할인 금액 (원)</label>
-                  <input
-                    type="number"
-                    value={discountAmount}
-                    onChange={e => setDiscountAmount(e.target.value)}
-                    className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
-                  />
-                </div>
+              {/* 쿠폰 선택 */}
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 mb-1">
+                  <Tag size={11} />쿠폰 선택
+                </label>
+                {availableCoupons.length === 0 ? (
+                  <p className="text-[10px] text-gray-400 border border-dashed border-gray-200 px-3 py-2">
+                    사용 가능한 쿠폰 없음
+                  </p>
+                ) : (
+                  <select
+                    value={selectedCouponId ?? ''}
+                    onChange={e => setSelectedCouponId(e.target.value || null)}
+                    className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black bg-white"
+                  >
+                    <option value="">쿠폰 미적용</option>
+                    {availableCoupons.map((c: any) => (
+                      <option key={c.couponId} value={c.couponId}>
+                        {c.name} ({c.discountType === 'AMOUNT'
+                          ? `${Number(c.discountValue).toLocaleString()}원 할인`
+                          : `${c.discountValue}% 할인${c.maxDiscountAmount ? ` (최대 ${Number(c.maxDiscountAmount).toLocaleString()}원)` : ''}`
+                        })
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
-              <div className="flex justify-between border-t pt-3 text-xs">
-                <span className="text-gray-500 font-bold tracking-wide">최종 결제 예정</span>
-                <span className="font-black text-gray-900">{finalAmount.toLocaleString()}원</span>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">상품 금액 (원)</label>
+                <input
+                  type="number"
+                  value={originalAmount}
+                  onChange={e => setOriginalAmount(e.target.value)}
+                  className="w-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
+                />
+              </div>
+              <div className="border-t pt-3 space-y-1.5">
+                {computedDiscount > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">할인</span>
+                    <span className="text-red-500 font-bold">-{computedDiscount.toLocaleString()}원</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500 font-bold tracking-wide">최종 결제 예정</span>
+                  <span className="font-black text-gray-900">{finalAmount.toLocaleString()}원</span>
+                </div>
               </div>
               {productError && (
                 <div className="bg-yellow-50 border border-yellow-200 px-4 py-3 text-xs text-yellow-700">

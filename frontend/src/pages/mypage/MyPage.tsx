@@ -10,6 +10,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useAuthStore } from '../../store/authStore'
 import { formatDate } from '../../lib/utils'
 import { LogOut, ChevronRight, CreditCard, Tag, CheckCircle, MapPin, Plus, Trash2, Star, Edit2, X } from 'lucide-react'
+import { toast } from '../../components/ui/Toast'
 
 const BILLING_KEY_STORAGE = 'omc_billing_key'
 
@@ -90,7 +91,7 @@ export function MyPage() {
       setShowAddressForm(false)
       setAddrForm({ recipientName: '', phone: '', zipCode: '', address: '', addressDetail: '', isDefault: false })
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '주소 추가 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '주소 추가 실패'),
   })
 
   const deleteAddressMutation = useMutation({
@@ -115,7 +116,7 @@ export function MyPage() {
       refetchAddresses()
       setEditAddress(null)
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '수정 실패'),
   })
 
   const updateProfileMutation = useMutation({
@@ -123,14 +124,15 @@ export function MyPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['profile'] })
       setShowProfileEdit(false)
+      toast.success('프로필이 수정되었습니다.')
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '수정 실패'),
   })
 
   const deleteAccountMutation = useMutation({
     mutationFn: () => authApi.deleteAccount(),
     onSuccess: () => { logout(); },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '탈퇴 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '탈퇴 실패'),
   })
 
 
@@ -490,21 +492,30 @@ export function MyPage() {
         <div className="mb-8">
           <p className="text-xs font-black tracking-widest text-gray-900 mb-4">RECENT ORDERS</p>
           <div className="divide-y divide-gray-100 border border-gray-100">
-            {orders.slice(0, 3).map((order: any) => (
-              <div key={order.orderId} className="flex items-center justify-between px-5 py-4">
-                <div>
-                  <p className="text-xs font-bold text-gray-900 truncate max-w-[200px]">{order.productName ?? order.orderId}</p>
-                  {order.createdAt && <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(order.createdAt)}</p>}
-                </div>
-                <span className={`text-[10px] font-black tracking-wider px-2 py-1 ${
-                  order.status === 'COMPLETED' ? 'text-green-600 bg-green-50'
-                  : order.status === 'CANCELLED' ? 'text-red-400 bg-red-50'
-                  : 'text-gray-500 bg-gray-50'
-                }`}>
-                  {order.status}
-                </span>
-              </div>
-            ))}
+            {orders.slice(0, 3).map((order: any) => {
+              // PaymentDetailResponse 기준 필드
+              const label = order.salesType === 'DROP' ? 'DROP 구매'
+                : order.salesType === 'RAFFLE' ? '래플 응모'
+                : order.salesType ?? '주문'
+              const pStatus = order.paymentStatus ?? ''
+              const statusClass = pStatus === 'PAID' ? 'text-green-600 bg-green-50'
+                : pStatus === 'CANCELED' ? 'text-red-400 bg-red-50'
+                : pStatus === 'FAILED' ? 'text-gray-400 bg-gray-50'
+                : 'text-blue-500 bg-blue-50'
+              const href = order.orderId ? `/orders/${order.orderId}` : '/orders'
+              return (
+                <Link key={order.paymentId} to={href} className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
+                  <div>
+                    <p className="text-xs font-bold text-gray-900 truncate max-w-[200px]">{label}</p>
+                    {order.requestedAt && <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(order.requestedAt)}</p>}
+                    {order.finalAmount != null && <p className="text-[10px] text-gray-500 mt-0.5">{Number(order.finalAmount).toLocaleString()}원</p>}
+                  </div>
+                  <span className={`text-[10px] font-black tracking-wider px-2 py-1 ${statusClass}`}>
+                    {pStatus || '-'}
+                  </span>
+                </Link>
+              )
+            })}
           </div>
           {orders.length > 3 && (
             <Link to="/orders" className="mt-3 block text-center text-xs font-bold text-gray-400 hover:text-black transition-colors">

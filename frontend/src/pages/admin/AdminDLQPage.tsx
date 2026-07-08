@@ -1,3 +1,4 @@
+import { toast } from '../../components/ui/Toast'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminDlqApi } from '../../api/admin'
@@ -24,9 +25,9 @@ export function AdminDLQPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-dlq'] })
       setSelected(null)
-      alert('재발행 완료. 상태가 RESOLVED로 전환됩니다.')
+      toast.success('재발행 완료. 상태가 RESOLVED로 전환됩니다.')
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '재발행 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '재발행 실패'),
   })
 
   return (

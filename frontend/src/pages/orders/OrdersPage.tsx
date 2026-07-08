@@ -5,16 +5,37 @@ import { ordersApi } from '../../api/orders'
 import { Spinner } from '../../components/ui/Spinner'
 import { formatPrice, formatDate } from '../../lib/utils'
 import { ShoppingCart, ChevronRight, X, XCircle } from 'lucide-react'
+import { toast } from '../../components/ui/Toast'
 
 const STATUS_COLOR: Record<string, string> = {
-  APPROVED: 'text-green-600 bg-green-50',
-  COMPLETED: 'text-green-600 bg-green-50',
-  CANCELLED: 'text-red-400 bg-red-50',
-  PENDING: 'text-yellow-600 bg-yellow-50',
-  FAILED: 'text-gray-400 bg-gray-50',
+  READY:            'text-yellow-600 bg-yellow-50',
+  CONFIRMING:       'text-blue-500 bg-blue-50',
+  PAID:             'text-green-600 bg-green-50',
+  FAILED:           'text-gray-400 bg-gray-50',
+  CANCELED:         'text-red-400 bg-red-50',
+  CONFIRM_UNKNOWN:  'text-orange-500 bg-orange-50',
+  CANCEL_UNKNOWN:   'text-orange-400 bg-orange-50',
+  RECOVERY_FAILED:  'text-red-600 bg-red-100',
 }
 
-const CANCELLABLE = ['APPROVED', 'COMPLETED']
+const STATUS_LABEL: Record<string, string> = {
+  READY:            '대기',
+  CONFIRMING:       '처리 중',
+  PAID:             '결제 완료',
+  FAILED:           '실패',
+  CANCELED:         '취소됨',
+  CONFIRM_UNKNOWN:  '확인 필요',
+  CANCEL_UNKNOWN:   '취소 확인 중',
+  RECOVERY_FAILED:  '복구 실패',
+}
+
+const SALES_TYPE_LABEL: Record<string, string> = {
+  DROP:   'DROP 구매',
+  RAFFLE: '래플 응모',
+}
+
+// PAID → CANCELED 만 가능 (canChangeTo 기준)
+const CANCELLABLE = new Set(['PAID'])
 
 function CancelModal({ payment, onClose }: { payment: any; onClose: () => void }) {
   const qc = useQueryClient()
@@ -25,9 +46,9 @@ function CancelModal({ payment, onClose }: { payment: any; onClose: () => void }
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['orders'] })
       onClose()
-      alert('결제가 취소되었습니다.')
+      toast.success('결제가 취소되었습니다.')
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '취소 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '취소 실패'),
   })
 
   return (
@@ -41,7 +62,7 @@ function CancelModal({ payment, onClose }: { payment: any; onClose: () => void }
         <div className="mb-4 space-y-1 text-xs text-gray-500">
           <p><span className="font-bold text-gray-700">결제 ID</span> <span className="font-mono">{payment.paymentId?.slice(0, 16)}...</span></p>
           <p><span className="font-bold text-gray-700">금액</span> {payment.finalAmount != null ? formatPrice(payment.finalAmount) : '-'}</p>
-          <p><span className="font-bold text-gray-700">유형</span> {payment.salesType}</p>
+          <p><span className="font-bold text-gray-700">유형</span> {SALES_TYPE_LABEL[payment.salesType] ?? payment.salesType}</p>
         </div>
 
         <div className="mb-5">
@@ -81,9 +102,13 @@ export function OrdersPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['orders'],
     queryFn: () => ordersApi.getMyOrders(),
+    refetchInterval: 15000, // 비동기 결제 처리 완료를 위해 15초마다 갱신
   })
 
   const payments = data?.data?.data?.content ?? []
+  const hasProcessing = payments.some((p: any) =>
+    p.paymentStatus === 'READY' || p.paymentStatus === 'CONFIRMING'
+  )
 
   if (isLoading) return <Spinner className="py-20" />
 
@@ -94,6 +119,13 @@ export function OrdersPage() {
         <h1 className="text-3xl font-black tracking-tight">ORDERS</h1>
         {payments.length > 0 && <p className="mt-1 text-sm text-gray-400">{payments.length}건의 결제 내역</p>}
       </div>
+
+      {hasProcessing && (
+        <div className="mb-4 flex items-center gap-2 bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-700">
+          <Spinner className="h-3 w-3" />
+          결제 처리 중인 건이 있습니다. 잠시 후 자동으로 갱신됩니다.
+        </div>
+      )}
 
       {payments.length === 0 ? (
         <div className="flex flex-col items-center py-32 text-gray-300">
@@ -107,7 +139,8 @@ export function OrdersPage() {
         <div className="divide-y divide-gray-100 border border-gray-100">
           {payments.map((p: any) => {
             const href = p.orderId ? `/orders/${p.orderId}` : '#'
-            const canCancel = CANCELLABLE.includes(p.paymentStatus)
+            const canCancel = CANCELLABLE.has(p.paymentStatus)
+            const statusLabel = STATUS_LABEL[p.paymentStatus] ?? p.paymentStatus
 
             return (
               <div key={p.paymentId} className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors group">
@@ -115,15 +148,10 @@ export function OrdersPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-xs font-black text-gray-900 truncate">
-                        {p.salesType ?? '주문'}
+                        {SALES_TYPE_LABEL[p.salesType] ?? p.salesType ?? '주문'}
                       </p>
-                      {p.salesType && (
-                        <span className="shrink-0 text-[9px] font-black px-1.5 py-0.5 bg-gray-100 text-gray-400 tracking-wider">
-                          {p.salesType}
-                        </span>
-                      )}
                     </div>
-                    <p className="text-[10px] font-mono text-gray-400 mt-0.5 truncate">{p.paymentId}</p>
+                    <p className="text-[10px] font-mono text-gray-400 mt-0.5 truncate">{p.paymentId?.slice(0, 24)}...</p>
                     {p.requestedAt && <p className="text-[10px] text-gray-300 mt-0.5">{formatDate(p.requestedAt)}</p>}
                   </div>
                   <div className="ml-4 flex items-center gap-3 shrink-0">
@@ -131,7 +159,7 @@ export function OrdersPage() {
                       <p className="text-xs font-black text-gray-900">{formatPrice(p.finalAmount)}</p>
                     )}
                     <span className={`px-2 py-0.5 text-[10px] font-black tracking-wider ${STATUS_COLOR[p.paymentStatus] ?? 'text-gray-400 bg-gray-50'}`}>
-                      {p.paymentStatus}
+                      {statusLabel}
                     </span>
                     <ChevronRight size={14} className="text-gray-200 group-hover:text-gray-400 transition-colors" />
                   </div>

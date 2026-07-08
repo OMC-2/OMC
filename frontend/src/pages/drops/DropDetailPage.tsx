@@ -7,6 +7,7 @@ import { formatPrice, formatDate, getDropDisplayStatus } from '../../lib/utils'
 import { getPlaceholderImage } from '../../lib/images'
 import { useAuthStore } from '../../store/authStore'
 import { ArrowLeft, Clock, Package } from 'lucide-react'
+import { toast } from '../../components/ui/Toast'
 
 export function DropDetailPage() {
   const { dropId } = useParams<{ dropId: string }>()
@@ -30,8 +31,13 @@ export function DropDetailPage() {
 
   const purchaseMutation = useMutation({
     mutationFn: () => dropsApi.purchase(dropId!),
-    onSuccess: () => { alert('구매 완료! 주문 내역에서 확인하세요.'); navigate('/orders') },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '구매 실패. 재고가 없거나 이미 구매한 상품입니다.'),
+    onSuccess: (res) => {
+      const orderId = res?.data?.data?.orderId
+      toast.success('구매 요청이 접수되었습니다! 결제 처리까지 잠시 기다려 주세요.')
+      if (orderId) navigate(`/orders/${orderId}`)
+      else navigate('/orders')
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '구매 실패. 재고가 없거나 이미 구매한 상품입니다.'),
   })
 
   if (dropLoading || productLoading) return <Spinner className="py-20" />

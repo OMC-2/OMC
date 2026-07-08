@@ -1,3 +1,4 @@
+import { toast } from '../../components/ui/Toast'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminRafflesApi, adminProductsApi } from '../../api/admin'
@@ -40,19 +41,19 @@ export function AdminRafflesPage() {
       endedAt: form.endedAt + ':00',
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-raffles'] }); setShowForm(false); setForm(INIT) },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '생성 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '생성 실패'),
   })
 
   const drawMutation = useMutation({
     mutationFn: (id: string) => adminRafflesApi.draw(id),
-    onSuccess: () => { alert('추첨 완료!'); qc.invalidateQueries({ queryKey: ['admin-raffles'] }) },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '추첨 실패'),
+    onSuccess: () => { toast.success('추첨 완료!'); qc.invalidateQueries({ queryKey: ['admin-raffles'] }) },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '추첨 실패'),
   })
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => adminRafflesApi.updateStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-raffles'] }),
-    onError: (e: any) => alert(e?.response?.data?.message ?? '상태 변경 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '상태 변경 실패'),
   })
 
   const deleteMutation = useMutation({
@@ -69,17 +70,17 @@ export function AdminRafflesPage() {
       ...(endedAt   ? { endedAt: endedAt + ':00' }     : {}),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-raffles'] }); setEditTarget(null) },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '수정 실패'),
   })
 
   const penalizeMutation = useMutation({
     mutationFn: ({ raffleId, userId }: { raffleId: string; userId: string }) =>
       adminRafflesApi.penalize(raffleId, userId),
     onSuccess: () => {
-      alert('패널티가 부여되었습니다.')
+      toast.success('패널티가 부여되었습니다.')
       qc.invalidateQueries({ queryKey: ['admin-raffle-entries', entriesRaffleId] })
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '패널티 부여 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '패널티 부여 실패'),
   })
 
   const f = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>

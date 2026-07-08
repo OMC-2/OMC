@@ -1,28 +1,30 @@
 package com.omc.raffle.presentation.controller.admin;
 
 import com.omc.common.response.ApiResponse;
+import com.omc.common.response.PageResponse;
+import com.omc.raffle.application.service.AdminRaffleAppService;
 import com.omc.raffle.application.service.RaffleDrawService;
+import com.omc.raffle.presentation.dto.request.admin.AdminRaffleCreateRequest;
+import com.omc.raffle.presentation.dto.request.admin.AdminRaffleStatusUpdateRequest;
+import com.omc.raffle.presentation.dto.request.admin.AdminRaffleUpdateRequest;
+import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
+import com.omc.raffle.presentation.dto.response.RaffleResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
-
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
-import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 
-import com.omc.common.response.PageResponse;
-import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
-import com.omc.raffle.presentation.dto.response.RaffleResponse;
-import com.omc.raffle.application.service.AdminRaffleAppService;
-import com.omc.raffle.presentation.dto.request.admin.AdminRaffleCreateRequest;
-import com.omc.raffle.presentation.dto.request.admin.AdminRaffleStatusUpdateRequest;
-import com.omc.raffle.presentation.dto.request.admin.AdminRaffleUpdateRequest;
+import java.util.UUID;
 
+@Tag(name = "Admin - Raffle", description = "래플 관리 API (ADMIN 전용)")
 @RestController
 @RequestMapping("/api/v1/admin/raffles")
 @RequiredArgsConstructor
@@ -32,23 +34,31 @@ public class AdminRaffleController {
     private final RaffleDrawService raffleDrawService;
     private final AdminRaffleAppService adminRaffleAppService;
 
-    /**
-     * 수동 추첨 실행 API
-     * POST /api/v1/admin/raffles/{raffleId}/draw
-     */
+    @Operation(
+        summary = "수동 추첨 실행",
+        description = "종료된 래플에 대해 수동으로 추첨을 실행합니다. 당첨자 선정 후 알림 이벤트가 발행됩니다."
+    )
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "추첨 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "래플 없음"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 추첨된 래플"),
+    })
     @PostMapping("/{raffleId}/draw")
     public ApiResponse<Void> drawRaffle(
-            @PathVariable UUID raffleId) {
-        
+            @Parameter(description = "래플 ID", required = true) @PathVariable UUID raffleId) {
         raffleDrawService.drawRaffle(raffleId);
         return ApiResponse.ok();
     }
 
-    /**
-     * 래플 생성 API
-     * POST /api/v1/admin/raffles
-     */
-    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    @Operation(
+        summary = "래플 생성",
+        description = "새 래플을 생성합니다. 상품 ID, 이름, 당첨 인원, 시작/종료 시간이 필요합니다."
+    )
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
+    })
+    @ResponseStatus(HttpStatus.CREATED)
     @PostMapping
     public ApiResponse<RaffleResponse> createRaffle(
             @RequestBody @Valid AdminRaffleCreateRequest request) {
@@ -56,48 +66,61 @@ public class AdminRaffleController {
         return ApiResponse.created(response);
     }
 
-    /**
-     * 래플 수정 API
-     * PUT /api/v1/admin/raffles/{raffleId}
-     */
+    @Operation(
+        summary = "래플 수정",
+        description = "래플 이름과 당첨 인원을 수정합니다."
+    )
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "래플 없음"),
+    })
     @PutMapping("/{raffleId}")
     public ApiResponse<Void> updateRaffle(
-            @PathVariable UUID raffleId,
+            @Parameter(description = "래플 ID", required = true) @PathVariable UUID raffleId,
             @RequestBody @Valid AdminRaffleUpdateRequest request) {
         adminRaffleAppService.updateRaffle(raffleId, request);
         return ApiResponse.ok();
     }
 
-    /**
-     * 래플 취소(삭제) API
-     * DELETE /api/v1/admin/raffles/{raffleId}
-     */
+    @Operation(
+        summary = "래플 삭제",
+        description = "래플을 삭제(취소)합니다."
+    )
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "삭제 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "래플 없음"),
+    })
     @DeleteMapping("/{raffleId}")
     public ApiResponse<Void> deleteRaffle(
-            @PathVariable UUID raffleId) {
+            @Parameter(description = "래플 ID", required = true) @PathVariable UUID raffleId) {
         adminRaffleAppService.deleteRaffle(raffleId);
         return ApiResponse.ok();
     }
 
-    /**
-     * 상태 강제 변경 API
-     * POST /api/v1/admin/raffles/{raffleId}/status
-     */
+    @Operation(
+        summary = "래플 상태 강제 변경",
+        description = "래플 상태를 강제로 변경합니다. UPCOMING → OPEN → CLOSED → DRAWN 순서로 관리합니다."
+    )
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "상태 변경 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효하지 않은 상태 값"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "래플 없음"),
+    })
     @PostMapping("/{raffleId}/status")
     public ApiResponse<Void> updateRaffleStatus(
-            @PathVariable UUID raffleId,
+            @Parameter(description = "래플 ID", required = true) @PathVariable UUID raffleId,
             @RequestBody @Valid AdminRaffleStatusUpdateRequest request) {
         adminRaffleAppService.updateRaffleStatus(raffleId, request);
         return ApiResponse.ok();
     }
 
-    /**
-     * 응모자 목록 조회 API
-     * GET /api/v1/admin/raffles/{raffleId}/entries
-     */
+    @Operation(
+        summary = "응모자 목록 조회",
+        description = "특정 래플의 전체 응모자 목록을 페이지 단위로 조회합니다."
+    )
     @GetMapping("/{raffleId}/entries")
     public ApiResponse<PageResponse<RaffleEntryResponse>> getRaffleEntries(
-            @PathVariable UUID raffleId,
+            @Parameter(description = "래플 ID", required = true) @PathVariable UUID raffleId,
             @PageableDefault(sort = "enteredAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<RaffleEntryResponse> response = adminRaffleAppService.getRaffleEntries(raffleId, pageable);
         return ApiResponse.success(response);

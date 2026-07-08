@@ -8,6 +8,7 @@ export function RafflesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['raffles'],
     queryFn: () => rafflesApi.getAll(),
+    refetchInterval: 10000,
   })
 
   const { data: productsData } = useQuery({
