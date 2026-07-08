@@ -76,7 +76,7 @@ public class RaffleDrawService {
         }
         List<RaffleResult> results = new ArrayList<>(projections.size());
         List<UUID> winnerIds = new ArrayList<>();
-        List<UUID> loserIds = new ArrayList<>();
+        List<RaffleEntryProjection> loserProjections = new ArrayList<>();
 
         for (int i = 0; i < projections.size(); i++) {
             RaffleEntryProjection proj = projections.get(i);
@@ -85,7 +85,7 @@ public class RaffleDrawService {
             if (status == RaffleResultStatus.WIN) {
                 winnerIds.add(proj.getId());
             } else {
-                loserIds.add(proj.getId());
+                loserProjections.add(proj);
             }
             results.add(RaffleResult.create(proj.getId(), raffleId, proj.getUserId(), status));
         }
@@ -115,13 +115,12 @@ public class RaffleDrawService {
         }
 
         // 6. 미당첨자(LOSE)에 대해 ApplicationEvent 발행 (Kafka Outbox 연동)
-        if (!loserIds.isEmpty()) {
-            List<RaffleEntry> losers = raffleEntryRepository.findAllById(loserIds);
-            for (RaffleEntry entry : losers) {
+        if (!loserProjections.isEmpty()) {
+            for (RaffleEntryProjection proj : loserProjections) {
                 RaffleLoserNotifiedEvent event = new RaffleLoserNotifiedEvent(
                         UUID.randomUUID().toString(),
                         raffleId,
-                        entry.getUserId()
+                        proj.getUserId()
                 );
                 eventPublisher.publishEvent(event);
             }

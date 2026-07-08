@@ -10,5 +10,5 @@ public interface CouponServiceClient {
 
     // 결제 직전에 쿠폰을 선점하고 검증
     @PostMapping("/internal/v1/coupons/reserve")
-    ApiResponse<CouponUserCouponResponse> reserveCoupon(@RequestBody CouponReserveRequest request);
+    ApiResponse<UserCouponResponse> reserveCoupon(@RequestBody CouponReserveRequest request);
 }

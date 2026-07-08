@@ -2,6 +2,21 @@
 Feature: [시나리오] 재고 차감 실패 결제 승인 취소 보상
 
   # ================================================================
+  # ⚠️ @ignore 유지 사유 (2026-07-06 재확인):
+  #   이 시나리오는 "드롭 totalQty > 실제 상품 재고"로 강제 불일치를 만들어
+  #   두 번째 구매의 재고 차감을 실패시키려 하지만, DropStatusScheduler가
+  #   OPEN 전이 시 요청한 totalQty가 아니라 product-service의 실시간
+  #   재고(availableQuantity)로 Redis를 워밍하기 때문에(getAvailableQty()),
+  #   드롭 레벨에서 항상 실제 재고 이하로만 선점을 허용함 → 두 번째 구매가
+  #   product-service의 재고 차감 로직에 도달하기 전에 드롭에서 409로 막힘
+  #   (재고 부족 SAGA 구현 여부와 무관한 별개의 구조적 제약 — 실제로 재현 시도해
+  #    확인함: 두 번째 purchase 자체가 DROP-004로 막힘)
+  #
+  #   → 이 시나리오가 검증하려는 "재고 차감 실패" 자체는 래플 흐름으로 재작성해야
+  #     재현 가능함 (래플은 드롭 같은 사전 Redis 재고 게이트가 없어 payment.completed가
+  #     바로 product-service로 옴) → scenario/04_payment_saga/05_raffle_stock_failure.feature
+  #     파일을 별도 추가하여 검증함
+  #
   # 재고 차감 실패 이후 결제 승인 취소 보상 시나리오
   # 실행: bash e2e/run.sh scenario/04_payment_saga/02_stock_failure
   #

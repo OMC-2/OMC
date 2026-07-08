@@ -2,6 +2,9 @@ package com.omc.product.presentation.controller;
 
 import com.omc.common.response.ApiResponse;
 import com.omc.product.application.service.OutboxEventService;
+import com.omc.product.presentation.dto.response.OutboxRetryResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -9,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+@Tag(name = "Outbox Admin", description = "Outbox 이벤트 관리 (어드민 전용)")
+@PreAuthorize("hasRole('ADMIN')")
 @RestController
 @RequestMapping("/api/v1/admin/outbox-events")
 @RequiredArgsConstructor
@@ -16,27 +21,18 @@ public class OutboxEventAdminController {
 
     private final OutboxEventService outboxEventService;
 
-    /**
-     * FAILED 단건 수동 재처리
-     * INIT으로 초기화 후 Poller가 다음 주기에 자동 재발행
-     */
+    @Operation(summary = "Outbox 이벤트 단건 재처리", description = "FAILED 상태의 이벤트를 INIT으로 초기화합니다. Poller가 다음 주기에 자동 재발행합니다.")
     @PostMapping("/{eventId}/retry")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> retryFailedEvent(@PathVariable UUID eventId) {
         outboxEventService.retryFailedEvent(eventId);
-        return ResponseEntity.ok(
-                ApiResponse.success("Outbox 이벤트 재처리 요청이 완료되었습니다.", null));
+        return ResponseEntity.ok(ApiResponse.ok());
     }
 
-    /**
-     * FAILED 전체 수동 재처리
-     */
+    @Operation(summary = "Outbox 이벤트 전체 재처리", description = "FAILED 상태 전체를 INIT으로 초기화합니다.")
     @PostMapping("/retry-all")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> retryAllFailedEvents() {
+    public ResponseEntity<ApiResponse<OutboxRetryResponse>> retryAllFailedEvents() {
         int count = outboxEventService.retryAllFailedEvents();
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        String.format("%d건 Outbox 이벤트 재처리 요청이 완료되었습니다.", count), null));
+        return ResponseEntity.ok(ApiResponse.success(new OutboxRetryResponse(count)));
     }
 }
+

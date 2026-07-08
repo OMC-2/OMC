@@ -116,7 +116,7 @@ class PaymentInternalControllerTest {
                     "인증키"
             ));
 
-            mockMvc.perform(post("/internal/v1/payments/billing-keys")
+            mockMvc.perform(post("/internal/v1/payments/pre-auth")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isOk())

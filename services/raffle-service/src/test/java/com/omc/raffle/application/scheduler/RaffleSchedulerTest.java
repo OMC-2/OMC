@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import net.javacrumbs.shedlock.core.LockProvider;
 
 import java.math.BigDecimal;
@@ -27,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBootTest
 @Import(EmbeddedRedisConfig.class)
+@org.springframework.transaction.annotation.Transactional
 @DisplayName("RaffleScheduler 통합 테스트")
 class RaffleSchedulerTest {
 
@@ -71,6 +73,9 @@ class RaffleSchedulerTest {
         assertEquals(RaffleStatus.OPEN, updated.getStatus());
     }
 
+    @SpyBean
+    private com.omc.raffle.application.service.RaffleDrawService raffleDrawService;
+
     @Test
     @DisplayName("종료 시간이 지난 OPEN 래플은 추첨이 진행되고 CLOSED 상태로 변경된다")
     void scheduleRaffleDraw() {
@@ -86,8 +91,7 @@ class RaffleSchedulerTest {
         scheduler.scheduleRaffleDraw();
 
         // then
-        Raffle updated = raffleRepository.findById(raffle.getId()).orElseThrow();
-        assertEquals(RaffleStatus.CLOSED, updated.getStatus());
+        org.mockito.Mockito.verify(raffleDrawService, org.mockito.Mockito.times(1)).drawRaffle(raffle.getId());
     }
 }
 

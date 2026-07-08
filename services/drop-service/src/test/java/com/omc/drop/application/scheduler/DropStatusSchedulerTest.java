@@ -2,19 +2,20 @@ package com.omc.drop.application.scheduler;
 
 import com.omc.common.response.ApiResponse;
 import com.omc.drop.application.event.producer.DropEventProducer;
+import com.omc.drop.application.event.producer.DropOpenedEvent;
 import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
-import com.omc.drop.infrastructure.client.ProductServiceClient;
 import com.omc.drop.infrastructure.client.InventorySnapshotResponse;
-import com.omc.drop.application.event.producer.DropClosedEvent;
-import com.omc.drop.application.event.producer.DropOpenedEvent;
+import com.omc.drop.infrastructure.client.ProductServiceClient;
+import com.omc.drop.infrastructure.metrics.DropMetrics;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +44,9 @@ class DropStatusSchedulerTest {
 
     @Mock
     private ProductServiceClient productServiceClient;
+
+    @Mock
+    private DropMetrics dropMetrics;
 
     @InjectMocks
     private DropStatusScheduler dropStatusScheduler;
@@ -89,6 +93,7 @@ class DropStatusSchedulerTest {
             verify(dropRedisStore).warmup(drop.getDropId(), drop.getTotalQty(), drop.getHoldTtlSec(), drop.getProductId());
             verify(dropRedisStore).addOpenDrop(drop.getDropId());
             verify(dropEventProducer).publishDropOpened(argThat(e -> e.dropId().equals(drop.getDropId())));
+            verify(dropMetrics).incrementInventoryFallback(drop.getDropId());
         }
 
         @Test
@@ -109,24 +114,27 @@ class DropStatusSchedulerTest {
         }
 
         @Test
-        @DisplayName("Redis 워밍 실패 시 UPDATE·발행 생략하고 다음 드롭 계속 처리")
-        void skipsOpenTransitionWhenRedisFails() {
+        @DisplayName("Redis 워밍 실패 시 DB OPEN 전이·이벤트 발행은 진행하고 addOpenDrop만 생략")
+        void continuesOpenTransitionWhenRedisFails() {
             Drop failDrop = createScheduledDrop();
             Drop successDrop = createScheduledDrop();
             when(dropRepository.findByStatusAndStartAtLessThanEqual(eq(DropStatus.SCHEDULED), any()))
                     .thenReturn(List.of(failDrop, successDrop));
             when(productServiceClient.getInventorySnapshot(any()))
                     .thenReturn(ApiResponse.success(new InventorySnapshotResponse(100)));
-            doThrow(new RuntimeException("Redis 연결 실패"))
-                    .when(dropRedisStore).warmup(eq(failDrop.getDropId()), anyInt(), anyInt(), any());
+            when(dropRepository.updateStatusConditionally(failDrop.getDropId(), DropStatus.SCHEDULED, DropStatus.OPEN))
+                    .thenReturn(1);
             when(dropRepository.updateStatusConditionally(successDrop.getDropId(), DropStatus.SCHEDULED, DropStatus.OPEN))
                     .thenReturn(1);
+            doThrow(new RuntimeException("Redis 연결 실패"))
+                    .when(dropRedisStore).warmup(eq(failDrop.getDropId()), anyInt(), anyInt(), any());
 
             dropStatusScheduler.openScheduledDrops();
 
-            verify(dropRepository, never()).updateStatusConditionally(eq(failDrop.getDropId()), any(), any());
-            verify(dropEventProducer, never()).publishDropOpened(argThat(e -> e.dropId().equals(failDrop.getDropId())));
+            // failDrop: DB 업데이트 성공, warmup 실패 → addOpenDrop 미호출, 이벤트는 발행
             verify(dropRedisStore, never()).addOpenDrop(failDrop.getDropId());
+            verify(dropEventProducer).publishDropOpened(argThat(e -> e.dropId().equals(failDrop.getDropId())));
+            // successDrop: 정상 처리
             verify(dropRedisStore).addOpenDrop(successDrop.getDropId());
             verify(dropEventProducer).publishDropOpened(argThat(e -> e.dropId().equals(successDrop.getDropId())));
         }
@@ -149,7 +157,7 @@ class DropStatusSchedulerTest {
     class CloseOpenDrops {
 
         @Test
-        @DisplayName("조건부 UPDATE 성공 시 Redis 플래그 삭제 후 drop.closed 발행")
+        @DisplayName("Redis status 선삭제 후 DB UPDATE 성공 시 drop.closed 발행")
         void closesDropAndPublishesEvent() {
             Drop drop = createOpenDrop();
             when(dropRepository.findByStatusAndEndAtLessThanEqual(eq(DropStatus.OPEN), any()))
@@ -159,15 +167,15 @@ class DropStatusSchedulerTest {
 
             dropStatusScheduler.closeOpenDrops();
 
-            verify(dropRedisStore).deleteStatus(drop.getDropId());
-
-            ArgumentCaptor<DropClosedEvent> captor = ArgumentCaptor.forClass(DropClosedEvent.class);
-            verify(dropEventProducer).publishDropClosed(captor.capture());
-            assertThat(captor.getValue().dropId()).isEqualTo(drop.getDropId());
+            // 구매 차단 gap 방지: deleteStatus → updateStatusConditionally → publishDropClosed 순서 보장
+            InOrder inOrder = inOrder(dropRedisStore, dropRepository, dropEventProducer);
+            inOrder.verify(dropRedisStore).deleteStatus(drop.getDropId());
+            inOrder.verify(dropRepository).updateStatusConditionally(drop.getDropId(), DropStatus.OPEN, DropStatus.CLOSED);
+            inOrder.verify(dropEventProducer).publishDropClosed(any());
         }
 
         @Test
-        @DisplayName("조건부 UPDATE 반환값 0이면 Redis 삭제·이벤트 발행 생략")
+        @DisplayName("조건부 UPDATE 반환값 0이면 이벤트 발행만 생략 (Redis 선삭제는 항상 실행)")
         void skipsPublishWhenUpdateReturnsZero() {
             Drop drop = createOpenDrop();
             when(dropRepository.findByStatusAndEndAtLessThanEqual(eq(DropStatus.OPEN), any()))
@@ -177,7 +185,8 @@ class DropStatusSchedulerTest {
 
             dropStatusScheduler.closeOpenDrops();
 
-            verify(dropRedisStore, never()).deleteStatus(any());
+            // Redis status는 구매 차단을 위해 항상 먼저 삭제 (다른 인스턴스가 먼저 DB 처리한 경우에도)
+            verify(dropRedisStore).deleteStatus(drop.getDropId());
             verify(dropEventProducer, never()).publishDropClosed(any());
         }
 

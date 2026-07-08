@@ -37,3 +37,7 @@ payment:
 
 gateway:
   secret: omc-internal-secret
+
+app:
+  scheduling:
+    enable: false

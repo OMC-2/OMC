@@ -8,7 +8,7 @@ import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.EmbeddedRedisConfig;
 import com.omc.raffle.infrastructure.client.PaymentFeignClient;
-import com.omc.raffle.presentation.dto.request.PreAuthRequest;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -106,8 +106,11 @@ class RaffleConcurrencyTest {
         // then
         assertEquals(1, successCount.get(), "동일 유저는 단 1번만 응모 성공해야 합니다.");
         assertEquals(threadCount - 1, failCount.get(), "나머지 요청은 모두 실패해야 합니다.");
-        long dbCount = raffleEntryRepository.count();
-        assertEquals(1, dbCount, "DB에도 1건만 저장되어야 합니다.");
+        
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            long dbCount = raffleEntryRepository.count();
+            assertEquals(1, dbCount, "DB에도 1건만 저장되어야 합니다.");
+        });
     }
 
     @Test
@@ -142,8 +145,11 @@ class RaffleConcurrencyTest {
         // then
         assertEquals(threadCount, successCount.get(), "모든 다른 유저는 응모에 성공해야 합니다.");
         assertEquals(0, failCount.get(), "실패한 요청이 없어야 합니다.");
-        long dbCount = raffleEntryRepository.count();
-        assertEquals(threadCount, dbCount, "DB에 " + threadCount + "건이 저장되어야 합니다.");
+        
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            long dbCount = raffleEntryRepository.count();
+            assertEquals(threadCount, dbCount, "DB에 " + threadCount + "건이 저장되어야 합니다.");
+        });
     }
 }
 

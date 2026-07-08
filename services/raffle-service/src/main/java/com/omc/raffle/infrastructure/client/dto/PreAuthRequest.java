@@ -1,4 +1,4 @@
-package com.omc.raffle.presentation.dto.request;
+package com.omc.raffle.infrastructure.client.dto;
 
 import java.math.BigDecimal;
 

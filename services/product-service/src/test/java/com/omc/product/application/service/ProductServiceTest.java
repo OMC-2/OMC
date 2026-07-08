@@ -1,13 +1,14 @@
 package com.omc.product.application.service;
 
 import com.omc.common.response.ApiResponse;
+import com.omc.product.application.event.producer.ProductUpdatedEvent;
 import com.omc.product.domain.entity.Inventory;
 import com.omc.product.domain.entity.Product;
 import com.omc.product.domain.exception.ActiveDropExistsException;
 import com.omc.product.domain.exception.ProductNotFoundException;
 import com.omc.product.domain.repository.InventoryRepository;
 import com.omc.product.domain.repository.ProductRepository;
-import com.omc.product.infrastructure.client.DropInternalClient;
+import com.omc.product.infrastructure.client.DropFeignClient;
 import com.omc.product.infrastructure.client.ActiveDropResponse;
 import com.omc.product.presentation.dto.request.ProductCreateRequest;
 import com.omc.product.presentation.dto.request.ProductUpdateRequest;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -35,8 +37,9 @@ class ProductServiceTest {
 
     @Mock private ProductRepository productRepository;
     @Mock private InventoryRepository inventoryRepository;
-    @Mock private DropInternalClient dropInternalClient;
+    @Mock private DropFeignClient dropFeignClient;
     @Mock private EntityManager entityManager;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private ProductService productService;
@@ -84,7 +87,7 @@ class ProductServiceTest {
     @DisplayName("진행 중인 Drop이 있으면 상품 수정 시 ActiveDropExistsException을 발생시킨다")
     void updateProduct_activeDropExists() {
 
-        given(dropInternalClient.hasActiveDrop(any()))
+        given(dropFeignClient.hasActiveDrop(any()))
                 .willReturn(ApiResponse.success(new ActiveDropResponse(true)));
 
         assertThatThrownBy(() -> productService.updateProduct(PRODUCT_ID, updateRequest))
@@ -95,10 +98,28 @@ class ProductServiceTest {
     @DisplayName("진행 중인 Drop이 있으면 상품 삭제 시 ActiveDropExistsException을 발생시킨다")
     void deleteProduct_activeDropExists() {
 
-        given(dropInternalClient.hasActiveDrop(any()))
+        given(dropFeignClient.hasActiveDrop(any()))
                 .willReturn(ApiResponse.success(new ActiveDropResponse(true)));
 
         assertThatThrownBy(() -> productService.deleteProduct(PRODUCT_ID, UUID.randomUUID()))
                 .isInstanceOf(ActiveDropExistsException.class);
+    }
+
+    @Test
+    @DisplayName("상품을 삭제하면 소프트 삭제되고 캐시 무효화를 위한 ProductUpdatedEvent를 발행한다")
+    void deleteProduct_success() {
+
+        given(dropFeignClient.hasActiveDrop(any()))
+                .willReturn(ApiResponse.success(new ActiveDropResponse(false)));
+
+        Product product = Product.create(
+                "Switch 2", "설명", 648000L, "Nintendo", "게이밍 기기", null
+        );
+        given(productRepository.findById(PRODUCT_ID)).willReturn(Optional.of(product));
+
+        productService.deleteProduct(PRODUCT_ID, UUID.randomUUID());
+
+        assertThat(product.isDeleted()).isTrue();
+        verify(eventPublisher).publishEvent(any(ProductUpdatedEvent.class));
     }
 }

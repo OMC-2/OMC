@@ -2,6 +2,7 @@ package com.omc.payment.application.service;
 
 import com.omc.common.exception.BusinessException;
 import com.omc.payment.domain.exception.PaymentErrorCode;
+import com.omc.payment.domain.exception.RetryablePaymentException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -10,7 +11,9 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
@@ -39,9 +42,21 @@ public class PaymentIdempotencyService {
         return "payment:cancel:" + orderId;
     }
 
+
     public void execute(String idempotencyKey, Runnable action) {
+        execute(
+                idempotencyKey,
+                () -> {
+                    action.run();
+                    return null;
+                },
+                () -> null
+        );
+    }
+
+    public <T> T execute(String idempotencyKey, Supplier<T> action, Supplier<T> alreadySucceeded) {
         if (isSucceeded(idempotencyKey)) {
-            return;
+            return alreadySucceeded.get();
         }
 
         String processingToken = PROCESSING_PREFIX + UUID.randomUUID();
@@ -52,16 +67,17 @@ public class PaymentIdempotencyService {
         if (!Boolean.TRUE.equals(acquired)) {
             // 선점에 실패했지만 다른 요청에 의해 성공한 경우 단순 리턴
             if (isSucceeded(idempotencyKey)) {
-                return;
+                return alreadySucceeded.get();
             }
-            throw new BusinessException(PaymentErrorCode.PAYMENT_ALREADY_EXISTS, "동일한 결제 요청이 이미 처리 중입니다.");
+            throw new RetryablePaymentException(PaymentErrorCode.PAYMENT_ALREADY_EXISTS, "동일한 결제 요청이 이미 처리 중입니다.");
         }
         try {
-            action.run();
+            T result = action.get();
 
             // DB 저장과 Redis를 트랜잭션으로 묶을 수 없기 때문에
             // 트랜잭션이 커밋된 후에 성공 처리하도록 보장
             markSucceededAfterCommit(idempotencyKey,  processingToken);
+            return result;
         } catch (RuntimeException e) {
             // 예외 발생 시 선점 취소
             clearProcessing(idempotencyKey, processingToken);
@@ -109,7 +125,7 @@ public class PaymentIdempotencyService {
         * 잡았던 토큰과 현재 값이 같을 때만 삭제 가능
         * */
         String currentValue = stringRedisTemplate.opsForValue().get(idempotencyKey);
-        if (processingToken.equals(currentValue)) {
+        if (Objects.equals(processingToken, currentValue)) {
             stringRedisTemplate.delete(idempotencyKey);
         }
     }

@@ -35,9 +35,6 @@ class PurchaseServiceTest {
     @InjectMocks
     private PurchaseService purchaseService;
 
-    private static final UUID PRODUCT_ID = UUID.randomUUID();
-    private static final int HOLD_TTL_SEC = 600;
-
     @Nested
     @DisplayName("선착순 구매 선점")
     class Purchase {
@@ -48,11 +45,7 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
-            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(dropRedisStore.executePurchase(eq(dropId), eq(userId), any(UUID.class),
-                    eq(HOLD_TTL_SEC), eq(PRODUCT_ID), anyString()))
+            when(dropRedisStore.executePurchase(eq(dropId), eq(userId), any(UUID.class), anyString()))
                     .thenReturn(42L);
 
             PurchaseResponse response = purchaseService.purchase(dropId, userId);
@@ -62,35 +55,42 @@ class PurchaseServiceTest {
         }
 
         @Test
-        @DisplayName("Redis OPEN 플래그가 없으면 Lua 실행 없이 DropNotOpenException이 발생한다")
-        void throwsDropNotOpenExceptionWithoutLua() {
+        @DisplayName("Lua 반환 -3이면 DropNotOpenException이 발생한다")
+        void throwsDropNotOpenException() {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(dropRedisStore.isOpen(dropId)).thenReturn(false);
+            when(dropRedisStore.executePurchase(any(), any(), any(UUID.class), anyString()))
+                    .thenReturn(-3L);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
                     .isInstanceOf(DropNotOpenException.class);
-
-            verify(dropRedisStore, never())
-                    .executePurchase(any(), any(), any(), anyInt(), any(), anyString());
         }
 
         @Test
-        @DisplayName("Redis에 productId가 없으면 DropNotFoundException이 발생한다")
-        void throwsWhenProductIdNotInRedis() {
+        @DisplayName("Lua 반환 null이면 DropNotOpenException이 발생한다")
+        void throwsDropNotOpenExceptionWhenNull() {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
-            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(dropRedisStore.getProductId(dropId)).thenReturn(null);
+            when(dropRedisStore.executePurchase(any(), any(), any(UUID.class), anyString()))
+                    .thenReturn(null);
+
+            assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
+                    .isInstanceOf(DropNotOpenException.class);
+        }
+
+        @Test
+        @DisplayName("Lua 반환 -4이면 DropNotFoundException이 발생한다")
+        void throwsDropNotFoundException() {
+            UUID dropId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+
+            when(dropRedisStore.executePurchase(any(), any(), any(UUID.class), anyString()))
+                    .thenReturn(-4L);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
                     .isInstanceOf(DropNotFoundException.class);
-
-            verify(dropRedisStore, never())
-                    .executePurchase(any(), any(), any(), anyInt(), any(), anyString());
         }
 
         @Test
@@ -99,10 +99,7 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
-            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(dropRedisStore.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+            when(dropRedisStore.executePurchase(any(), any(), any(UUID.class), anyString()))
                     .thenReturn(-1L);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
@@ -115,10 +112,7 @@ class PurchaseServiceTest {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
-            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(dropRedisStore.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+            when(dropRedisStore.executePurchase(any(), any(), any(UUID.class), anyString()))
                     .thenReturn(-2L);
 
             assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
@@ -126,38 +120,17 @@ class PurchaseServiceTest {
         }
 
         @Test
-        @DisplayName("Lua 반환이 null이면 DuplicatePurchaseException이 발생한다")
-        void throwsDuplicatePurchaseExceptionWhenResultIsNull() {
-            UUID dropId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
-
-            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
-            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(dropRedisStore.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
-                    .thenReturn(null);
-
-            assertThatThrownBy(() -> purchaseService.purchase(dropId, userId))
-                    .isInstanceOf(DuplicatePurchaseException.class);
-        }
-
-        @Test
-        @DisplayName("선점 성공 시 executePurchase에 올바른 dropId·userId·productId가 전달된다")
+        @DisplayName("선점 성공 시 executePurchase에 dropId·userId가 올바르게 전달된다")
         void passesCorrectArgumentsToExecutePurchase() {
             UUID dropId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            when(dropRedisStore.isOpen(dropId)).thenReturn(true);
-            when(dropRedisStore.getHoldTtlSec(dropId)).thenReturn(HOLD_TTL_SEC);
-            when(dropRedisStore.getProductId(dropId)).thenReturn(PRODUCT_ID);
-            when(dropRedisStore.executePurchase(any(), any(), any(), anyInt(), any(), anyString()))
+            when(dropRedisStore.executePurchase(any(), any(), any(UUID.class), anyString()))
                     .thenReturn(1L);
 
             purchaseService.purchase(dropId, userId);
 
-            verify(dropRedisStore).executePurchase(
-                    eq(dropId), eq(userId), any(UUID.class),
-                    eq(HOLD_TTL_SEC), eq(PRODUCT_ID), anyString());
+            verify(dropRedisStore).executePurchase(eq(dropId), eq(userId), any(UUID.class), anyString());
         }
     }
 }

@@ -140,7 +140,7 @@ class PaymentEventServiceTest {
                     org.mockito.ArgumentMatchers.eq(9000L),
                     providerPaymentIdCaptor.capture()
             );
-            assertThat(providerPaymentIdCaptor.getValue()).isNull();
+            assertThat(providerPaymentIdCaptor.getValue()).isEqualTo(ORDER_ID.toString());
         }
     }
 

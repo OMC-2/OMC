@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -21,11 +23,11 @@ public class OutboxPollerScheduler {
     private final OutboxEventRepository outboxEventRepository;
     private final EventProducerPort eventProducerPort;
 
-    @Scheduled(fixedDelay = 5000) // 5초마다 실행
+    @Scheduled(fixedDelay = 5000) // 5초마???�행
     @SchedulerLock(name = "pollAndPublishOutboxEvents", lockAtLeastFor = "PT4S", lockAtMostFor = "PT10S")
     @Transactional
     public void pollAndPublishOutboxEvents() {
-        List<OutboxEvent> pendingEvents = outboxEventRepository.findAllByStatusIn(
+        List<OutboxEvent> pendingEvents = outboxEventRepository.findTop100ByStatusIn(
                 List.of(OutboxStatus.INIT, OutboxStatus.FAILED)
         );
 
@@ -37,7 +39,7 @@ public class OutboxPollerScheduler {
 
         for (OutboxEvent event : pendingEvents) {
             try {
-                // 키는 aggregateId (raffleId) 로 설정하여 파티션 순서 보장
+                // ?�는 aggregateId (raffleId) �??�정?�여 ?�티???�서 보장
                 boolean success = eventProducerPort.send(event.getEventType(), event.getAggregateId(), event.getPayload());
                 if (success) {
                     event.markAsPublished();

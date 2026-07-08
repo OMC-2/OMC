@@ -9,9 +9,10 @@ import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.domain.enums.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
+import com.omc.raffle.domain.repository.RafflePenaltyRepository;
 import com.omc.raffle.infrastructure.client.PaymentFeignClient;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
-import com.omc.raffle.presentation.dto.request.PreAuthRequest;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -43,10 +44,16 @@ class RaffleAppServiceTest {
     private RaffleEntryRepository raffleEntryRepository;
 
     @Mock
+    private RafflePenaltyRepository rafflePenaltyRepository;
+
+    @Mock
     private RaffleEntryRedisRepository redisRepository;
 
     @Mock
     private PaymentFeignClient paymentFeignClient;
+
+    @Mock
+    private org.springframework.cache.CacheManager cacheManager;
 
     @Nested
     @DisplayName("래플 응모 로직 (apply)")
@@ -66,6 +73,7 @@ class RaffleAppServiceTest {
             raffle.updateStatus(RaffleStatus.OPEN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
+            when(rafflePenaltyRepository.existsByUserIdAndPenaltyEndDateAfter(eq(request.userId()), any(LocalDateTime.class))).thenReturn(false);
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(true);
             doNothing().when(paymentFeignClient).preAuthCard(any(PreAuthRequest.class));
 
@@ -78,8 +86,8 @@ class RaffleAppServiceTest {
             // then
             assertNotNull(response);
             assertEquals(request.userId(), response.userId());
-            verify(paymentFeignClient, times(1)).preAuthCard(any(PreAuthRequest.class));
-            verify(raffleEntryRepository, times(1)).save(any(RaffleEntry.class));
+            verify(paymentFeignClient, org.mockito.Mockito.timeout(2000).times(1)).preAuthCard(any(PreAuthRequest.class));
+            verify(raffleEntryRepository, org.mockito.Mockito.timeout(2000).times(1)).save(any(RaffleEntry.class));
         }
 
         @Test
@@ -103,6 +111,28 @@ class RaffleAppServiceTest {
         }
 
         @Test
+        @DisplayName("패널티 유저일 경우 응모 시 예외가 발생한다")
+        void failWhenPenaltyActive() {
+            // given
+            UUID raffleId = UUID.randomUUID();
+            RaffleApplyRequest request = new RaffleApplyRequest(
+                    UUID.randomUUID(), "bk_" + UUID.randomUUID().toString(), null,
+                    BigDecimal.valueOf(10000), BigDecimal.ZERO, BigDecimal.valueOf(10000)
+            );
+
+            Raffle raffle = Raffle.create(UUID.randomUUID(), "Jordan 1", 10, com.omc.raffle.domain.enums.RaffleStatus.SCHEDULED, LocalDateTime.now().minusDays(1), LocalDateTime.now().plusDays(1));
+            raffle.updateStatus(RaffleStatus.OPEN);
+
+            when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
+            when(rafflePenaltyRepository.existsByUserIdAndPenaltyEndDateAfter(eq(request.userId()), any(LocalDateTime.class))).thenReturn(true);
+
+            // when & then
+            BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
+            assertEquals(RaffleErrorCode.RAFFLE_007.getCode(), exception.getErrorCode().getCode());
+            verify(redisRepository, never()).addEntry(any(), any());
+        }
+
+        @Test
         @DisplayName("이미 응모한 유저일 경우 예외가 발생한다 (Redis 중복)")
         void failWhenAlreadyApplied() {
             // given
@@ -116,6 +146,7 @@ class RaffleAppServiceTest {
             raffle.updateStatus(RaffleStatus.OPEN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
+            when(rafflePenaltyRepository.existsByUserIdAndPenaltyEndDateAfter(eq(request.userId()), any(LocalDateTime.class))).thenReturn(false);
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(false);
 
             // when & then
@@ -138,16 +169,16 @@ class RaffleAppServiceTest {
             raffle.updateStatus(RaffleStatus.OPEN);
 
             when(raffleRepository.findById(raffleId)).thenReturn(Optional.of(raffle));
+            when(rafflePenaltyRepository.existsByUserIdAndPenaltyEndDateAfter(eq(request.userId()), any(LocalDateTime.class))).thenReturn(false);
             when(redisRepository.addEntry(raffleId, request.userId())).thenReturn(true);
             doThrow(new RuntimeException("Payment Error")).when(paymentFeignClient).preAuthCard(any());
 
             // when & then
-            BusinessException exception = assertThrows(BusinessException.class, () -> raffleAppService.apply(raffleId, request));
-            assertEquals(RaffleErrorCode.RAFFLE_004.getCode(), exception.getErrorCode().getCode());
-            
-            // Redis remove가 호출되었는지 검증
-            verify(redisRepository, times(1)).removeEntry(raffleId, request.userId());
-            verify(raffleEntryRepository, never()).save(any());
+            RaffleApplyResponse response = raffleAppService.apply(raffleId, request);
+            assertNotNull(response);
+
+            // Redis remove가 호출되었는지 검증 (비동기 처리이므로 timeout 설정)
+            verify(redisRepository, org.mockito.Mockito.timeout(2000).times(1)).removeEntry(raffleId, request.userId());
         }
     }
 

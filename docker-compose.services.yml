@@ -148,6 +148,8 @@ services:
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
       SENTRY_DSN: ${SENTRY_DSN:-}
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1g -XX:+UseG1GC"
+      TRACING_SAMPLING_PROBABILITY: 0.0
     depends_on:
       config-server:
         condition: service_healthy
@@ -168,7 +170,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 1536m
 
   order-service:
     build:
@@ -313,6 +315,7 @@ services:
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
       SENTRY_DSN: ${SENTRY_DSN:-}
+      PAYMENT_SERVICE_URL: http://omc-toss-wiremock:8080
     depends_on:
       config-server:
         condition: service_healthy

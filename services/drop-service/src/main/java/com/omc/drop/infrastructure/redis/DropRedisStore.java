@@ -18,8 +18,6 @@ public class DropRedisStore {
 
     private static final String OPEN_DROPS_KEY = "open_drops";
 
-    private static final int DEFAULT_HOLD_TTL_SEC = 600;
-
     private static final RedisScript<Long> PURCHASE_SCRIPT =
             RedisScript.of(new ClassPathResource("scripts/purchase.lua"), Long.class);
 
@@ -53,38 +51,31 @@ public class DropRedisStore {
         return "OPEN".equals(status);
     }
 
-    public int getHoldTtlSec(UUID dropId) {
-        String val = redisTemplate.opsForValue().get(holdTtlKey(dropId));
-        return val != null ? Integer.parseInt(val) : DEFAULT_HOLD_TTL_SEC;
-    }
-
-    public UUID getProductId(UUID dropId) {
-        String val = redisTemplate.opsForValue().get(productIdKey(dropId));
-        return val != null ? UUID.fromString(val) : null;
-    }
-
-    // 반환값: -2 = 중복 구매, -1 = 품절, 양수 = 순번(queueNumber)
-    public Long executePurchase(UUID dropId, UUID userId, UUID orderId, int holdTtlSec, UUID productId, String eventId) {
+    // 반환값: -4 = 드롭 없음, -3 = OPEN 아님, -2 = 중복 구매, -1 = 품절, 양수 = 순번(queueNumber)
+    // status/holdTtl/productId 조회를 Lua 내부로 통합 — 개별 GET 대비 round-trip 4→1
+    public Long executePurchase(UUID dropId, UUID userId, UUID orderId, String eventId) {
         List<String> keys = List.of(
                 purchasedKey(dropId),
                 stockKey(dropId),
                 holdsKey(dropId),
                 queueKey(dropId),
-                PurchaseStreamStore.STREAM_KEY
+                PurchaseStreamStore.STREAM_KEY,
+                statusKey(dropId),
+                holdTtlKey(dropId),
+                productIdKey(dropId),
+                soldOutKey(dropId)
         );
         return redisTemplate.execute(PURCHASE_SCRIPT, keys,
-                userId.toString(), orderId.toString(), String.valueOf(holdTtlSec),
-                productId.toString(), dropId.toString(), eventId);
+                userId.toString(), orderId.toString(), dropId.toString(), eventId);
     }
 
-    // 만료 epoch 이하인 orderId 목록 조회
     public Set<String> getExpiredOrderIds(UUID dropId, long nowEpoch) {
         return redisTemplate.opsForZSet().rangeByScore(holdsKey(dropId), 0, nowEpoch);
     }
 
     // 반환값: 1 = ZREM 성공 + 재고 복구, 0 = 이미 없음 (다른 인스턴스가 먼저 처리)
     public long expireHold(UUID dropId, UUID orderId) {
-        List<String> keys = List.of(holdsKey(dropId), stockKey(dropId));
+        List<String> keys = List.of(holdsKey(dropId), stockKey(dropId), soldOutKey(dropId));
         Long result = redisTemplate.execute(EXPIRE_SCRIPT, keys, orderId.toString());
         return result != null ? result : 0L;
     }
@@ -97,7 +88,7 @@ public class DropRedisStore {
 
     // 반환값: 1 = 복구 완료, 0 = hold 없음 (이미 처리됨)
     public long recoverStock(UUID dropId, UUID orderId, UUID userId) {
-        List<String> keys = List.of(holdsKey(dropId), stockKey(dropId), purchasedKey(dropId));
+        List<String> keys = List.of(holdsKey(dropId), stockKey(dropId), purchasedKey(dropId), soldOutKey(dropId));
         Long result = redisTemplate.execute(RECOVERY_SCRIPT, keys, orderId.toString(), userId.toString());
         return result != null ? result : 0L;
     }
@@ -120,6 +111,21 @@ public class DropRedisStore {
         return count == null || count == 0;
     }
 
+    public long deleteDropKeys(UUID dropId) {
+        List<String> keys = List.of(
+                stockKey(dropId),
+                purchasedKey(dropId),
+                holdsKey(dropId),
+                queueKey(dropId),
+                holdTtlKey(dropId),
+                productIdKey(dropId),
+                soldOutKey(dropId)
+        );
+        Long deleted = redisTemplate.delete(keys);
+        return deleted != null ? deleted : 0L;
+    }
+
+    // ── 통합 테스트 전용 ──────────────────────────────────────
     public int getStock(UUID dropId) {
         String val = redisTemplate.opsForValue().get(stockKey(dropId));
         return val != null ? Integer.parseInt(val) : 0;
@@ -134,19 +140,6 @@ public class DropRedisStore {
         return redisTemplate.opsForZSet().score(holdsKey(dropId), orderId.toString()) != null;
     }
 
-    public long deleteDropKeys(UUID dropId) {
-        List<String> keys = List.of(
-                stockKey(dropId),
-                purchasedKey(dropId),
-                holdsKey(dropId),
-                queueKey(dropId),
-                holdTtlKey(dropId),
-                productIdKey(dropId)
-        );
-        Long deleted = redisTemplate.delete(keys);
-        return deleted != null ? deleted : 0L;
-    }
-
     private static String statusKey(UUID dropId)    { return "drop:" + dropId + ":status"; }
     private static String stockKey(UUID dropId)     { return "stock:" + dropId; }
     private static String purchasedKey(UUID dropId) { return "purchased:" + dropId; }
@@ -154,4 +147,5 @@ public class DropRedisStore {
     private static String queueKey(UUID dropId)     { return "queue:" + dropId; }
     private static String holdTtlKey(UUID dropId)   { return "hold_ttl:" + dropId; }
     private static String productIdKey(UUID dropId) { return "product_id:" + dropId; }
+    public  static String soldOutKey(UUID dropId)   { return "sold_out:" + dropId; } // Gateway SoldOutCheckFilter에서 직접 참조
 }

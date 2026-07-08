@@ -1,6 +1,6 @@
 package com.omc.payment.application.port.out;
 
-import java.util.UUID;
+import com.omc.payment.domain.enums.PaymentGatewayStatus;
 
 public final class PaymentGatewayResult {
 
@@ -14,6 +14,15 @@ public final class PaymentGatewayResult {
 
     public record RegisterBillingKey(
             String billingKeyID
+    ) {}
+
+    public record Payment(
+            String providerPaymentId,
+            String orderId,
+            PaymentGatewayStatus status,
+            Long totalAmount,
+            Long cancelableAmount, // 취소 가능 금액
+            String providerTransactionId // 결제 한 건에 해당하는 마지막 트랜잭션 식별자
     ) {}
 
     public record Cancel(

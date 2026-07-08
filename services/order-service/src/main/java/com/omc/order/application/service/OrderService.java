@@ -65,6 +65,7 @@ public class OrderService {
               .eventId(eventId)
               .orderId(order.getOrderId())
               .userId(payload.userId())
+              .productId(payload.productId())
               .orderType("DROP")
               .dropId(payload.dropId())
               .raffleId(null)
@@ -104,6 +105,7 @@ public class OrderService {
             .eventId(eventId)
             .orderId(order.getOrderId())
             .userId(payload.userId())
+            .productId(payload.productId())
             .orderType("RAFFLE")
             .dropId(null)
             .raffleId(payload.raffleId())
@@ -190,6 +192,14 @@ public class OrderService {
             .userId(order.getUserId())
             .reason(reason.name())
             .build());
+  }
+
+  //[환불 완료] REFUND_REQUESTED -> REFUNDED (payment refund.done 수신, PG 취소 완료)
+  @Transactional
+  public void refundOrder(UUID orderId) {
+    log.info("[OrderService] 환불 완료 수신 -> REFUNDED 전이: orderId={}", orderId);
+    Order order = findOrder(orderId);
+    order.markRefunded();
   }
 
   private Order findOrder(UUID orderId) {

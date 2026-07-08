@@ -7,6 +7,7 @@ import com.omc.order.application.event.dto.PaymentCompletedEvent;
 import com.omc.order.application.event.dto.PaymentFailedEvent;
 import com.omc.order.application.event.dto.PurchaseConfirmedEvent;
 import com.omc.order.application.event.dto.RaffleWinnerSelectedEvent;
+import com.omc.order.application.event.dto.RefundDoneEvent;
 import com.omc.order.application.event.dto.StockDeductedEvent;
 import com.omc.order.application.event.dto.StockFailedEvent;
 import com.omc.order.application.service.OrderService;
@@ -105,7 +106,7 @@ public class OrderEventConsumer {
   @Transactional
   public void consumeStockDeducted(String message) {
       StockDeductedEvent payload = parse(message, StockDeductedEvent.class, "stock.deducted");
-      if(isAlreadyProcessed(payload.eventId(), "stock.defunded")) return;
+      if(isAlreadyProcessed(payload.eventId(), "stock.deducted")) return;
 
       log.info("[OrderConsumer] 재고 차막 완료 수신 -> CONFIRMED 전이: orderId={}", payload.orderId());
       orderService.confirmOrder(payload.orderId());
@@ -131,5 +132,16 @@ public class OrderEventConsumer {
 
       log.info("[OrderConsumer] 홀드 만료 수신 -> 주문 취소: orderId={}", payload.orderId());
       orderService.cancelOrder(payload.orderId(), CancelReason.HOLD_EXPIRED);
+  }
+
+  //8.환불 완료 수신 (payment PG 취소 완료) -> REFUND_REQUESTED -> REFUNDED
+  @KafkaListener(topics = "refund.done", groupId = "order-service-group")
+  @Transactional
+  public void consumeRefundDone(String message) {
+    RefundDoneEvent payload = parse(message, RefundDoneEvent.class, "refund.done");
+    if (isAlreadyProcessed(payload.eventId(), "refund.done")) return;
+
+    log.info("[OrderConsumer] 환불 완료 수신 -> REFUNDED 전이: orderId={}", payload.orderId());
+    orderService.refundOrder(payload.orderId());
   }
 }

@@ -1,7 +1,6 @@
 package com.omc.payment.domain.entity;
 
 import com.omc.common.entity.BaseEntity;
-import com.omc.common.exception.BusinessException;
 import com.omc.common.util.UuidV7Generator;
 import com.omc.payment.domain.enums.CancellationCode;
 import com.omc.payment.domain.enums.PaymentMethod;
@@ -24,7 +23,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -105,6 +103,9 @@ public class Payment extends BaseEntity {
     @Column(name = "cancelled_message")
     private String cancelledMessage;
 
+    @Column(name = "unknown_recovery_retry_count", nullable = false)
+    private int unknownRecoveryRetryCount;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -134,6 +135,7 @@ public class Payment extends BaseEntity {
             Long discountAmount,
             Long finalAmount,
             Provider provider,
+            String providerPaymentId,
             PaymentMethod paymentMethod
     ) {
         /*
@@ -162,6 +164,7 @@ public class Payment extends BaseEntity {
                 .discountAmount(resolvedDiscountAmount)
                 .finalAmount(resolvedFinalAmount)
                 .provider(require(provider, PaymentErrorCode.PAYMENT_FAILED, "결제 제공자는 null일 수 없습니다."))
+                .providerPaymentId(providerPaymentId)
                 .paymentMethod(require(paymentMethod, PaymentErrorCode.PAYMENT_FAILED, "결제 수단은 null일 수 없습니다."))
                 .paymentStatus(PaymentStatus.READY)
                 .requestedAt(LocalDateTime.now())
@@ -184,8 +187,14 @@ public class Payment extends BaseEntity {
 
     // PG 승인 성공 이벤트 반영
     public void approve(String providerPaymentId) {
+        if (providerPaymentId == null || providerPaymentId.isBlank()) {
+            throw new NonRetryablePaymentException(
+                    PaymentErrorCode.PAYMENT_GATEWAY_CONNECTION_FAILED,
+                    "PG 결제 ID는 필수입니다."
+            );
+        }
         transitTo(PaymentStatus.PAID);
-        this.providerPaymentId = Objects.requireNonNull(providerPaymentId, "PG 결제 ID는 null일 수 없습니다.");
+        this.providerPaymentId = providerPaymentId;
         this.approvedAt = LocalDateTime.now();
         this.failedAt = null;
         this.failureCode = null;
@@ -201,8 +210,16 @@ public class Payment extends BaseEntity {
     }
 
     // PG 응답 지연 또는 확인 불가 이벤트 반영
-    public void markUnknown() {
-        transitTo(PaymentStatus.UNKNOWN);
+    // PG 승인 결과를 확인할 수 없는 상태로 변경
+    public void markConfirmUnknown() {
+        transitTo(PaymentStatus.CONFIRM_UNKNOWN);
+    }
+
+    // PG 취소 결과를 확인할 수 없는 상태로 변경
+    public void markCancelUnknown(CancellationCode cancellationCode, String cancelledMessage) {
+        transitTo(PaymentStatus.CANCEL_UNKNOWN);
+        this.cancellationCode = cancellationCode;
+        this.cancelledMessage = cancelledMessage;
     }
 
     // 결제 취소 또는 환불 이벤트 반영
@@ -218,9 +235,24 @@ public class Payment extends BaseEntity {
         this.canceledAt = LocalDateTime.now();
     }
 
+    // 재시도 실패 횟수 증가 및 최대 시도 검증
+    public void markUnknownRecoveryRetry(int maxRetryCount) {
+        if (paymentStatus != PaymentStatus.CONFIRM_UNKNOWN
+                && paymentStatus != PaymentStatus.CANCEL_UNKNOWN) {
+            return;
+        }
+        this.unknownRecoveryRetryCount += 1;
+        if (unknownRecoveryRetryCount >= Math.max(1, maxRetryCount)) {
+            transitTo(PaymentStatus.RECOVERY_FAILED);
+        }
+    }
+
     private void transitTo(PaymentStatus targetStatus) {
+        if (paymentStatus == targetStatus) {
+            return;
+        }
         if (!paymentStatus.canChangeTo(targetStatus)) {
-            throw new BusinessException(
+            throw new NonRetryablePaymentException(
                     PaymentErrorCode.PAYMENT_INVALID_STATUS,
                     "결제 상태를 " + paymentStatus + "에서 " + targetStatus + "로 변경할 수 없습니다."
             );

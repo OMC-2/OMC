@@ -166,6 +166,36 @@ class PurchaseStreamWorkerTest {
 
             verify(kafkaTemplate, never()).send(anyString(), anyString(), any());
         }
+
+        @Test
+        @DisplayName("포이즌 메시지는 store에서 강제 ACK 처리 후 제외된 채로 반환되어 Kafka 발행이 일어나지 않는다")
+        void does_not_publish_when_store_filters_out_poison_messages() {
+            // store가 포이즌 메시지를 내부적으로 강제 ACK 하고 빈 리스트를 반환하는 시나리오
+            when(purchaseStreamStore.claimStaleMessages(anyString())).thenReturn(List.of());
+
+            worker.reclaimStalePending();
+
+            verify(kafkaTemplate, never()).send(anyString(), anyString(), any());
+            verify(purchaseStreamStore, never()).acknowledge(any(RecordId.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("retryOwnPending — 포이즌 메시지 필터링")
+    class PoisonMessageHandling {
+
+        @Test
+        @DisplayName("포이즌 메시지는 store에서 강제 ACK 처리 후 제외되어 Kafka 발행이 일어나지 않는다")
+        void does_not_publish_when_store_filters_out_poison_messages() {
+            // store가 포이즌 메시지(재시도 한도 초과)를 내부 ACK 후 빈 리스트 반환
+            when(purchaseStreamStore.getOwnStalePending(anyString(), any(Duration.class)))
+                    .thenReturn(List.of());
+
+            worker.retryOwnPending();
+
+            verify(kafkaTemplate, never()).send(anyString(), anyString(), any());
+            verify(purchaseStreamStore, never()).acknowledge(any(RecordId.class));
+        }
     }
 
     // ─── 픽스처 헬퍼 ─────────────────────────────────────────────────────────

@@ -13,6 +13,9 @@ import com.omc.raffle.domain.enums.RaffleStatus;
 import com.omc.raffle.domain.enums.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
+import com.omc.raffle.domain.repository.RafflePenaltyRepository;
+import com.omc.raffle.domain.exception.PenaltyActiveException;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,7 +29,7 @@ import com.omc.raffle.presentation.dto.response.RaffleResponse;
 import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
 
 import com.omc.raffle.infrastructure.client.PaymentFeignClient;
-import com.omc.raffle.presentation.dto.request.PreAuthRequest;
+import com.omc.raffle.infrastructure.client.dto.PreAuthRequest;
 import com.omc.raffle.infrastructure.redis.RaffleEntryRedisRepository;
 
 /**
@@ -41,69 +44,69 @@ public class RaffleAppService {
 
     private final RaffleRepository raffleRepository;
     private final RaffleEntryRepository raffleEntryRepository;
+    private final RafflePenaltyRepository rafflePenaltyRepository;
     private final RaffleEntryRedisRepository redisRepository;
     private final PaymentFeignClient paymentFeignClient;
+    private final org.springframework.cache.CacheManager cacheManager;
+    private static final java.util.concurrent.ConcurrentHashMap<UUID, Boolean> localCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * 래플 응모 로직
      */
-    @Transactional
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public RaffleApplyResponse apply(UUID raffleId, RaffleApplyRequest request) {
-        // 1. 래플 조회
-        Raffle raffle = raffleRepository.findById(raffleId)
-                .orElseThrow(() -> new RaffleNotFoundException(RaffleErrorCode.RAFFLE_001));
+        // 1. 래플 조회 (수동 인메모리 캐싱으로 DB 커넥션 풀 고갈 원천 차단)
+        org.springframework.cache.Cache cache = cacheManager.getCache("raffle");
+        Raffle raffle;
+        if (cache != null && cache.get(raffleId) != null) {
+            raffle = (Raffle) cache.get(raffleId).get();
+        } else {
+            raffle = raffleRepository.findById(raffleId)
+                    .orElseThrow(() -> new RaffleNotFoundException(RaffleErrorCode.RAFFLE_001));
+            if (cache != null) cache.put(raffleId, raffle);
+        }
 
         // 2. 래플 상태 검증
         if (raffle.getStatus() != RaffleStatus.OPEN) {
             throw new RaffleNotOpenException(RaffleErrorCode.RAFFLE_003); // 진행 중인 래플이 아님
         }
 
-        // 3. 중복 응모 검증 (Redis SADD 활용)
+        // 3. 패널티 여부 검증
+        boolean isPenaltyActive = rafflePenaltyRepository.existsByUserIdAndPenaltyEndDateAfter(request.userId(), LocalDateTime.now());
+        if (isPenaltyActive) {
+            throw new PenaltyActiveException(RaffleErrorCode.RAFFLE_007, "현재 패널티 상태이므로 응모할 수 없습니다.");
+        }
+
+        // 4. 중복 응모 검증 (Redis SADD 활용)
         boolean isAdded = redisRepository.addEntry(raffleId, request.userId());
         if (!isAdded) {
             throw new DuplicateEntryException(RaffleErrorCode.RAFFLE_002); // 이미 응모함
         }
 
-        // 4. 결제 수단 유효성 검증 (가승인)
-        try {
-            // 결제 서버에 100원 가승인 요청 (이후 결제 서버 내에서 자동 승인 취소됨)
-            paymentFeignClient.preAuthCard(new PreAuthRequest(request.billingKeyId(), new java.math.BigDecimal("100")));
-        } catch (Exception e) {
-            // SAGA 보상 트랜잭션: 결제 수단 가승인 실패 시 이미 SADD된 Redis 값을 제거
-            log.error("[RaffleAppService] 결제 수단 가승인 실패. userId={}, billingKeyId={}", request.userId(), request.billingKeyId(), e);
-            redisRepository.removeEntry(raffleId, request.userId());
-            throw new PaymentPreAuthFailedException(RaffleErrorCode.RAFFLE_004, "결제 수단(카드) 검증에 실패했습니다.");
-        }
+        // 응모 내역 임시 생성
+        RaffleEntry entry = RaffleEntry.create(
+                raffleId, request.userId(), request.billingKeyId(), request.couponId(),
+                request.originalAmount(), request.discountAmount(), request.finalAmount()
+        );
 
-        // 5. 응모 내역 저장
-        RaffleEntry savedEntry;
-        try {
-            RaffleEntry entry = RaffleEntry.create(
-                    raffleId, 
-                    request.userId(), 
-                    request.billingKeyId(),
-                    request.couponId(),
-                    request.originalAmount(),
-                    request.discountAmount(),
-                    request.finalAmount()
-            );
-            savedEntry = raffleEntryRepository.save(entry);
-        } catch (Exception e) {
-            log.error("[RaffleAppService] DB 저장 실패로 인한 Redis 보상 처리. userId={}, raffleId={}", request.userId(), raffleId, e);
-            redisRepository.removeEntry(raffleId, request.userId());
-            throw new com.omc.raffle.domain.exception.RaffleEntryFailedException(RaffleErrorCode.RAFFLE_010, "DB 저장 중 오류가 발생했습니다.");
-        }
+        // 5. 비동기 처리: 결제 서버 통신(외부 API) 및 DB INSERT를 톰캣 스레드에서 분리
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                // 결제 서버에 100원 가승인 요청
+                paymentFeignClient.preAuthCard(new PreAuthRequest(request.billingKeyId(), java.math.BigDecimal.valueOf(100)));
+                // 응모 내역 DB 저장
+                raffleEntryRepository.save(entry);
+            } catch (Exception e) {
+                log.error("[RaffleAppService] 비동기 처리 중 오류 발생 (결제 또는 DB). userId={}, raffleId={}", request.userId(), raffleId, e);
+                // 보상 처리: Redis 롤백
+                redisRepository.removeEntry(raffleId, request.userId());
+            }
+        });
 
         return new RaffleApplyResponse(
-                savedEntry.getId(),
-                savedEntry.getRaffleId(),
-                savedEntry.getUserId(),
-                savedEntry.getBillingKeyId(),
-                savedEntry.getCouponId(),
-                savedEntry.getOriginalAmount(),
-                savedEntry.getDiscountAmount(),
-                savedEntry.getFinalAmount(),
-                savedEntry.getEnteredAt()
+                entry.getId(), entry.getRaffleId(), entry.getUserId(), entry.getBillingKeyId(),
+                entry.getCouponId(), entry.getOriginalAmount(), entry.getDiscountAmount(),
+                entry.getFinalAmount(), entry.getEnteredAt()
         );
     }
 

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.common.util.UuidV7Generator;
 import com.omc.product.application.event.PaymentCompletedEvent;
-import com.omc.product.application.event.StockFailedEvent;
+import com.omc.product.application.event.producer.StockFailedEvent;
 import com.omc.product.domain.entity.FailedEventLog;
 import com.omc.product.domain.entity.OutboxEvent;
 import com.omc.product.domain.enums.OutboxEventType;
@@ -23,10 +23,10 @@ import java.util.UUID;
  * 재고 차감 실패 처리 컴포넌트
  *
  * REQUIRES_NEW 트랜잭션 적용 이유:
- * InventoryService.confirmDeduct()는 REQUIRES_NEW 트랜잭션으로 동작
- * InsufficientStockException 발생 시 부모 트랜잭션이 롤백되면
- * 같은 트랜잭션 내의 FailedEventLog, OutboxEvent INSERT도 함께 롤백
- * REQUIRES_NEW로 독립 트랜잭션을 열면 부모 롤백과 무관하게 실패 처리가 커밋
+ * InventoryDeductProcessor.tryDeduct()는 REQUIRES_NEW 트랜잭션으로 동작
+ * InsufficientStockException(재고 부족) 또는 ObjectOptimisticLockingFailureException(버전 충돌)
+ * 발생 시 그 트랜잭션이 롤백되면 같은 트랜잭션 내의 FailedEventLog, OutboxEvent INSERT도 함께 롤백
+ * REQUIRES_NEW로 독립 트랜잭션을 열면 tryDeduct()의 롤백과 무관하게 실패 처리가 커밋
  *
  * self-invocation 방지:
  * InventoryService 내부에서 직접 호출하면 Spring AOP 프록시를 우회하여

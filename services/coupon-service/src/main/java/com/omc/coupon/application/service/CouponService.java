@@ -1,12 +1,17 @@
 package com.omc.coupon.application.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.coupon.domain.entity.Coupon;
+import com.omc.coupon.domain.entity.OutboxEvent;
 import com.omc.coupon.domain.entity.UserCoupon;
+import com.omc.coupon.domain.enums.OutboxEventType;
 import com.omc.coupon.domain.exception.CouponAlreadyIssuedException;
 import com.omc.coupon.domain.exception.CouponErrorCode;
 import com.omc.coupon.domain.exception.CouponNotFoundException;
 import com.omc.coupon.domain.exception.CouponOutOfStockException;
 import com.omc.coupon.domain.repository.CouponRepository;
+import com.omc.coupon.domain.repository.OutboxEventRepository;
 import com.omc.coupon.domain.repository.UserCouponRepository;
 import com.omc.coupon.infrastructure.kafka.CouponIssueProducer;
 import com.omc.coupon.infrastructure.metrics.CouponMetrics;
@@ -17,13 +22,17 @@ import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import com.omc.common.exception.BusinessException;
+import com.omc.common.security.SecurityUtil;
+import com.omc.common.util.UuidV7Generator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -33,6 +42,7 @@ public class CouponService {
 
     private final CouponRepository couponRepository;
     private final UserCouponRepository userCouponRepository;
+    private final OutboxEventRepository outboxEventRepository;
     private final CouponRedisRepository couponRedisRepository;
     private final CouponCacheRepository couponCacheRepository;
     private final CouponMetrics couponMetrics;
@@ -49,7 +59,15 @@ public class CouponService {
 
     @Transactional(readOnly = true)
     public Page<CouponResponse> getCoupons(Pageable pageable) {
-        return couponRepository.findAll(pageable).map(CouponResponse::from);
+        return couponRepository.findAllByDeletedAtIsNull(pageable).map(CouponResponse::from);
+    }
+
+    @Transactional
+    public void deleteCoupon(UUID couponId) {
+        Coupon coupon = findCoupon(couponId);
+        coupon.softDelete(SecurityUtil.getCurrentUserId().orElse(null));
+        couponRedisRepository.deleteStock(couponId.toString());
+        log.info("[CouponService] 쿠폰 소프트 삭제 완료. couponId={}", couponId);
     }
 
     @Transactional(readOnly = true)
@@ -91,6 +109,29 @@ public class CouponService {
             throw new CouponOutOfStockException();
         }
 
+        // DB remaining_quantity 차감
+        coupon.decreaseRemainingQuantity();
+
+        // DB 중복 체크 (Redis Set과 이중 방어)
+        userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId).ifPresent(uc -> {
+            couponRedisRepository.incrementStock(couponId.toString()); // 재고 롤백
+            couponRedisRepository.markIssued(couponId.toString(), userId.toString()); // Redis Set 동기화
+            couponMetrics.incrementDuplicate(couponId.toString());
+            throw new CouponAlreadyIssuedException();
+        });
+
+        // UserCoupon 저장 (saveAndFlush로 즉시 INSERT → UNIQUE 위반 시 여기서 예외 발생, 재고 롤백)
+        UserCoupon userCoupon;
+        try {
+            userCoupon = userCouponRepository.saveAndFlush(
+                    UserCoupon.create(userId, coupon, coupon.getExpiredAt())
+            );
+        } catch (DataIntegrityViolationException e) {
+            couponRedisRepository.incrementStock(couponId.toString());
+            coupon.increaseRemainingQuantity(); // DB 롤백
+            couponMetrics.incrementDuplicate(couponId.toString());
+            throw new CouponAlreadyIssuedException();
+        }
         couponIssueProducer.publish(couponId, userId); // 비동기 발행 — 실패 시 whenComplete에서 Redis 롤백
 
         couponMetrics.incrementIssueSuccess(couponIdStr);
@@ -110,7 +151,7 @@ public class CouponService {
     }
 
     private Coupon findCoupon(UUID couponId) {
-        return couponRepository.findById(couponId).orElseThrow(CouponNotFoundException::new);
+        return couponRepository.findByCouponIdAndDeletedAtIsNull(couponId).orElseThrow(CouponNotFoundException::new);
     }
 
     private CouponCacheDto findCouponDto(UUID couponId) {

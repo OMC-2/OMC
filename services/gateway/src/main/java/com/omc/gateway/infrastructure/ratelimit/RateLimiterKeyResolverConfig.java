@@ -5,6 +5,7 @@ import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import reactor.core.publisher.Mono;
@@ -17,6 +18,7 @@ public class RateLimiterKeyResolverConfig {
     // 로컬 부하 테스트 전용 시크릿 — 운영 환경에서는 이 헤더를 게이트웨이 앞단에서 차단해야 함
     private static final String LOAD_TEST_SECRET = "local-loadtest-secret";
 
+    @Primary
     @Bean
     public KeyResolver rateLimiterKeyResolver() {
         return exchange -> {
@@ -38,6 +40,18 @@ public class RateLimiterKeyResolverConfig {
                     return routeId + ":anonymous:" + resolveIp(exchange);
                 })
                 .defaultIfEmpty(routeId + ":anonymous:" + resolveIp(exchange));
+        };
+    }
+
+    // 드롭 구매 선점 전용: dropId 기준으로 전체 처리량 버킷을 공유
+    // (userId 기준이 아닌 drop 단위 전체 제한 — 동시 유입량을 Tomcat thread pool 이내로 억제)
+    @Bean
+    public KeyResolver dropPurchaseKeyResolver() {
+        return exchange -> {
+            String[] parts = exchange.getRequest().getPath().value().split("/");
+            // /api/v1/drops/{dropId}/purchase → index 4
+            String dropId = parts.length > 4 ? parts[4] : "unknown";
+            return Mono.just("drop-purchase:" + dropId);
         };
     }
 
