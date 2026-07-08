@@ -206,9 +206,9 @@ export function RaffleDetailPage() {
           {myResult && (
             <div className="bg-green-50 border border-green-200 p-4">
               <p className="text-xs font-black tracking-wider text-green-700">응모 완료</p>
-              {myResult.result && (
+              {myResult.status && myResult.status !== 'PENDING' && (
                 <p className="mt-1 text-xs text-green-600">
-                  결과: {myResult.result === 'WINNER' ? '🎉 당첨!' : myResult.result === 'LOSER' ? '아쉽게 탈락' : '집계 중'}
+                  결과: {myResult.status === 'WIN' ? '🎉 당첨!' : myResult.status === 'LOSE' ? '아쉽게 탈락' : '집계 중'}
                 </p>
               )}
             </div>

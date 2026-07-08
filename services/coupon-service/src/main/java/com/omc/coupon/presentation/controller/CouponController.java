@@ -59,7 +59,7 @@ public class CouponController {
         couponService.deleteCoupon(couponId);
     }
 
-    // USER: 이벤트용 AES 사전 인증 티켓 발급 (스파이크 전 미리 발급, Gateway ES256 검증 대체)
+    // USER: 이벤트용 AES 사전 인증 티켓 발급
     @PostMapping("/{couponId}/ticket")
     @PreAuthorize("hasRole('USER')")
     public ApiResponse<CouponTicketResponse> issueTicket(@PathVariable UUID couponId) {
@@ -88,14 +88,5 @@ public class CouponController {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
         Page<UserCouponResponse> page = couponService.getMyCoupons(userId, pageable);
         return ApiResponse.success(new PageResponse<>(page));
-    }
-
-    // USER: 내 쿠폰 상세 조회
-    @GetMapping("/me/{userCouponId}")
-    @PreAuthorize("hasRole('USER')")
-    public ApiResponse<UserCouponResponse> getMyCoupon(@PathVariable UUID userCouponId) {
-        UUID userId = SecurityUtil.getCurrentUserId()
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
-        return ApiResponse.success(couponService.getMyCoupon(userId, userCouponId));
     }
 }

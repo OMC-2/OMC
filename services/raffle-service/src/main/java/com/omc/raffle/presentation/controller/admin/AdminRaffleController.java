@@ -34,10 +34,7 @@ public class AdminRaffleController {
     private final RaffleDrawService raffleDrawService;
     private final AdminRaffleAppService adminRaffleAppService;
 
-    @Operation(
-        summary = "수동 추첨 실행",
-        description = "종료된 래플에 대해 수동으로 추첨을 실행합니다. 당첨자 선정 후 알림 이벤트가 발행됩니다."
-    )
+    @Operation(summary = "수동 추첨 실행", description = "종료된 래플에 대해 수동으로 추첨을 실행합니다.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "추첨 성공"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "래플 없음"),
@@ -50,10 +47,7 @@ public class AdminRaffleController {
         return ApiResponse.ok();
     }
 
-    @Operation(
-        summary = "래플 생성",
-        description = "새 래플을 생성합니다. 상품 ID, 이름, 당첨 인원, 시작/종료 시간이 필요합니다."
-    )
+    @Operation(summary = "래플 생성", description = "새 래플을 생성합니다.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 성공"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
@@ -66,10 +60,7 @@ public class AdminRaffleController {
         return ApiResponse.created(response);
     }
 
-    @Operation(
-        summary = "래플 수정",
-        description = "래플 이름과 당첨 인원을 수정합니다."
-    )
+    @Operation(summary = "래플 수정", description = "래플 이름과 당첨 인원을 수정합니다.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "래플 없음"),
@@ -82,10 +73,7 @@ public class AdminRaffleController {
         return ApiResponse.ok();
     }
 
-    @Operation(
-        summary = "래플 삭제",
-        description = "래플을 삭제(취소)합니다."
-    )
+    @Operation(summary = "래플 삭제", description = "래플을 소프트 삭제합니다.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "삭제 성공"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "래플 없음"),
@@ -97,10 +85,7 @@ public class AdminRaffleController {
         return ApiResponse.ok();
     }
 
-    @Operation(
-        summary = "래플 상태 강제 변경",
-        description = "래플 상태를 강제로 변경합니다. UPCOMING → OPEN → CLOSED → DRAWN 순서로 관리합니다."
-    )
+    @Operation(summary = "래플 상태 강제 변경", description = "래플 상태를 SCHEDULED / OPEN / CLOSED 중 하나로 강제 변경합니다.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "상태 변경 성공"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효하지 않은 상태 값"),
@@ -114,15 +99,25 @@ public class AdminRaffleController {
         return ApiResponse.ok();
     }
 
-    @Operation(
-        summary = "응모자 목록 조회",
-        description = "특정 래플의 전체 응모자 목록을 페이지 단위로 조회합니다."
-    )
+    @Operation(summary = "응모자 목록 조회", description = "특정 래플의 전체 응모자 목록을 페이지 단위로 조회합니다.")
     @GetMapping("/{raffleId}/entries")
     public ApiResponse<PageResponse<RaffleEntryResponse>> getRaffleEntries(
             @Parameter(description = "래플 ID", required = true) @PathVariable UUID raffleId,
             @PageableDefault(sort = "enteredAt", direction = Sort.Direction.DESC) Pageable pageable) {
         PageResponse<RaffleEntryResponse> response = adminRaffleAppService.getRaffleEntries(raffleId, pageable);
         return ApiResponse.success(response);
+    }
+
+    @Operation(summary = "패널티 부여", description = "특정 사용자에게 30일 래플 패널티를 부여합니다.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "패널티 부여 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "래플 없음"),
+    })
+    @PostMapping("/{raffleId}/entries/{userId}/penalty")
+    public ApiResponse<Void> penalizeUser(
+            @Parameter(description = "래플 ID", required = true) @PathVariable UUID raffleId,
+            @Parameter(description = "패널티 대상 유저 ID", required = true) @PathVariable UUID userId) {
+        adminRaffleAppService.penalizeUser(raffleId, userId);
+        return ApiResponse.ok();
     }
 }

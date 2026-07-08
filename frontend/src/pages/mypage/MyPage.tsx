@@ -476,11 +476,11 @@ export function MyPage() {
                   <p className="text-[10px] text-gray-400 mt-0.5">{entry.enteredAt ? formatDate(entry.enteredAt) : ''}</p>
                 </div>
                 <span className={`text-[10px] font-black tracking-wider px-2 py-1 ${
-                  entry.result === 'WINNER' ? 'text-yellow-600 bg-yellow-50'
-                  : entry.result === 'LOSER' ? 'text-gray-400 bg-gray-50'
+                  entry.result === 'WIN' ? 'text-yellow-600 bg-yellow-50'
+                  : entry.result === 'LOSE' ? 'text-gray-400 bg-gray-50'
                   : 'text-green-600 bg-green-50'
                 }`}>
-                  {entry.result === 'WINNER' ? '당첨' : entry.result === 'LOSER' ? '낙첨' : 'ENTERED'}
+                  {entry.result === 'WIN' ? '당첨' : entry.result === 'LOSE' ? '낙첨' : 'ENTERED'}
                 </span>
               </Link>
             ))}

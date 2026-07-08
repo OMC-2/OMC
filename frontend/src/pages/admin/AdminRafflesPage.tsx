@@ -7,7 +7,8 @@ import { Plus, X, Shuffle, Trash2, Users, Pencil, AlertTriangle } from 'lucide-r
 
 const INIT = { productId: '', name: '', winnerCount: '', startedAt: '', endedAt: '' }
 const EDIT_INIT = { name: '', winnerCount: '', startedAt: '', endedAt: '' }
-const STATUS_OPTIONS = ['OPEN', 'CLOSED', 'DRAWN', 'CANCELLED']
+// RaffleStatus enum: SCHEDULED | OPEN | CLOSED
+const STATUS_OPTIONS = ['SCHEDULED', 'OPEN', 'CLOSED']
 
 export function AdminRafflesPage() {
   const qc = useQueryClient()
@@ -26,6 +27,7 @@ export function AdminRafflesPage() {
     queryKey: ['admin-raffle-entries', entriesRaffleId],
     queryFn: () => adminRafflesApi.getEntries(entriesRaffleId!),
     enabled: !!entriesRaffleId,
+    retry: false, // 백엔드 미구현 — 404 실패 시 재시도 안 함
   })
 
   const raffles = data?.data?.data?.content ?? []
@@ -182,15 +184,15 @@ export function AdminRafflesPage() {
                         <td className="px-3 py-2 text-white/60">{e.finalAmount?.toLocaleString()}원</td>
                         <td className="px-3 py-2">
                           <span className={`text-[10px] font-black px-1.5 py-0.5 ${
-                            e.result === 'WINNER' ? 'bg-yellow-500/20 text-yellow-400'
-                            : e.result === 'LOSER' ? 'bg-white/5 text-white/20'
+                            e.result === 'WIN' ? 'bg-yellow-500/20 text-yellow-400'
+                            : e.result === 'LOSE' ? 'bg-white/5 text-white/20'
                             : 'text-white/20'
                           }`}>
                             {e.result ?? '-'}
                           </span>
                         </td>
                         <td className="px-3 py-2">
-                          {e.result === 'WINNER' && !e.penalized && (
+                          {e.result === 'WIN' && !e.penalized && (
                             <button
                               onClick={() => {
                                 if (confirm(`${e.userId?.slice(0, 8)}... 유저에게 패널티를 부여하시겠습니까?\n(미결제 악성 당첨자 처리)`))

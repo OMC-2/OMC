@@ -133,11 +133,11 @@ export function AdminDashboard() {
                       <p className="text-[10px] text-white/30 mt-0.5">당첨 {raffle.winnerCount}명</p>
                     </div>
                     <span className={`text-[10px] font-black tracking-wider px-2 py-1 rounded-sm ${
-                      raffle.status === 'OPEN'  ? 'bg-red-500/20 text-red-400'
-                      : raffle.status === 'DRAWN' ? 'bg-green-500/20 text-green-400'
-                      : 'bg-white/5 text-white/30'
+                      raffle.status === 'OPEN'      ? 'bg-red-500/20 text-red-400'
+                      : raffle.status === 'CLOSED'  ? 'bg-green-500/20 text-green-400'
+                      : 'bg-white/5 text-white/30'  // SCHEDULED
                     }`}>
-                      {raffle.status}
+                      {raffle.status === 'CLOSED' ? 'DRAWN' : raffle.status}
                     </span>
                   </div>
                 ))
