@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   eureka-server:
     image: ghcr.io/${GITHUB_OWNER}/omc-eureka-server:latest
@@ -60,6 +58,7 @@ services:
       EUREKA_URI: http://eureka-server:8761/eureka/
       GATEWAY_SECRET: ${GATEWAY_SECRET}
       JWT_SECRET: ${JWT_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
       KEYCLOAK_JWKS_URI: http://${EDGE_HOST_IP}:8180/realms/omc/protocol/openid-connect/certs
     depends_on:
       config-server:
@@ -98,6 +97,7 @@ services:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       ADMIN_SECRET: ${ADMIN_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
     depends_on:
       config-server:
         condition: service_healthy
@@ -132,6 +132,7 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: ${INFRA_HOST_IP}:9092
       GATEWAY_SECRET: ${GATEWAY_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
     depends_on:
       config-server:
         condition: service_healthy
@@ -165,6 +166,7 @@ services:
       REDIS_HOST: ${INFRA_HOST_IP}
       REDIS_PORT: 6379
       KAFKA_URI: ${INFRA_HOST_IP}:9092
+      SENTRY_DSN: ${SENTRY_DSN}
     depends_on:
       config-server:
         condition: service_healthy
@@ -199,6 +201,7 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: ${INFRA_HOST_IP}:9092
       GATEWAY_SECRET: ${GATEWAY_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
     depends_on:
       config-server:
         condition: service_healthy
@@ -233,7 +236,9 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: ${INFRA_HOST_IP}:9092
       GATEWAY_SECRET: ${GATEWAY_SECRET}
+      TOSS_BASE_URL: http://${EDGE_HOST_IP}:18080
       TOSS_SECRET_KEY: ${TOSS_SECRET_KEY}
+      SENTRY_DSN: ${SENTRY_DSN}
     depends_on:
       config-server:
         condition: service_healthy
@@ -267,6 +272,7 @@ services:
       REDIS_HOST: ${INFRA_HOST_IP}
       REDIS_PORT: 6379
       KAFKA_URI: ${INFRA_HOST_IP}:9092
+      SENTRY_DSN: ${SENTRY_DSN}
     depends_on:
       config-server:
         condition: service_healthy
@@ -302,6 +308,7 @@ services:
       REDIS_PORT: 6379
       KAFKA_URI: ${INFRA_HOST_IP}:9092
       GATEWAY_SECRET: ${GATEWAY_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
     depends_on:
       config-server:
         condition: service_healthy
@@ -335,6 +342,7 @@ services:
       KAFKA_URI: ${INFRA_HOST_IP}:9092
       GATEWAY_SECRET: ${GATEWAY_SECRET}
       SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
+      SENTRY_DSN: ${SENTRY_DSN}
     depends_on:
       config-server:
         condition: service_healthy
