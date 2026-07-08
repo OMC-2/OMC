@@ -109,29 +109,6 @@ public class CouponService {
             throw new CouponOutOfStockException();
         }
 
-        // DB remaining_quantity 차감
-        coupon.decreaseRemainingQuantity();
-
-        // DB 중복 체크 (Redis Set과 이중 방어)
-        userCouponRepository.findByUserIdAndCoupon_CouponId(userId, couponId).ifPresent(uc -> {
-            couponRedisRepository.incrementStock(couponId.toString()); // 재고 롤백
-            couponRedisRepository.markIssued(couponId.toString(), userId.toString()); // Redis Set 동기화
-            couponMetrics.incrementDuplicate(couponId.toString());
-            throw new CouponAlreadyIssuedException();
-        });
-
-        // UserCoupon 저장 (saveAndFlush로 즉시 INSERT → UNIQUE 위반 시 여기서 예외 발생, 재고 롤백)
-        UserCoupon userCoupon;
-        try {
-            userCoupon = userCouponRepository.saveAndFlush(
-                    UserCoupon.create(userId, coupon, coupon.getExpiredAt())
-            );
-        } catch (DataIntegrityViolationException e) {
-            couponRedisRepository.incrementStock(couponId.toString());
-            coupon.increaseRemainingQuantity(); // DB 롤백
-            couponMetrics.incrementDuplicate(couponId.toString());
-            throw new CouponAlreadyIssuedException();
-        }
         couponIssueProducer.publish(couponId, userId); // 비동기 발행 — 실패 시 whenComplete에서 Redis 롤백
 
         couponMetrics.incrementIssueSuccess(couponIdStr);

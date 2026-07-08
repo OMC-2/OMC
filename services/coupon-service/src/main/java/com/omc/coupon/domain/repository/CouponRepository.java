@@ -1,6 +1,7 @@
 package com.omc.coupon.domain.repository;
 
 import com.omc.coupon.domain.entity.Coupon;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;

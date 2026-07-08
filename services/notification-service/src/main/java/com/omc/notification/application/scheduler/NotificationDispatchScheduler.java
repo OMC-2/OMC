@@ -25,7 +25,7 @@ public class NotificationDispatchScheduler {
     private final UserServiceClient userServiceClient;
     private final SlackClient slackClient;
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelayString = "${notification.dispatch.fixed-delay-ms:10000}")
     @Transactional
     public void dispatchPending() {
         List<Notification> pending = notificationRepository

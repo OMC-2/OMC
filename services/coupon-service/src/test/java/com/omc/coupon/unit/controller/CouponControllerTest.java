@@ -2,6 +2,7 @@ package com.omc.coupon.unit.controller;
 
 import com.omc.common.config.GatewaySecurityAutoConfiguration;
 import com.omc.coupon.application.service.CouponService;
+import com.omc.coupon.application.service.CouponTicketService;
 import com.omc.coupon.domain.enums.DiscountType;
 import com.omc.coupon.presentation.controller.CouponController;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
@@ -45,6 +46,7 @@ class CouponControllerTest {
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private CouponService couponService;
+    @MockitoBean private CouponTicketService couponTicketService;
 
     private static final String GATEWAY_SECRET = "test-gateway-secret";
     private static final UUID ADMIN_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
