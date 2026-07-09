@@ -4,6 +4,7 @@
 # Terraform 상태 파일 (AWS 리소스 정보 포함)
 *.tfstate
 *.tfstate.backup
+tfplan*
 .terraform/
 .terraform.lock.hcl
 

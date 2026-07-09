@@ -1,7 +1,5 @@
 package com.omc.gateway.infrastructure.filter;
 
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.Tracer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
@@ -28,11 +26,9 @@ public class AuthHeaderInjectionFilter implements GlobalFilter, Ordered {
     private String gatewaySecret;
 
     private final WebClient webClient;
-    private final Tracer tracer;
 
-    public AuthHeaderInjectionFilter(@LoadBalanced WebClient.Builder webClientBuilder, Tracer tracer) {
+    public AuthHeaderInjectionFilter(@LoadBalanced WebClient.Builder webClientBuilder) {
         this.webClient = webClientBuilder.baseUrl("lb://user-service").build();
-        this.tracer = tracer;
     }
 
     @Override
@@ -79,13 +75,11 @@ public class AuthHeaderInjectionFilter implements GlobalFilter, Ordered {
     }
 
     private Mono<String> fetchDbUserId(String keycloakId) {
-        Span span = tracer.nextSpan().name("gateway.fetch-db-user-id").start();
         return webClient.get()
             .uri("/internal/v1/users/keycloak/" + keycloakId)
             .retrieve()
             .bodyToMono(UserIdApiResponse.class)
-            .map(response -> response.data().userId().toString())
-            .doFinally(signal -> span.end());
+            .map(response -> response.data().userId().toString());
     }
 
     @SuppressWarnings("unchecked")

@@ -8,17 +8,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.springframework.transaction.annotation.Transactional;
-
-/**
- * ?�플 마감 ?�인 �?추첨 로직??주기?�으�??�행?�는 ?��?줄러 컴포?�트?�니??
- */
+/** 주기적으로 래플을 오픈하고 마감된 래플의 추첨을 실행한다. */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -27,46 +23,45 @@ public class RaffleScheduler {
     private final RaffleRepository raffleRepository;
     private final RaffleDrawService raffleDrawService;
 
-    /**
-     * 1분마???�작 ?�간????SCHEDULED ?�태???�플??찾아 OPEN?�로 변경합?�다.
-     */
+    /** 시작 시간이 지난 SCHEDULED 래플을 OPEN 상태로 변경한다. */
     @Scheduled(cron = "0 * * * * *")
     @SchedulerLock(name = "scheduleRaffleOpen", lockAtLeastFor = "PT30S", lockAtMostFor = "PT50S")
     @Transactional
     public void scheduleRaffleOpen() {
-        log.info("[RaffleScheduler] ?�픈 ?�간?????�플 ?�색 ?�작...");
+        log.info("[RaffleScheduler] 오픈 대상 래플 검색 시작");
         LocalDateTime now = LocalDateTime.now();
-        List<Raffle> scheduledRaffles = raffleRepository.findAllByStatusAndStartedAtBefore(RaffleStatus.SCHEDULED, now);
+        List<Raffle> scheduledRaffles =
+                raffleRepository.findAllByStatusAndStartedAtBefore(RaffleStatus.SCHEDULED, now);
 
         for (Raffle raffle : scheduledRaffles) {
             try {
                 raffle.updateStatus(RaffleStatus.OPEN);
-                // 명시???�??(Transactional??걸려?��?�?명확???�기 ?�함)
                 raffleRepository.save(raffle);
-                log.info("[RaffleScheduler] ?�플 ?�태 OPEN 변�? raffleId={}", raffle.getId());
+                log.info("[RaffleScheduler] 래플 상태 OPEN 변경: raffleId={}", raffle.getId());
             } catch (Exception e) {
-                log.error("[RaffleScheduler] ?�플 ?�태 변�?�??�류 발생: raffleId={}, error={}", raffle.getId(), e.getMessage(), e);
+                log.error("[RaffleScheduler] 래플 상태 변경 오류: raffleId={}, error={}",
+                        raffle.getId(), e.getMessage(), e);
             }
         }
     }
 
-    /**
-     * 1분마??마감??OPEN ?�태???�플??찾아 추첨(Draw) ?�로?�스�??�리거합?�다.
-     */
+    /** 종료 시간이 지난 OPEN 래플의 추첨을 실행한다. */
     @Scheduled(cron = "0 * * * * *")
     @SchedulerLock(name = "scheduleRaffleDraw", lockAtLeastFor = "PT30S", lockAtMostFor = "PT50S")
     public void scheduleRaffleDraw() {
-        log.info("[RaffleScheduler] 마감???�플 ?�색 ?�작...");
+        log.info("[RaffleScheduler] 마감 대상 래플 검색 시작");
         LocalDateTime now = LocalDateTime.now();
-        List<Raffle> expiredRaffles = raffleRepository.findAllByStatusAndEndedAtBefore(RaffleStatus.OPEN, now);
+        List<Raffle> expiredRaffles =
+                raffleRepository.findAllByStatusAndEndedAtBefore(RaffleStatus.OPEN, now);
 
         for (Raffle raffle : expiredRaffles) {
             try {
-                log.info("[RaffleScheduler] ?�플 추첨 ?�작: raffleId={}", raffle.getId());
+                log.info("[RaffleScheduler] 래플 추첨 시작: raffleId={}", raffle.getId());
                 raffleDrawService.drawRaffle(raffle.getId());
-                log.info("[RaffleScheduler] ?�플 추첨 ?�료: raffleId={}", raffle.getId());
+                log.info("[RaffleScheduler] 래플 추첨 완료: raffleId={}", raffle.getId());
             } catch (Exception e) {
-                log.error("[RaffleScheduler] ?�플 추첨 �??�류 발생: raffleId={}, error={}", raffle.getId(), e.getMessage(), e);
+                log.error("[RaffleScheduler] 래플 추첨 오류: raffleId={}, error={}",
+                        raffle.getId(), e.getMessage(), e);
             }
         }
     }
