@@ -59,7 +59,11 @@ services:
       GATEWAY_SECRET: ${GATEWAY_SECRET}
       JWT_SECRET: ${JWT_SECRET}
       SENTRY_DSN: ${SENTRY_DSN}
+      REDIS_HOST: ${INFRA_HOST_IP}
+      REDIS_PORT: 6379
+      KEYCLOAK_URL: http://${EDGE_HOST_IP}:8180
       KEYCLOAK_JWKS_URI: http://${EDGE_HOST_IP}:8180/realms/omc/protocol/openid-connect/certs
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://${INFRA_HOST_IP}:9411/api/v2/spans
     depends_on:
       config-server:
         condition: service_healthy
