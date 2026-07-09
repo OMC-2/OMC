@@ -3,6 +3,7 @@ package com.omc.raffle.application.event.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omc.raffle.EmbeddedRedisConfig;
 import com.omc.raffle.application.service.RaffleDrawService;
+import com.omc.raffle.domain.repository.ProcessedEventRepository;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
@@ -50,6 +51,9 @@ class PaymentFailureEventConsumerTest {
 
     @MockBean
     private RaffleDrawService raffleDrawService;
+
+    @MockBean
+    private ProcessedEventRepository processedEventRepository;
 
     private KafkaTemplate<String, String> kafkaTemplate;
 
@@ -130,8 +134,4 @@ class PaymentFailureEventConsumerTest {
         PaymentFailedRequest validEvent = new PaymentFailedRequest(eventId.toString(), "RAFFLE", UUID.randomUUID(), "ERROR", UUID.randomUUID(), raffleId);
         kafkaTemplate.send("payment.failed", eventId.toString(), objectMapper.writeValueAsString(validEvent));
 
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(raffleDrawService, times(1)).handlePaymentFailure(eq(raffleId), any());
-        });
-    }
-}
+        await().atMost(5, TimeUni
