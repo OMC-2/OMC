@@ -150,6 +150,8 @@ services:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./docker/grafana/provisioning:/etc/grafana/provisioning
@@ -168,6 +170,7 @@ services:
       - "9411:9411"
     environment:
       JAVA_OPTS: "-Xms256m -Xmx512m"
+      QUERY_BASE_PATH: /zipkin
     networks:
       - omc-network
     restart: unless-stopped

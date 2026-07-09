@@ -9,7 +9,8 @@ services:
       - ./docker/nginx/default.prod.conf.template:/etc/nginx/templates/default.conf.template:ro
     environment:
       WAS_HOST_IP: ${WAS_HOST_IP}
-      NGINX_ENVSUBST_FILTER: WAS_HOST_IP
+      INFRA_HOST_IP: ${INFRA_HOST_IP}
+      NGINX_ENVSUBST_FILTER: "WAS_HOST_IP|INFRA_HOST_IP"
     restart: unless-stopped
     deploy:
       resources:
