@@ -7,13 +7,12 @@ export const options = {
     scenarios: {
         // 시나리오: Toss WireMock 장애 응답을 섞은 결제 승인 부하 테스트
         confirm_load: {
-            executor: 'ramping-vus',
-            stages: [
-                { duration: __ENV.RAMP_UP || '10s', target: Number(__ENV.VUS || 10) }, // 10초 동안 목표 VU까지 웜업
-                { duration: __ENV.DURATION || '30s', target: Number(__ENV.VUS || 10) }, // 설정한 시간 동안 부하 유지
-                { duration: __ENV.RAMP_DOWN || '10s', target: 0 }, // 10초 동안 0명으로 쿨다운
-            ],
-            gracefulRampDown: '10s',
+            executor: 'constant-arrival-rate',
+            rate: Number(__ENV.RATE || 100),
+            timeUnit: __ENV.TIME_UNIT || '1s',
+            duration: __ENV.DURATION || '90s',
+            preAllocatedVUs: Number(__ENV.PRE_ALLOCATED_VUS || __ENV.VUS || 80),
+            maxVUs: Number(__ENV.MAX_VUS || 200),
         },
     },
     thresholds: {
@@ -26,7 +25,7 @@ export const options = {
 
 // 테스트 환경 설정
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8085'; // payment-service 직접 호출 URL
-const REQUEST_TIMEOUT = __ENV.REQUEST_TIMEOUT || '30s'; // recovery 검증에서는 k6가 먼저 끊지 않도록 넉넉하게 설정
+const REQUEST_TIMEOUT = __ENV.REQUEST_TIMEOUT || '60s'; // recovery 검증에서는 k6가 먼저 끊지 않도록 넉넉하게 설정
 const THINK_TIME_MS = Number(__ENV.THINK_TIME_MS || 100); // 요청 사이 대기 시간
 
 // 결제 요청에 사용할 기본 참조값

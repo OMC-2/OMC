@@ -23,12 +23,12 @@ public class PaymentTransactionService {
     private final PaymentOutboxService paymentOutboxService;
     private final PaymentStatusHistoryRepository paymentStatusHistoryRepository;
 
-    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    @Transactional(readOnly = true)
     public Payment findByOrderId(UUID orderId){
         return paymentRepository.findByOrderId(orderId).orElse(null);
     }
 
-    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    @Transactional(readOnly = true)
     public Payment findById(UUID paymentId) {
         return paymentRepository.findById(paymentId).orElse(null);
     }

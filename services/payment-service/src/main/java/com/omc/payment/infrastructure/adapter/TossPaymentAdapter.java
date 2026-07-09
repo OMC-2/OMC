@@ -8,6 +8,7 @@ import com.omc.payment.application.port.out.PaymentGatewayPort;
 import com.omc.payment.application.port.out.PaymentGatewayResult;
 import com.omc.payment.domain.enums.PaymentGatewayStatus;
 import com.omc.payment.domain.exception.PaymentErrorCode;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
 
     // Toss 일반 결제
     @Override
+    @Bulkhead(name = "tossPaymentGateway", fallbackMethod = "confirmPaymentFallback")
     @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Confirm confirmPayment(PaymentGatewayCommand.Confirm command) {
         PaymentResponse response = post(
@@ -53,6 +55,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
 
     // Toss 빌링키 자동 결제
     @Override
+    @Bulkhead(name = "tossPaymentGateway", fallbackMethod = "confirmBillingPaymentFallback")
     @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Confirm confirmBillingPayment(PaymentGatewayCommand.ConfirmBilling command) {
         PaymentResponse response = post(
@@ -72,6 +75,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
 
     // Toss 결제 조회
     @Override
+    @Bulkhead(name = "tossPaymentGateway", fallbackMethod = "getPaymentFallback")
     @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Payment getPayment(PaymentGatewayCommand.GetPayment command) {
         PaymentResponse response = get(
@@ -91,6 +95,7 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
 
     // Toss 결제 취소
     @Override
+    @Bulkhead(name = "tossPaymentGateway", fallbackMethod = "cancelPaymentFallback")
     @Retry(name = "tossPaymentGateway")
     public PaymentGatewayResult.Cancel cancelPayment(PaymentGatewayCommand.Cancel command) {
         PaymentResponse response = post(
@@ -120,6 +125,22 @@ public class TossPaymentAdapter implements PaymentGatewayPort {
             case "ABORTED", "EXPIRED" -> PaymentGatewayStatus.FAILED;
             default -> PaymentGatewayStatus.UNKNOWN;
         };
+    }
+
+    private PaymentGatewayResult.Confirm confirmPaymentFallback(PaymentGatewayCommand.Confirm command, Throwable e) {
+        throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
+    }
+
+    private PaymentGatewayResult.Confirm confirmBillingPaymentFallback(PaymentGatewayCommand.ConfirmBilling command, Throwable e) {
+        throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
+    }
+
+    private PaymentGatewayResult.Payment getPaymentFallback(PaymentGatewayCommand.GetPayment command, Throwable e) {
+        throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
+    }
+
+    private PaymentGatewayResult.Cancel cancelPaymentFallback(PaymentGatewayCommand.Cancel command, Throwable e) {
+        throw new PaymentGatewayConnectionException("Toss 결제 게이트웨이 동시 요청 한도를 초과했습니다.", e);
     }
 
     // Toss Get 호출 공통 로직

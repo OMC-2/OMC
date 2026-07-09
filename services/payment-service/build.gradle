@@ -19,6 +19,9 @@ dependencies {
     // OpenFeign
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
+    // HTTP Client
+    implementation 'org.apache.httpcomponents.client5:httpclient5'
+
     // Batch
     implementation 'org.springframework.boot:spring-boot-starter-batch'
 
