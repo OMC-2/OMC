@@ -6,6 +6,12 @@ export const apiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// 인증 불필요 공개 엔드포인트용 클라이언트
+export const publicClient = axios.create({
+  baseURL: '',
+  headers: { 'Content-Type': 'application/json' },
+})
+
 // 요청 인터셉터 - JWT 자동 주입
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken')

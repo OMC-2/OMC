@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -33,6 +33,9 @@ public class CouponIssueWriterService {
             "INSERT INTO p_user_coupons (user_coupon_id, user_id, coupon_id, status, expired_at, created_at) VALUES (?, ?, ?, ?, ?, ?)";
     private static final String OUTBOX_SQL =
             "INSERT INTO p_coupon_outbox (event_id, aggregate_type, aggregate_id, event_type, payload, status, retry_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    // Redis가 실재고 원장이지만 목록 조회 응답에 표시될 DB remainingQuantity도 동기화
+    private static final String REMAINING_QUANTITY_DECR_SQL =
+            "UPDATE p_coupons SET remaining_quantity = GREATEST(0, remaining_quantity - ?) WHERE coupon_id = ?";
 
     @Transactional
     public void write(CouponIssueRequestedEvent event) {
@@ -46,6 +49,8 @@ public class CouponIssueWriterService {
         LocalDateTime now = LocalDateTime.now();
 
         jdbcTemplate.update(USER_COUPON_SQL, userCouponId, userId, couponId, "AVAILABLE", coupon.getExpiredAt(), now);
+        // DB remaining_quantity 동기화 (Redis가 원장이지만 목록 API는 DB를 읽음)
+        jdbcTemplate.update(REMAINING_QUANTITY_DECR_SQL, 1, couponId);
 
         UUID outboxEventId = UuidV7Generator.generate();
         String payload = toJson(Map.of(
@@ -68,9 +73,6 @@ public class CouponIssueWriterService {
             couponCache.computeIfAbsent(event.couponId(), id -> couponRepository.findById(id)
                     .orElseThrow(() -> new IllegalStateException("쿠폰 없음: " + id)));
         }
-
-        String userCouponSql = USER_COUPON_SQL;
-        String outboxSql = OUTBOX_SQL;
 
         List<Object[]> userCouponArgs = new ArrayList<>();
         List<Object[]> outboxArgs = new ArrayList<>();
@@ -110,8 +112,15 @@ public class CouponIssueWriterService {
             });
         }
 
-        jdbcTemplate.batchUpdate(userCouponSql, userCouponArgs);
-        jdbcTemplate.batchUpdate(outboxSql, outboxArgs);
+        jdbcTemplate.batchUpdate(USER_COUPON_SQL, userCouponArgs);
+        jdbcTemplate.batchUpdate(OUTBOX_SQL, outboxArgs);
+
+        // DB remaining_quantity 동기화 — couponId별 발급 건수만큼 차감
+        Map<UUID, Long> decrementMap = events.stream()
+                .collect(Collectors.groupingBy(CouponIssueRequestedEvent::couponId, Collectors.counting()));
+        for (Map.Entry<UUID, Long> entry : decrementMap.entrySet()) {
+            jdbcTemplate.update(REMAINING_QUANTITY_DECR_SQL, entry.getValue(), entry.getKey());
+        }
     }
 
     private String toJson(Object obj) {

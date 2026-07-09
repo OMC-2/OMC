@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { couponsApi } from '../../api/coupons'
@@ -33,6 +34,7 @@ export function CouponsPage() {
   const { isAuthenticated, user } = useAuthStore()
   const isAdmin = (user as any)?.role === 'ADMIN'
   const qc = useQueryClient()
+  const [pendingCouponId, setPendingCouponId] = useState<string | null>(null)
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['coupons-all'],
@@ -48,6 +50,8 @@ export function CouponsPage() {
 
   const issueMutation = useMutation({
     mutationFn: (couponId: string) => couponsApi.issueCoupon(couponId),
+    onMutate: (couponId) => setPendingCouponId(couponId),
+    onSettled: () => setPendingCouponId(null),
     onSuccess: () => {
       toast.success('쿠폰이 발급되었습니다! 마이페이지에서 확인하세요.')
       qc.invalidateQueries({ queryKey: ['coupons-all'] })
@@ -112,7 +116,8 @@ export function CouponsPage() {
           const remaining = coupon.remainingQuantity ?? 0
           const usedPct = total > 0 ? Math.round(((total - remaining) / total) * 100) : 0
           const alreadyIssued = myIssuedIds.has(coupon.couponId)
-          const canIssue = isAuthenticated && !isAdmin && status === 'LIVE' && !alreadyIssued && !issueMutation.isPending
+          const thisPending = pendingCouponId === coupon.couponId
+          const canIssue = isAuthenticated && !isAdmin && status === 'LIVE' && !alreadyIssued && !thisPending
 
           const discountAmount = coupon.discountType === 'AMOUNT'
             ? `${Number(coupon.discountValue).toLocaleString()}원`
@@ -251,7 +256,7 @@ export function CouponsPage() {
                       disabled={!canIssue}
                       className="w-full bg-black py-3 text-[10px] font-black tracking-[0.2em] text-white hover:bg-red-500 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
                     >
-                      {issueMutation.isPending ? '발급 중...' : '선착순 발급받기'}
+                      {thisPending ? '발급 중...' : '선착순 발급받기'}
                     </button>
                   )}
                 </div>

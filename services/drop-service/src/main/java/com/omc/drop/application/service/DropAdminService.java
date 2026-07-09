@@ -8,6 +8,7 @@ import com.omc.drop.domain.entity.Drop;
 import com.omc.drop.domain.enums.DropStatus;
 import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
+import org.springframework.data.domain.PageRequest;
 import com.omc.drop.presentation.dto.request.DropCreateRequest;
 import com.omc.drop.presentation.dto.request.DropUpdateRequest;
 import com.omc.drop.presentation.dto.response.DropAdminResponse;
@@ -31,7 +32,9 @@ public class DropAdminService {
     private final DropEventProducer dropEventProducer;
 
     public Page<DropAdminResponse> getAll(Pageable pageable) {
-        return dropRepository.findAllIncludingDeleted(pageable).map(DropAdminResponse::from);
+        // 네이티브 쿼리에 ORDER BY created_at DESC 하드코딩 — Pageable 정렬 제거 (camelCase/snake_case 충돌 방지)
+        Pageable noSort = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return dropRepository.findAllIncludingDeleted(noSort).map(DropAdminResponse::from);
     }
 
     public DropAdminResponse getOne(UUID dropId) {

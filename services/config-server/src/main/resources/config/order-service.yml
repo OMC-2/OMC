@@ -53,7 +53,7 @@ spring:
 
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY}       # 환경변수로 주입 (키 하드코딩 금지!)
+      api-key: ${OPENAI_API_KEY:sk-dummy-key-for-local-dev}  # 환경변수로 주입 (키 하드코딩 금지! 로컬 더미키로 폴백)
       chat:
         options:
           model: gpt-4o-mini            # 저렴하고 충분. gpt-4o도 가능

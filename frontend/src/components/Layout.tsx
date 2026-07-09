@@ -11,11 +11,13 @@ function NotificationBell() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const qc = useQueryClient()
+  const { isAuthenticated } = useAuthStore()
 
   const { data } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => notificationsApi.getMyNotifications(0, 10),
     refetchInterval: 30000,
+    enabled: isAuthenticated,  // 로그인 시에만 요청
   })
 
   const readMutation = useMutation({
