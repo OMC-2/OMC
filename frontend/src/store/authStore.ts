@@ -21,15 +21,12 @@ export const useAuthStore = create<AuthState>()(
       login: (accessToken, refreshToken) => {
         localStorage.setItem('accessToken', accessToken)
         localStorage.setItem('refreshToken', refreshToken)
-        set({ accessToken, refreshToken, isAuthenticated: true })
-      },
-      setUser: (user) => set({ user }),
-      logout: () => {
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-        set({ accessToken: null, refreshToken: null, user: null, isAuthenticated: false })
-      },
-    }),
-    { name: 'auth-storage', partialize: (s) => ({ accessToken: s.accessToken, refreshToken: s.refreshToken, isAuthenticated: s.isAuthenticated }) }
-  )
-)
+        // JWT payload에서 realm_access.roles로 role 즉시 추출 (getProfile 의존 제거)
+        let initialUser: AuthState['user'] = null
+        try {
+          const payload = JSON.parse(atob(accessToken.split('.')[1]))
+          const roles: string[] = payload?.realm_access?.roles ?? []
+          const role = roles.includes('ADMIN') ? 'ADMIN' : 'USER'
+          initialUser = { userId: '', email: payload?.email ?? '', role }
+        } catch { /* JWT 파싱 실패 시 무시 */ }
+   

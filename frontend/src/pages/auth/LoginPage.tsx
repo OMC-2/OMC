@@ -23,8 +23,9 @@ export function LoginPage() {
       try {
         const profileRes = await authApi.getProfile()
         setUser(profileRes.data.data)
-      } catch {
-        // 프로필 실패해도 로그인은 성공으로 처리
+      } catch (err: any) {
+        // role은 JWT에서 이미 세팅됨. 여기서 실패해도 로그인 자체는 성공
+        console.warn('[login] getProfile 실패:', err?.response?.status, err?.message)
       }
       navigate('/')
     } catch (err: any) {
@@ -92,12 +93,4 @@ export function LoginPage() {
             <p className="text-center text-xs text-gray-400 pt-2">
               계정이 없으신가요?{' '}
               <Link to="/signup" className="font-black text-black hover:text-red-500 transition-colors">
-                JOIN NOW
-              </Link>
-            </p>
-          </form>
-        </div>
-      </div>
-    </div>
-  )
-}
+      
