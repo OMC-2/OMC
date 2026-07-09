@@ -4,7 +4,7 @@ services:
     build:
       context: ./services/eureka-server
     container_name: omc-eureka-server
-    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
+  #  cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
     ports:
       - "8761:8761"
     environment:
@@ -27,7 +27,7 @@ services:
     build:
       context: ./services/config-server
     container_name: omc-config-server
-    cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
+ #   cpuset: "6-7"        # [격리] noisy neighbor → hot 코어(0-5)에서 분리
     ports:
       - "8888:8888"
     environment:
@@ -87,7 +87,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 512m #2G
 
   user-service:
     build:
@@ -344,7 +344,7 @@ services:
     build:
       context: ./services/coupon-service
     container_name: omc-coupon-service
-    cpuset: "0-3"        # [격리] hot 서비스 전용 코어 (가장 큰 CPU 소비처 → 4코어 배정)
+    # cpuset: "0-3"        # [격리] hot 서비스 전용 코어 (가장 큰 CPU 소비처 → 4코어 배정)
     ports:
       - "8087-8088:8087"
     environment:
@@ -385,7 +385,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 512m #2G
 
   notification-service:
     build:
@@ -424,7 +424,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 512m #1G
 
   nginx:
     image: nginx:alpine
