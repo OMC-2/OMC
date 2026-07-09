@@ -39,4 +39,18 @@ public class PaymentFailureEventConsumer {
 
     @KafkaListener(topics = TOPIC, groupId = "raffle-service-group")
     @Transactional
-    public void consumePaymentFailedEvent(String message)
+    public void consumePaymentFailedEvent(String message) {
+        PaymentFailedRequest event;
+        try {
+            event = objectMapper.readValue(message, PaymentFailedRequest.class);
+        } catch (Exception e) {
+            throw new MessageConversionException("이벤트 역직렬화 실패: topic=" + TOPIC, e);
+        }
+        if (!"RAFFLE".equalsIgnoreCase(event.salesType())) {
+            log.debug("Ignored payment.failed event for salesType: {}", event.salesType());
+            return;
+        }
+        if (isAlreadyProcessed(event.eventId())) return;
+        raffleDrawService.handlePaymentFailure(event.raffleId(), event.userId());
+    }
+}
