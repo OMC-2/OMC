@@ -1,3 +1,4 @@
+import { toast } from '../../components/ui/Toast'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminProductsApi, adminInventoryApi } from '../../api/admin'
@@ -64,9 +65,9 @@ function InventoryModal({ product, onClose }: { product: any; onClose: () => voi
       qc.invalidateQueries({ queryKey: ['admin-products'] })
       setNewQty('')
       setReason('')
-      alert('재고가 수정되었습니다.')
+      toast.success('재고가 수정되었습니다.')
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '수정 실패'),
   })
 
   return (
@@ -169,7 +170,7 @@ export function AdminProductsPage() {
       setShowForm(false)
       setForm(INIT)
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '생성 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '생성 실패'),
   })
 
   const updateProductMutation = useMutation({
@@ -186,7 +187,7 @@ export function AdminProductsPage() {
       qc.invalidateQueries({ queryKey: ['products-all'] })
       setEditProduct(null)
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '수정 실패'),
   })
 
   const fe = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -195,7 +196,7 @@ export function AdminProductsPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminProductsApi.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-products'] }),
-    onError: (e: any) => alert(e?.response?.data?.message ?? '삭제 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '삭제 실패'),
   })
 
   const f = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>

@@ -7,10 +7,15 @@ import { formatPrice, getDropDisplayStatus } from '../../lib/utils'
 import { getPlaceholderImage } from '../../lib/images'
 
 export function DropsPage() {
-  const { data, isLoading } = useQuery({ queryKey: ['drops'], queryFn: () => dropsApi.getAll() })
+  const { data, isLoading } = useQuery({
+    queryKey: ['drops'],
+    queryFn: () => dropsApi.getAll(),
+    refetchInterval: 5000, // 5초마다 갱신 → LIVE 상태 자동 전환
+  })
   const { data: productsData } = useQuery({
     queryKey: ['products-all'],
     queryFn: () => productsApi.getAll(0, 100),
+    refetchInterval: 10000,
   })
 
   const allDrops = data?.data?.data?.content ?? []

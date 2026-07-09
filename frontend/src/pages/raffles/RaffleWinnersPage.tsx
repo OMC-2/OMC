@@ -6,8 +6,8 @@ import { ArrowLeft, Trophy, Users, Clock } from 'lucide-react'
 import { formatDate } from '../../lib/utils'
 
 const RESULT_COLOR: Record<string, string> = {
-  WINNER: 'text-yellow-600 bg-yellow-50',
-  LOSER: 'text-gray-400 bg-gray-50',
+  WIN: 'text-yellow-600 bg-yellow-50',
+  LOSE: 'text-gray-400 bg-gray-50',
 }
 
 export function RaffleWinnersPage() {
@@ -38,8 +38,9 @@ export function RaffleWinnersPage() {
 
   if (isLoading) return <Spinner className="py-20" />
 
-  const winnerList = winners.filter((w: any) => w.result === 'WINNER')
-  const isDrawn = raffle?.status === 'DRAWN' || raffle?.status === 'COMPLETED' || winnerList.length > 0
+  const winnerList = winners.filter((w: any) => w.result === 'WIN')
+  // 백엔드 RaffleStatus: SCHEDULED | OPEN | CLOSED (DRAWN/COMPLETED 없음)
+  const isDrawn = raffle?.status === 'CLOSED' || winnerList.length > 0
 
   return (
     <div className="mx-auto max-w-xl">

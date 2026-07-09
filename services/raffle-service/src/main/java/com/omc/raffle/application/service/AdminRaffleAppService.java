@@ -7,8 +7,10 @@ import com.omc.raffle.presentation.dto.response.RaffleEntryResponse;
 import com.omc.raffle.presentation.dto.response.RaffleResponse;
 import com.omc.raffle.domain.entity.Raffle;
 import com.omc.raffle.domain.entity.RaffleEntry;
+import com.omc.raffle.domain.entity.RafflePenalty;
 import com.omc.raffle.domain.enums.RaffleErrorCode;
 import com.omc.raffle.domain.repository.RaffleEntryRepository;
+import com.omc.raffle.domain.repository.RafflePenaltyRepository;
 import com.omc.raffle.domain.repository.RaffleRepository;
 import com.omc.raffle.presentation.dto.request.admin.AdminRaffleCreateRequest;
 import com.omc.raffle.presentation.dto.request.admin.AdminRaffleStatusUpdateRequest;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -28,6 +31,7 @@ public class AdminRaffleAppService {
 
     private final RaffleRepository raffleRepository;
     private final RaffleEntryRepository raffleEntryRepository;
+    private final RafflePenaltyRepository rafflePenaltyRepository;
 
     @Transactional
     public RaffleResponse createRaffle(AdminRaffleCreateRequest request) {
@@ -47,7 +51,6 @@ public class AdminRaffleAppService {
     public void updateRaffle(UUID raffleId, AdminRaffleUpdateRequest request) {
         Raffle raffle = raffleRepository.findById(raffleId)
                 .orElseThrow(() -> new RaffleNotFoundException(RaffleErrorCode.RAFFLE_001));
-        
         raffle.update(request.name(), request.winnerCount());
     }
 
@@ -55,7 +58,6 @@ public class AdminRaffleAppService {
     public void deleteRaffle(UUID raffleId) {
         Raffle raffle = raffleRepository.findById(raffleId)
                 .orElseThrow(() -> new RaffleNotFoundException(RaffleErrorCode.RAFFLE_001));
-        
         raffle.delete();
     }
 
@@ -63,17 +65,28 @@ public class AdminRaffleAppService {
     public void updateRaffleStatus(UUID raffleId, AdminRaffleStatusUpdateRequest request) {
         Raffle raffle = raffleRepository.findById(raffleId)
                 .orElseThrow(() -> new RaffleNotFoundException(RaffleErrorCode.RAFFLE_001));
-        
         raffle.updateStatus(request.status());
     }
 
     public PageResponse<RaffleEntryResponse> getRaffleEntries(UUID raffleId, Pageable pageable) {
-        // Validate if raffle exists
         if (!raffleRepository.existsById(raffleId)) {
             throw new RaffleNotFoundException(RaffleErrorCode.RAFFLE_001);
         }
         Page<RaffleEntryResponse> page = raffleEntryRepository.findByRaffleId(raffleId, pageable)
                 .map(RaffleEntryResponse::from);
         return new PageResponse<>(page);
+    }
+
+    @Transactional
+    public void penalizeUser(UUID raffleId, UUID userId) {
+        if (!raffleRepository.existsById(raffleId)) {
+            throw new RaffleNotFoundException(RaffleErrorCode.RAFFLE_001);
+        }
+        RafflePenalty penalty = RafflePenalty.create(
+                userId,
+                raffleId,
+                LocalDateTime.now().plusDays(30)
+        );
+        rafflePenaltyRepository.save(penalty);
     }
 }
