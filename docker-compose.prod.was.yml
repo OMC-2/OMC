@@ -1,0 +1,370 @@
+services:
+  eureka-server:
+    image: ghcr.io/${GITHUB_OWNER}/omc-eureka-server:latest
+    container_name: omc-eureka-server
+    environment:
+      TZ: Asia/Seoul
+      EUREKA_URI: http://eureka-server:8761/eureka/
+    ports:
+      - "8761:8761"
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  config-server:
+    image: ghcr.io/${GITHUB_OWNER}/omc-config-server:latest
+    container_name: omc-config-server
+    environment:
+      TZ: Asia/Seoul
+      EUREKA_URI: http://eureka-server:8761/eureka/
+    ports:
+      - "8888:8888"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8888/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  gateway:
+    image: ghcr.io/${GITHUB_OWNER}/omc-gateway:latest
+    container_name: omc-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
+      REDIS_HOST: ${INFRA_HOST_IP}
+      REDIS_PORT: 6379
+      KEYCLOAK_URL: http://${EDGE_HOST_IP}:8180
+      KEYCLOAK_JWKS_URI: http://${EDGE_HOST_IP}:8180/realms/omc/protocol/openid-connect/certs
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://${INFRA_HOST_IP}:9411/api/v2/spans
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  user-service:
+    image: ghcr.io/${GITHUB_OWNER}/omc-user-service:latest
+    container_name: omc-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: jdbc:postgresql://${INFRA_HOST_IP}:5432/omc?currentSchema=user_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      KEYCLOAK_URL: http://${EDGE_HOST_IP}:8180
+      KEYCLOAK_REALM: omc
+      KEYCLOAK_CLIENT_ID: omc-client
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      ADMIN_SECRET: ${ADMIN_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  drop-service:
+    image: ghcr.io/${GITHUB_OWNER}/omc-drop-service:latest
+    container_name: omc-drop-service
+    ports:
+      - "8082:8082"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: jdbc:postgresql://${INFRA_HOST_IP}:5432/omc?currentSchema=drop_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: ${INFRA_HOST_IP}
+      REDIS_PORT: 6379
+      KAFKA_URI: ${INFRA_HOST_IP}:9092
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  order-service:
+    image: ghcr.io/${GITHUB_OWNER}/omc-order-service:latest
+    container_name: omc-order-service
+    ports:
+      - "8083:8083"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: jdbc:postgresql://${INFRA_HOST_IP}:5432/omc?currentSchema=order_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: ${INFRA_HOST_IP}
+      REDIS_PORT: 6379
+      KAFKA_URI: ${INFRA_HOST_IP}:9092
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  product-service:
+    image: ghcr.io/${GITHUB_OWNER}/omc-product-service:latest
+    container_name: omc-product-service
+    ports:
+      - "8084:8084"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: jdbc:postgresql://${INFRA_HOST_IP}:5432/omc?currentSchema=product_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: ${INFRA_HOST_IP}
+      REDIS_PORT: 6379
+      KAFKA_URI: ${INFRA_HOST_IP}:9092
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  payment-service:
+    image: ghcr.io/${GITHUB_OWNER}/omc-payment-service:latest
+    container_name: omc-payment-service
+    ports:
+      - "8085:8085"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: jdbc:postgresql://${INFRA_HOST_IP}:5432/omc?currentSchema=payment_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: ${INFRA_HOST_IP}
+      REDIS_PORT: 6379
+      KAFKA_URI: ${INFRA_HOST_IP}:9092
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      TOSS_BASE_URL: http://${EDGE_HOST_IP}:18080
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY}
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  raffle-service:
+    image: ghcr.io/${GITHUB_OWNER}/omc-raffle-service:latest
+    container_name: omc-raffle-service
+    ports:
+      - "8086:8086"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: jdbc:postgresql://${INFRA_HOST_IP}:5432/omc?currentSchema=raffle_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: ${INFRA_HOST_IP}
+      REDIS_PORT: 6379
+      KAFKA_URI: ${INFRA_HOST_IP}:9092
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  coupon-service:
+    image: ghcr.io/${GITHUB_OWNER}/omc-coupon-service:latest
+    # container_name: omc-coupon-service
+    cpuset: "0-3"
+    ports:
+      - "8087-8088:8087"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: jdbc:postgresql://${INFRA_HOST_IP}:5432/omc?currentSchema=coupon_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: ${INFRA_HOST_IP}
+      REDIS_PORT: 6379
+      KAFKA_URI: ${INFRA_HOST_IP}:9092
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  notification-service:
+    image: ghcr.io/${GITHUB_OWNER}/omc-notification-service:latest
+    container_name: omc-notification-service
+    ports:
+      - "8089:8088"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URI: http://config-server:8888
+      EUREKA_URI: http://eureka-server:8761/eureka/
+      DB_URL: jdbc:postgresql://${INFRA_HOST_IP}:5432/omc?currentSchema=notification_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KAFKA_URI: ${INFRA_HOST_IP}:9092
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
+      SENTRY_DSN: ${SENTRY_DSN}
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - omc-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+networks:
+  omc-network:
+    driver: bridge
+    name: omc-network

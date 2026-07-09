@@ -16,9 +16,10 @@ export function formatDate(dateStr: string) {
 }
 
 
-// 타임스탬프 기반 래플 표시 상태 (백엔드 status 필드 무관)
+// 타임스탬프 기반 래플 표시 상태
+// 백엔드 RaffleStatus enum: SCHEDULED | OPEN | CLOSED (DRAWN/CANCELLED 없음)
 export function getRaffleDisplayStatus(raffle: any): 'UPCOMING' | 'LIVE' | 'ENDED' | 'DRAWN' {
-  if (raffle?.status === 'DRAWN') return 'DRAWN'
+  if (raffle?.status === 'CLOSED') return 'DRAWN'   // 추첨 완료 = CLOSED
   if (raffle?.status === 'CANCELLED') return 'ENDED'
   const now = Date.now()
   const startTime = raffle?.startedAt ? new Date(raffle.startedAt).getTime() : 0

@@ -89,6 +89,7 @@ class UserServiceIntegrationTest {
             String keycloakUserId = UUID.randomUUID().toString();
             stubKeycloakCreateUser(keycloakUserId);
             stubKeycloakAssignRole(keycloakUserId);
+            stubSetDbUserId(keycloakUserId);
 
             mockMvc.perform(post("/api/v1/users/signup")
                             .header("X-Gateway-Secret", "test-gateway-secret")
@@ -115,6 +116,7 @@ class UserServiceIntegrationTest {
             String keycloakUserId = UUID.randomUUID().toString();
             stubKeycloakCreateUser(keycloakUserId);
             stubKeycloakAssignRole(keycloakUserId);
+            stubSetDbUserId(keycloakUserId);
 
             String body = """
                     {
@@ -179,6 +181,18 @@ class UserServiceIntegrationTest {
 
             wireMock.stubFor(WireMock.post(WireMock.urlPathMatching(
                             "/admin/realms/omc/users/" + keycloakUserId + "/role-mappings/realm"))
+                    .willReturn(WireMock.aResponse().withStatus(204)));
+        }
+
+        private void stubSetDbUserId(String keycloakUserId) {
+            wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/admin/realms/omc/users/" + keycloakUserId))
+                    .willReturn(WireMock.aResponse()
+                            .withStatus(200)
+                            .withHeader("Content-Type", "application/json")
+                            .withBody("{\"id\":\"" + keycloakUserId + "\",\"username\":\"test@example.com\"," +
+                                    "\"email\":\"test@example.com\",\"emailVerified\":true,\"enabled\":true," +
+                                    "\"attributes\":{\"nickname\":[\"testuser\"]}}")));
+            wireMock.stubFor(WireMock.put(WireMock.urlPathEqualTo("/admin/realms/omc/users/" + keycloakUserId))
                     .willReturn(WireMock.aResponse().withStatus(204)));
         }
     }

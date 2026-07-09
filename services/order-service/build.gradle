@@ -19,4 +19,8 @@ dependencies {
 
     //직렬화, 역직렬화
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // Spring AI - OpenAI (LLM 병목 진단)
+    implementation platform('org.springframework.ai:spring-ai-bom:1.0.0')
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 }

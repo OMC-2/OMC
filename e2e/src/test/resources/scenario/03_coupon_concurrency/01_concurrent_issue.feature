@@ -37,17 +37,19 @@ Feature: [시나리오] 쿠폰 선착순 동시 발급
     * def results = ConcurrentHelper.issueCoupons(baseUrl, gatewaySecret, couponId + '', tokens)
 
     # STEP 3: 성공/실패 카운트 검증
-    * def successResults = karate.filter(results, function(r){ return r.issueStatus == 201 })
+    * def successResults = karate.filter(results, function(r){ return r.issueStatus == 202 })
     * def failResults    = karate.filter(results, function(r){ return r.issueStatus == 409 })
     * assert successResults.length == 5
     * assert failResults.length == 5
     * match each failResults[*].issueErrorCode == 'COUPON-004'
 
-    # STEP 4: 성공한 유저 중 샘플 1명의 내 쿠폰 목록 조회 → AVAILABLE 확인
+    # STEP 4: 성공한 유저 중 샘플 1명의 내 쿠폰 목록 조회 → AVAILABLE 확인 (Consumer 비동기 처리 대기)
     * def sampleToken = successResults[0].token
+    * configure retry = { count: 10, interval: 2000 }
     Given path '/api/v1/coupons/me'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + sampleToken
+    And retry until karate.filter(response.data.content, function(c){ return c.couponId == couponId }).length > 0
     When method get
     Then status 200
     * def issuedCoupons = karate.filter(response.data.content, function(c){ return c.couponId == couponId })
@@ -86,7 +88,7 @@ Feature: [시나리오] 쿠폰 선착순 동시 발급
     * def results = ConcurrentHelper.issueCoupons(baseUrl, gatewaySecret, couponId + '', tokens)
 
     # STEP 3: 성공/실패 카운트 검증
-    * def successResults = karate.filter(results, function(r){ return r.issueStatus == 201 })
+    * def successResults = karate.filter(results, function(r){ return r.issueStatus == 202 })
     * def failResults    = karate.filter(results, function(r){ return r.issueStatus == 409 })
     * assert successResults.length == 25
     * assert failResults.length == 25

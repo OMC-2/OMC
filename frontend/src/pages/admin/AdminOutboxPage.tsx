@@ -1,3 +1,4 @@
+import { toast } from '../../components/ui/Toast'
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { adminOutboxApi } from '../../api/admin'
@@ -10,18 +11,18 @@ export function AdminOutboxPage() {
     mutationFn: () => adminOutboxApi.retryAll(),
     onSuccess: (res: any) => {
       const msg = res?.data?.data ?? res?.data?.message ?? '전체 재처리 요청 완료'
-      alert(typeof msg === 'string' ? msg : JSON.stringify(msg))
+      toast.info(typeof msg === 'string' ? msg : JSON.stringify(msg))
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '재처리 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '재처리 실패'),
   })
 
   const retryOneMutation = useMutation({
     mutationFn: () => adminOutboxApi.retry(eventId.trim()),
     onSuccess: () => {
-      alert('재처리 요청 완료')
+      toast.success('재처리 요청 완료')
       setEventId('')
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '재처리 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '재처리 실패'),
   })
 
   return (

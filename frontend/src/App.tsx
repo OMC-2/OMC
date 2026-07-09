@@ -23,7 +23,9 @@ import { CouponsPage } from './pages/coupons/CouponsPage'
 import { OrdersPage } from './pages/orders/OrdersPage'
 import { OrderDetailPage } from './pages/orders/OrderDetailPage'
 import { MyPage } from './pages/mypage/MyPage'
+import { NotificationsPage } from './pages/notifications/NotificationsPage'
 import { useAuthStore } from './store/authStore'
+import { ToastContainer } from './components/ui/Toast'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -32,6 +34,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <>
+    <ToastContainer />
     <Routes>
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
@@ -59,8 +63,10 @@ export default function App() {
         <Route path="/orders" element={<RequireAuth><OrdersPage /></RequireAuth>} />
         <Route path="/orders/:orderId" element={<RequireAuth><OrderDetailPage /></RequireAuth>} />
         <Route path="/mypage" element={<RequireAuth><MyPage /></RequireAuth>} />
+        <Route path="/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    </>
   )
 }

@@ -61,23 +61,19 @@ Feature: 쿠폰 발급 Cold Start 검증
     Then status 200
     * def user2AccessToken = response.data.accessToken
 
-  Scenario: [정상] Cold start 이후 다른 유저도 쿠폰 발급 성공 → 연속 2회 모두 201
+  Scenario: [정상] Cold start 이후 다른 유저도 쿠폰 발급 성공 → 연속 2회 모두 202
     # 1st 발급: USER1 (cold start 첫 호출)
     Given path '/api/v1/coupons/' + couponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + user1AccessToken
     When method post
-    Then status 201
-    And match response.data.userCouponId == '#uuid'
-    And match response.data.status == 'AVAILABLE'
-    And match response.data.couponId == couponId
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'
 
     # 2nd 발급: USER2 (warm 두 번째 호출)
     Given path '/api/v1/coupons/' + couponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + user2AccessToken
     When method post
-    Then status 201
-    And match response.data.userCouponId == '#uuid'
-    And match response.data.status == 'AVAILABLE'
-    And match response.data.couponId == couponId
+    Then status 202
+    And match response.message == '쿠폰이 발급되었습니다.'

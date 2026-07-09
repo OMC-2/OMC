@@ -5,6 +5,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useAuthStore } from '../../store/authStore'
 import { formatDate } from '../../lib/utils'
 import { Tag, Clock, CheckCircle, XCircle, Zap } from 'lucide-react'
+import { toast } from '../../components/ui/Toast'
 
 const DEFAULT_IMAGES = [
   'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600&q=80', // 쇼핑백
@@ -48,7 +49,7 @@ export function CouponsPage() {
   const issueMutation = useMutation({
     mutationFn: (couponId: string) => couponsApi.issueCoupon(couponId),
     onSuccess: () => {
-      alert('쿠폰이 발급되었습니다!')
+      toast.success('쿠폰이 발급되었습니다! 마이페이지에서 확인하세요.')
       qc.invalidateQueries({ queryKey: ['coupons-all'] })
       qc.invalidateQueries({ queryKey: ['coupons-home'] })
       qc.invalidateQueries({ queryKey: ['my-coupons'] })
@@ -56,11 +57,11 @@ export function CouponsPage() {
     onError: (e: any) => {
       const msg = e?.response?.data?.message ?? ''
       if (e?.response?.status === 409 || msg.includes('이미')) {
-        alert('이미 발급받은 쿠폰입니다.')
+        toast.warning('이미 발급받은 쿠폰입니다.')
       } else if (msg.includes('소진') || msg.includes('품절') || msg.includes('수량')) {
-        alert('쿠폰이 모두 소진되었습니다.')
+        toast.warning('쿠폰이 모두 소진되었습니다.')
       } else {
-        alert(msg || '쿠폰 발급 실패. 다시 시도해주세요.')
+        toast.error(msg || '쿠폰 발급 실패. 다시 시도해주세요.')
       }
     },
   })

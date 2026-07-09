@@ -98,13 +98,19 @@ Feature: [시나리오] 결제 수단 오류 보상 처리
     Then status 201
     * def couponId = response.data.couponId
 
-    # Coupon Service에서 첫 번째 구매자에게 테스트 쿠폰을 발급
+    # Coupon Service에서 첫 번째 구매자에게 테스트 쿠폰을 발급 (비동기 202)
     Given path '/api/v1/coupons/' + couponId + '/issue'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + user1Token
     When method post
-    Then status 201
-    * def userCouponId = response.data.userCouponId
+    Then status 202
+    * java.lang.Thread.sleep(3000)
+    Given path '/api/v1/coupons/me'
+    And header X-Gateway-Secret = gatewaySecret
+    And header Authorization = 'Bearer ' + user1Token
+    When method get
+    Then status 200
+    * def userCouponId = response.data.content[0].userCouponId
 
     # Product Service에 카드 실패 시나리오용 상품과 재고를 생성
     Given path '/api/v1/admin/products'
@@ -151,9 +157,10 @@ Feature: [시나리오] 결제 수단 오류 보상 처리
     When method post
     * def paymentFailureStatus = responseStatus
 
-    * eval java.lang.Thread.sleep(15000)
+    # Payment Service에서 첫 번째 구매자의 결제가 FAILED로 저장됐는지 조회 (최대 20초 폴링)
     * url baseUrl
-    # Payment Service에서 첫 번째 구매자의 결제가 FAILED로 저장됐는지 조회
+    * configure retry = { count: 10, interval: 2000 }
+    * retry until karate.filter(response.data.content, function(p){ return p.orderId == orderId && p.paymentStatus == 'FAILED' }).length > 0
     Given path '/api/v1/payments/me'
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + user1Token
@@ -162,7 +169,9 @@ Feature: [시나리오] 결제 수단 오류 보상 처리
     * def orderPayments = karate.filter(response.data.content, function(p){ return p.orderId == orderId })
     * def paymentStatuses = karate.map(orderPayments, function(p){ return p.paymentStatus })
 
-    # Coupon Service에서 실패한 결제의 쿠폰이 AVAILABLE로 복구됐는지 조회
+    # Coupon Service에서 실패한 결제의 쿠폰이 AVAILABLE로 복구됐는지 조회 (최대 20초 폴링)
+    * configure retry = { count: 10, interval: 2000 }
+    * retry until response.data.status == 'AVAILABLE'
     Given path '/api/v1/coupons/me/' + userCouponId
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + user1Token
@@ -170,7 +179,9 @@ Feature: [시나리오] 결제 수단 오류 보상 처리
     Then status 200
     * def restoredCouponStatus = response.data.status
 
-    # Notification Service에서 결제 실패와 주문 취소 알림을 조회
+    # Notification Service에서 결제 실패와 주문 취소 알림을 조회 (ORDER_CANCELLED는 체인이 길어 최대 40초 폴링)
+    * configure retry = { count: 20, interval: 2000 }
+    * retry until karate.filter(response.data.content, function(n){ return n.referenceId == orderId && n.notificationType == 'ORDER_CANCELLED' }).length > 0
     Given path '/api/v1/notifications'
     And param size = 30
     And header X-Gateway-Secret = gatewaySecret

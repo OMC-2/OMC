@@ -1,3 +1,4 @@
+import { toast } from '../../components/ui/Toast'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminDropsApi, adminProductsApi } from '../../api/admin'
@@ -33,13 +34,13 @@ export function AdminDropsPage() {
       holdTtlSec: Number(form.holdTtlSec),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-drops'] }); setShowForm(false); setForm(INIT) },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '생성 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '생성 실패'),
   })
 
   const closeMutation = useMutation({
     mutationFn: (id: string) => adminDropsApi.close(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-drops'] }),
-    onError: (e: any) => alert(e?.response?.data?.message ?? '종료 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '종료 실패'),
   })
 
   const deleteMutation = useMutation({
@@ -58,7 +59,7 @@ export function AdminDropsPage() {
       qc.invalidateQueries({ queryKey: ['admin-drops'] })
       setEditDrop(null)
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? '수정 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '수정 실패'),
   })
 
   const openEdit = (d: any) => {

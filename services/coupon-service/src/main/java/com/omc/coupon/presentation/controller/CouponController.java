@@ -6,8 +6,10 @@ import com.omc.common.response.ApiResponse;
 import com.omc.common.response.PageResponse;
 import com.omc.common.security.SecurityUtil;
 import com.omc.coupon.application.service.CouponService;
+import com.omc.coupon.application.service.CouponTicketService;
 import com.omc.coupon.presentation.dto.request.CouponCreateRequest;
 import com.omc.coupon.presentation.dto.response.CouponResponse;
+import com.omc.coupon.presentation.dto.response.CouponTicketResponse;
 import com.omc.coupon.presentation.dto.response.UserCouponResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import java.util.UUID;
 public class CouponController {
 
     private final CouponService couponService;
+    private final CouponTicketService couponTicketService;
 
     // ADMIN: 쿠폰 생성
     @PostMapping
@@ -56,14 +59,25 @@ public class CouponController {
         couponService.deleteCoupon(couponId);
     }
 
-    // USER: 선착순 쿠폰 발급
-    @PostMapping("/{couponId}/issue")
-    @ResponseStatus(HttpStatus.CREATED)
+    // USER: 이벤트용 AES 사전 인증 티켓 발급
+    @PostMapping("/{couponId}/ticket")
     @PreAuthorize("hasRole('USER')")
-    public ApiResponse<UserCouponResponse> issueCoupon(@PathVariable UUID couponId) {
+    public ApiResponse<CouponTicketResponse> issueTicket(@PathVariable UUID couponId) {
         UUID userId = SecurityUtil.getCurrentUserId()
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
-        return ApiResponse.success(couponService.issueCoupon(couponId, userId));
+        String ticket = couponTicketService.issueTicket(userId);
+        return ApiResponse.success(new CouponTicketResponse(ticket));
+    }
+
+    // USER: 선착순 쿠폰 발급
+    @PostMapping("/{couponId}/issue")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @PreAuthorize("hasRole('USER')")
+    public ApiResponse<Void> issueCoupon(@PathVariable UUID couponId) {
+        UUID userId = SecurityUtil.getCurrentUserId()
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
+        couponService.issueCoupon(couponId, userId);
+        return ApiResponse.success("쿠폰이 발급되었습니다.", null);
     }
 
     // USER: 내 쿠폰 목록 조회
@@ -74,14 +88,5 @@ public class CouponController {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
         Page<UserCouponResponse> page = couponService.getMyCoupons(userId, pageable);
         return ApiResponse.success(new PageResponse<>(page));
-    }
-
-    // USER: 내 쿠폰 상세 조회
-    @GetMapping("/me/{userCouponId}")
-    @PreAuthorize("hasRole('USER')")
-    public ApiResponse<UserCouponResponse> getMyCoupon(@PathVariable UUID userCouponId) {
-        UUID userId = SecurityUtil.getCurrentUserId()
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.UNAUTHORIZED));
-        return ApiResponse.success(couponService.getMyCoupon(userId, userCouponId));
     }
 }

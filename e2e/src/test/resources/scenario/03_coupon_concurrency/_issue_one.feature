@@ -14,4 +14,4 @@ Feature: Helper - 쿠폰 발급 1건
     And header Authorization = 'Bearer ' + token
     When method post
     * def issueStatus = responseStatus
-    * def issueErrorCode = responseStatus != 201 ? response.errorCode : null
+    * def issueErrorCode = responseStatus != 202 ? response.errorCode : null

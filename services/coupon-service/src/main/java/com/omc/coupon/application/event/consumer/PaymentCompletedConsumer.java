@@ -28,7 +28,6 @@ public class PaymentCompletedConsumer {
             @Header(KafkaHeaders.OFFSET) long offset
     ) {
         PaymentCompletedEvent event = readValue(message, PaymentCompletedEvent.class, topic);
-        log.info("[PaymentCompletedConsumer] 수신. topic={}, offset={}, eventId={}", topic, offset, event.eventId());
         couponSagaService.confirmCoupon(event.eventId(), topic, event.orderId());
         acknowledgment.acknowledge();
     }

@@ -79,7 +79,7 @@ Feature: 알림 읽음 처리
     And header X-Gateway-Secret = gatewaySecret
     And header Authorization = 'Bearer ' + userAccessToken
     When method post
-    Then status 201
+    Then status 202
 
     # 사전 준비 6: OutboxPoller(5s) + Kafka Consumer 처리 대기
     * eval java.lang.Thread.sleep(10000)

@@ -6,8 +6,21 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8180/realms/omc/protocol/openid-connect/certs}
+          jwk-set-cache-duration: 3600s
+          jwk-set-cache-refresh-duration: 60s
   cloud:
     gateway:
+      httpclient:
+        pool:
+          max-connections: 2000
+          acquire-timeout: 3000
+          pending-acquire-max-count: 4000
+          pending-acquire-timeout: 60000ms
       routes:
         - id: user-service
           uri: lb://user-service
@@ -18,16 +31,12 @@ spring:
               args:
                 key-resolver: "#{@rateLimiterKeyResolver}"
                 rate-limiter: "#{@userRateLimiter}"
+                deny-empty-key: false
 
         - id: product-service-admin
           uri: lb://product-service
           predicates:
             - Path=/api/v1/admin/products/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@adminRateLimiter}"
 
         - id: product-service
           uri: lb://product-service
@@ -38,16 +47,12 @@ spring:
               args:
                 key-resolver: "#{@rateLimiterKeyResolver}"
                 rate-limiter: "#{@productRateLimiter}"
+                deny-empty-key: false
 
         - id: drop-service-admin
           uri: lb://drop-service
           predicates:
             - Path=/api/v1/admin/drops/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@adminRateLimiter}"
 
         # 구매 선점 전용 route: drop-service보다 앞에 두어 먼저 매칭
         # dropId 기준 초당 200개 제한 → Tomcat thread pool(200) 이내로 유입 억제
@@ -67,31 +72,31 @@ spring:
           uri: lb://drop-service
           predicates:
             - Path=/api/v1/drops/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@dropRateLimiter}"
 
         - id: raffle-service
           uri: lb://raffle-service
           predicates:
             - Path=/api/v1/raffles/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@raffleRateLimiter}"
 
         - id: raffle-service-admin
           uri: lb://raffle-service
           predicates:
             - Path=/api/v1/admin/raffles/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@adminRateLimiter}"
+
+        - id: payment-service-admin
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/v1/admin/payments/**
+
+        - id: order-service-admin
+          uri: lb://order-service
+          predicates:
+            - Path=/api/v1/admin/dlq/**
+
+        - id: product-service-outbox
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/admin/outbox-events/**
 
         - id: order-service
           uri: lb://order-service
@@ -102,6 +107,7 @@ spring:
               args:
                 key-resolver: "#{@rateLimiterKeyResolver}"
                 rate-limiter: "#{@orderRateLimiter}"
+                deny-empty-key: false
 
         - id: payment-service
           uri: lb://payment-service
@@ -112,41 +118,28 @@ spring:
               args:
                 key-resolver: "#{@rateLimiterKeyResolver}"
                 rate-limiter: "#{@paymentRateLimiter}"
+                deny-empty-key: false
 
         - id: notification-service
           uri: lb://notification-service
           predicates:
             - Path=/api/v1/notifications/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@notificationRateLimiter}"
 
         - id: coupon-service
           uri: lb://coupon-service
           predicates:
             - Path=/api/v1/coupons/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@rateLimiterKeyResolver}"
-                rate-limiter: "#{@couponRateLimiter}"
 
-      httpclient:
-        pool:
-          max-connections: 2000
-          pending-acquire-max-count: 4000
-          pending-acquire-timeout: 60000ms
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8180/realms/omc/protocol/openid-connect/certs}
+
+
 
 gateway:
   secret: ${GATEWAY_SECRET:local-secret}
+  warmup:
+    keycloak-token-uri: ${KEYCLOAK_URL:http://keycloak:8180}/realms/omc/protocol/openid-connect/token
+    warmup-user-email: ${WARMUP_USER_EMAIL:directtest@test.com}
+    warmup-user-password: ${WARMUP_USER_PASSWORD:password123}
 
 springdoc:
   swagger-ui:

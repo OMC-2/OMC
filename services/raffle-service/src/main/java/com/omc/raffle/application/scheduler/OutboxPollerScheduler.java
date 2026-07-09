@@ -13,8 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -23,7 +21,7 @@ public class OutboxPollerScheduler {
     private final OutboxEventRepository outboxEventRepository;
     private final EventProducerPort eventProducerPort;
 
-    @Scheduled(fixedDelay = 5000) // 5초마???�행
+    @Scheduled(fixedDelay = 5000) // 5초마다 실행
     @SchedulerLock(name = "pollAndPublishOutboxEvents", lockAtLeastFor = "PT4S", lockAtMostFor = "PT10S")
     @Transactional
     public void pollAndPublishOutboxEvents() {
@@ -39,8 +37,10 @@ public class OutboxPollerScheduler {
 
         for (OutboxEvent event : pendingEvents) {
             try {
-                // ?�는 aggregateId (raffleId) �??�정?�여 ?�티???�서 보장
-                boolean success = eventProducerPort.send(event.getEventType(), event.getAggregateId(), event.getPayload());
+                // aggregateId(raffleId)를 Kafka 파티션 키로 사용 — 래플 단위 순서 보장
+                boolean success = eventProducerPort.send(
+                        event.getEventType(), event.getAggregateId(), event.getPayload());
+
                 if (success) {
                     event.markAsPublished();
                     log.info("OutboxEvent {} published successfully", event.getId());

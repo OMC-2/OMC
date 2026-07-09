@@ -28,7 +28,6 @@ public class PaymentFailedConsumer {
             @Header(KafkaHeaders.OFFSET) long offset
     ) {
         PaymentFailedEvent event = readValue(message, PaymentFailedEvent.class, topic);
-        log.info("[PaymentFailedConsumer] 수신. topic={}, offset={}, eventId={}", topic, offset, event.eventId());
         couponSagaService.restoreCoupon(event.eventId(), topic, event.orderId());
         acknowledgment.acknowledge();
     }
