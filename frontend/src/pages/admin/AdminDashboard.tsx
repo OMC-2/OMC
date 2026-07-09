@@ -18,6 +18,12 @@ const PAYMENT_STATUS_COLOR: Record<string, string> = {
   RECOVERY_FAILED: 'bg-red-700/20 text-red-500',
 }
 
+const RAFFLE_STATUS_COLOR: Record<string, string> = {
+  OPEN:      'bg-red-500/20 text-red-400',
+  SCHEDULED: 'bg-yellow-500/20 text-yellow-400',
+  CLOSED:    'bg-gray-500/20 text-gray-400',
+}
+
 export function AdminDashboard() {
   const { data: products } = useQuery({ queryKey: ['admin-products'], queryFn: () => adminProductsApi.getAll() })
   const { data: drops }    = useQuery({ queryKey: ['admin-drops'],    queryFn: () => adminDropsApi.getAll() })
@@ -34,11 +40,11 @@ export function AdminDashboard() {
   const adminSignupMutation = useMutation({
     mutationFn: () => authApi.adminSignup(adminForm.email, adminForm.password, adminForm.nickname),
     onSuccess: () => {
-      toast.success(`어드민 계정 생성 완료: ${adminForm.email}`)
+      toast.success(`관리자 생성: ${adminForm.email}`)
       setAdminForm({ email: '', password: '', nickname: '' })
       setShowAdminForm(false)
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? '생성 실패'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? '관리자 생성 실패'),
   })
 
   const productCount = products?.data?.data?.totalElements ?? products?.data?.data?.content?.length ?? '-'
@@ -49,20 +55,58 @@ export function AdminDashboard() {
   const paymentTotal = payments?.data?.data?.totalElements ?? paymentList.length
 
   const cards = [
-    { label: '상품', value: productCount, sub: '전체 등록 상품',        icon: Package,    to: '/admin/products', color: 'text-blue-400' },
-    { label: '드롭', value: dropCount,    sub: '전체 드롭',              icon: ShoppingBag, to: '/admin/drops',   color: 'text-purple-400' },
-    { label: '래플', value: raffleCount,  sub: `진행중 ${liveRaffles}개`, icon: Ticket,     to: '/admin/raffles', color: 'text-red-400' },
-    { label: '결제', value: paymentTotal, sub: '전체 결제 건수',          icon: CreditCard, to: '/admin/payments', color: 'text-green-400' },
+    { label: '상품', value: productCount, sub: '등록된 상품',         icon: Package,    to: '/admin/products', color: 'text-blue-400' },
+    { label: '드롭', value: dropCount,    sub: '등록된 드롭',           icon: ShoppingBag, to: '/admin/drops',   color: 'text-purple-400' },
+    { label: '래플', value: raffleCount,  sub: `진행 중 ${liveRaffles}개`, icon: Ticket,   to: '/admin/raffles', color: 'text-red-400' },
+    { label: '결제', value: paymentTotal, sub: '전체 결제 내역',        icon: CreditCard, to: '/admin/payments', color: 'text-green-400' },
   ]
 
   const recentRaffles = (raffles?.data?.data?.content ?? []).slice(0, 5)
 
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-xl font-black tracking-tight">대시보드</h1>
-        <p className="text-xs text-white/30 mt-1">OMC 관리자 패널</p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-black tracking-tight">대시보드</h1>
+          <p className="text-xs text-white/30 mt-1">OMC 관리자 콘솔</p>
+        </div>
+        <button
+          onClick={() => setShowAdminForm(v => !v)}
+          className="flex items-center gap-2 px-4 py-2 border border-white/10 text-xs font-black tracking-wider text-white/50 hover:text-white hover:border-white/30 transition-colors"
+        >
+          <UserPlus size={14} />관리자 생성
+        </button>
       </div>
+
+      {showAdminForm && (
+        <div className="mb-8 border border-white/10 bg-white/5 p-6 rounded-lg">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-black tracking-widest text-white/50">NEW ADMIN</p>
+            <button onClick={() => setShowAdminForm(false)} className="text-white/30 hover:text-white transition-colors">
+              <X size={14} />
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {(['email', 'password', 'nickname'] as const).map(field => (
+              <input
+                key={field}
+                type={field === 'password' ? 'password' : 'text'}
+                placeholder={field === 'email' ? '이메일' : field === 'password' ? '비밀번호' : '닉네임'}
+                value={adminForm[field]}
+                onChange={e => setAdminForm(p => ({ ...p, [field]: e.target.value }))}
+                className="border border-white/10 bg-transparent px-3 py-2 text-xs text-white placeholder-white/20 outline-none focus:border-white/30"
+              />
+            ))}
+          </div>
+          <button
+            onClick={() => adminSignupMutation.mutate()}
+            disabled={adminSignupMutation.isPending || !adminForm.email || !adminForm.password || !adminForm.nickname}
+            className="mt-3 w-full bg-white text-black text-xs font-black tracking-widest py-2 disabled:opacity-40 transition-opacity"
+          >
+            {adminSignupMutation.isPending ? '생성 중...' : '관리자 계정 생성'}
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 mb-10 lg:grid-cols-4">
@@ -84,7 +128,7 @@ export function AdminDashboard() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs font-black tracking-widest text-white/50">최근 결제</p>
-            <Link to="/admin/payments" className="text-[10px] text-white/30 hover:text-white transition-colors">전체 보기 →</Link>
+            <Link to="/admin/payments" className="text-[10px] text-white/30 hover:text-white transition-colors">전체 보기</Link>
           </div>
           <div className="rounded-lg border border-white/5 overflow-hidden">
             {paymentList.length === 0 ? (
@@ -119,8 +163,8 @@ export function AdminDashboard() {
           {/* Recent Raffles */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-black tracking-widest text-white/50">최근 래플</p>
-              <Link to="/admin/raffles" className="text-[10px] text-white/30 hover:text-white transition-colors">전체 보기 →</Link>
+              <p className="text-xs font-black tracking-widest text-white/50">래플 현황</p>
+              <Link to="/admin/raffles" className="text-[10px] text-white/30 hover:text-white transition-colors">전체 보기</Link>
             </div>
             <div className="rounded-lg border border-white/5 overflow-hidden">
               {recentRaffles.length === 0 ? (
@@ -132,12 +176,8 @@ export function AdminDashboard() {
                       <p className="text-xs font-medium text-white/80">{raffle.name}</p>
                       <p className="text-[10px] text-white/30 mt-0.5">당첨 {raffle.winnerCount}명</p>
                     </div>
-                    <span className={`text-[10px] font-black tracking-wider px-2 py-1 rounded-sm ${
-                      raffle.status === 'OPEN'      ? 'bg-red-500/20 text-red-400'
-                      : raffle.status === 'CLOSED'  ? 'bg-green-500/20 text-green-400'
-                      : 'bg-white/5 text-white/30'  // SCHEDULED
-                    }`}>
-                      {raffle.status === 'CLOSED' ? 'DRAWN' : raffle.status}
+                    <span className={`text-[10px] font-black tracking-wider px-2 py-1 rounded-sm ${RAFFLE_STATUS_COLOR[raffle.status] ?? 'bg-white/5 text-white/30'}`}>
+                      {raffle.status}
                     </span>
                   </div>
                 ))
@@ -147,79 +187,25 @@ export function AdminDashboard() {
 
           {/* Quick Links */}
           <div>
-            <p className="text-xs font-black tracking-widest text-white/50 mb-3">빠른 이동</p>
-            <div className="grid grid-cols-3 gap-2">
+            <p className="text-xs font-black tracking-widest text-white/50 mb-4">빠른 이동</p>
+            <div className="grid grid-cols-2 gap-2">
               {[
-                { label: '상품',   to: '/admin/products' },
-                { label: '드롭',   to: '/admin/drops' },
-                { label: '래플',   to: '/admin/raffles' },
-                { label: '쿠폰',   to: '/admin/coupons' },
-                { label: '결제',   to: '/admin/payments' },
-                { label: 'DLQ',   to: '/admin/dlq' },
-              ].map(({ label, to }) => (
-                <Link key={to} to={to} className="border border-white/5 px-3 py-2.5 text-[11px] font-bold text-white/40 hover:text-white hover:border-white/20 transition-colors text-center">
+                { to: '/admin/drops', label: '드롭 관리' },
+                { to: '/admin/coupons', label: '쿠폰 관리' },
+                { to: '/admin/dlq', label: 'DLQ 관리' },
+                { to: '/admin/outbox', label: 'Outbox 이벤트' },
+              ].map(({ to, label }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className="border border-white/5 px-4 py-3 text-xs font-bold text-white/40 hover:text-white hover:border-white/20 transition-colors"
+                >
                   {label}
                 </Link>
               ))}
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Admin Account */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-xs font-black tracking-widest text-white/50">어드민 계정 생성</p>
-          <button
-            onClick={() => setShowAdminForm(v => !v)}
-            className="flex items-center gap-1.5 text-[10px] font-black tracking-wider text-white/30 hover:text-white transition-colors"
-          >
-            <UserPlus size={13} />
-            {showAdminForm ? '닫기' : '계정 추가'}
-          </button>
-        </div>
-
-        {showAdminForm && (
-          <div className="rounded-lg border border-white/10 bg-white/5 p-5">
-            <p className="text-[10px] text-white/20 mb-4">
-              <code className="bg-white/10 px-1.5 py-0.5 rounded">POST /api/v1/users/admin/signup</code>
-            </p>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              {[
-                { label: '이메일', key: 'email', placeholder: 'admin@example.com', type: 'email' },
-                { label: '비밀번호', key: 'password', placeholder: '...', type: 'password' },
-                { label: '닉네임', key: 'nickname', placeholder: '관리자', type: 'text' },
-              ].map(({ label, key, placeholder, type }) => (
-                <div key={key}>
-                  <label className="block text-[10px] font-bold text-white/40 tracking-wider mb-1">{label}</label>
-                  <input
-                    type={type}
-                    placeholder={placeholder}
-                    value={(adminForm as any)[key]}
-                    onChange={e => setAdminForm(p => ({ ...p, [key]: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-white/30"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setShowAdminForm(false); setAdminForm({ email: '', password: '', nickname: '' }) }}
-                className="flex items-center gap-1.5 border border-white/10 px-4 py-2 text-xs font-bold text-white/40 hover:text-white transition-colors"
-              >
-                <X size={13} />취소
-              </button>
-              <button
-                disabled={!adminForm.email || !adminForm.password || !adminForm.nickname || adminSignupMutation.isPending}
-                onClick={() => adminSignupMutation.mutate()}
-                className="flex items-center gap-1.5 bg-white px-4 py-2 text-xs font-black text-black hover:bg-red-500 hover:text-white disabled:bg-white/20 disabled:text-white/20 transition-colors"
-              >
-                <UserPlus size={13} />
-                {adminSignupMutation.isPending ? '생성 중...' : '어드민 생성'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
