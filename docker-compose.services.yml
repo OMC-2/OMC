@@ -190,6 +190,7 @@ services:
       KAFKA_URI: kafka:29092
       GATEWAY_SECRET: local-secret
       SENTRY_DSN: ${SENTRY_DSN:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     depends_on:
       config-server:
         condition: service_healthy
@@ -211,6 +212,7 @@ services:
       resources:
         limits:
           memory: 512m
+
 
   product-service:
     build:

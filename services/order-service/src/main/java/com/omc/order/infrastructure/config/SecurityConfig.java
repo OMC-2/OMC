@@ -21,7 +21,7 @@ public class SecurityConfig {
   @Bean
   public WebSecurityCustomizer webSecurityCustomizer() {
     return (web) -> web.ignoring()
-        .requestMatchers("/api/v1/admin/dlq/**");
+        .requestMatchers("/api/v1/admin/dlq/**", "/api/v1/admin/analyze-metrics");
   }
 
   @Bean

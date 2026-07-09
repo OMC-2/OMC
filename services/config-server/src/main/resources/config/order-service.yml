@@ -51,6 +51,18 @@ spring:
             connectTimeout: 1000
             readTimeout: 2000
 
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}       # 환경변수로 주입 (키 하드코딩 금지!)
+      chat:
+        options:
+          model: gpt-4o-mini            # 저렴하고 충분. gpt-4o도 가능
+          temperature: 0.3              # 진단은 일관성 중요하니 낮게
+
+# Prometheus 조회용 (진단이 메트릭 가져올 주소)
+diagnosis:
+  prometheus-url: http://prometheus:9090    # docker 네트워크 내부 주소
+
 management:
   endpoints:
     web:
