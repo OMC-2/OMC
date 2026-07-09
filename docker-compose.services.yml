@@ -343,7 +343,7 @@ services:
   coupon-service:
     build:
       context: ./services/coupon-service
-    # container_name: omc-coupon-service
+    container_name: omc-coupon-service
     cpuset: "0-3"        # [격리] hot 서비스 전용 코어 (가장 큰 CPU 소비처 → 4코어 배정)
     ports:
       - "8087-8088:8087"

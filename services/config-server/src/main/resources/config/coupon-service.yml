@@ -65,6 +65,10 @@ gateway:
   secret: ${GATEWAY_SECRET:local-secret}
 
 management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
   endpoints:
     web:
       exposure:
