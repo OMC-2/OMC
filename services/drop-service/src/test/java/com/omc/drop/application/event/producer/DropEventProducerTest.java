@@ -1,16 +1,20 @@
 package com.omc.drop.application.event.producer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -18,7 +22,10 @@ import static org.mockito.Mockito.verify;
 class DropEventProducerTest {
 
     @Mock
-    private KafkaTemplate<String, Object> kafkaTemplate;
+    private KafkaTemplate<String, String> kafkaTemplate;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @InjectMocks
     private DropEventProducer dropEventProducer;
@@ -40,7 +47,7 @@ class DropEventProducerTest {
 
         dropEventProducer.publishDropOpened(event);
 
-        verify(kafkaTemplate).send("drop.opened", DROP_ID.toString(), event);
+        verify(kafkaTemplate).send(eq("drop.opened"), eq(DROP_ID.toString()), any(String.class));
     }
 
     @Test
@@ -50,7 +57,7 @@ class DropEventProducerTest {
 
         dropEventProducer.publishDropClosed(event);
 
-        verify(kafkaTemplate).send("drop.closed", DROP_ID.toString(), event);
+        verify(kafkaTemplate).send(eq("drop.closed"), eq(DROP_ID.toString()), any(String.class));
     }
 
     @Test
@@ -60,7 +67,7 @@ class DropEventProducerTest {
 
         dropEventProducer.publishHoldExpired(event);
 
-        verify(kafkaTemplate).send("hold.expired", ORDER_ID.toString(), event);
+        verify(kafkaTemplate).send(eq("hold.expired"), eq(ORDER_ID.toString()), any(String.class));
     }
 
     @Test
@@ -71,6 +78,6 @@ class DropEventProducerTest {
 
         dropEventProducer.publishRefundRequested(event);
 
-        verify(kafkaTemplate).send("refund.requested", ORDER_ID.toString(), event);
+        verify(kafkaTemplate).send(eq("refund.requested"), eq(ORDER_ID.toString()), any(String.class));
     }
 }
