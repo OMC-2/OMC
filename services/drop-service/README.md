@@ -182,13 +182,14 @@ processed_events (
 
 | 키 | 타입 | 용도 | 생성 / 소멸 |
 | --- | --- | --- | --- |
-| `stock:{dropId}` | String | 남은 수량 카운터 | 워밍 SETNX / 정산 후 DEL |
+| `stock:{dropId}` | String | 남은 수량 카운터 | 워밍 Lua SET (status EXISTS 가드) / 정산 후 DEL |
 | `purchased:{dropId}` | Set | 1인 1구매 차단 (userId) | Lua SADD / 정산 후 DEL |
 | `holds:{dropId}` | ZSet | orderId → 만료 epoch | Lua ZADD / 결제·만료 시 ZREM |
 | `queue:{dropId}` | String | 접수 순번 카운터 | Lua INCR / 정산 후 DEL |
-| `drop:{dropId}:status` | String | OPEN 플래그 (fail-fast) | 전이 시 SETNX / 종료 시 즉시 DEL |
-| `hold_ttl:{dropId}` | String | 선점 유지 시간(초) 캐시 | 워밍 SETNX / 정산 후 DEL |
-| `product_id:{dropId}` | String | productId 캐시 (이벤트 조립용) | 워밍 SETNX / 정산 후 DEL |
+| `drop:{dropId}:status` | String | OPEN 플래그 (fail-fast) | 전이 시 Lua SET (EXISTS 가드) / 종료 시 즉시 DEL |
+| `hold_ttl:{dropId}` | String | 선점 유지 시간(초) 캐시 | 워밍 Lua SET (status EXISTS 가드) / 정산 후 DEL |
+| `product_id:{dropId}` | String | productId 캐시 (이벤트 조립용) | 워밍 Lua SET (status EXISTS 가드) / 정산 후 DEL |
+| `sold_out:{dropId}` | String | 품절 플래그 (Gateway 조기 차단용) | Lua DECR 후 재고 0 도달 시 SET / hold 만료·복구 시 DEL |
 | `open_drops` | Set | OPEN 드롭 ID 목록 (HoldExpireScheduler DB 조회 대체) | OPEN 전이 시 SADD / holds 소진 후 SREM |
 
 ---
