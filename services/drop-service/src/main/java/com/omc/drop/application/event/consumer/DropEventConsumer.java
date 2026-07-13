@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
@@ -21,6 +22,7 @@ public class DropEventConsumer {
     private final HoldService holdService;
     private final DropProcessedEventRepository processedEventRepository;
 
+    @Transactional
     @KafkaListener(topics = "payment.completed", groupId = "drop-service")
     public void onPaymentCompleted(String message) {
         try {
@@ -36,6 +38,7 @@ public class DropEventConsumer {
         }
     }
 
+    @Transactional
     @KafkaListener(topics = "payment.failed", groupId = "drop-service")
     public void onPaymentFailed(String message) {
         try {
@@ -51,6 +54,7 @@ public class DropEventConsumer {
         }
     }
 
+    @Transactional
     @KafkaListener(topics = "stock.failed", groupId = "drop-service")
     public void onStockFailed(String message) {
         try {
@@ -65,16 +69,21 @@ public class DropEventConsumer {
         }
     }
 
-    // DB PK 제약을 lock으로 활용해 원자적으로 중복 처리를 방지한다.
-    // SELECT → INSERT 패턴(기존)은 두 인스턴스가 동시에 SELECT를 통과할 수 있어 Race Condition이 발생한다.
+    // existsById로 1차 체크 후 saveAndFlush로 삽입한다.
+    // holdService 실패 → 외부 TX 롤백 → INSERT 롤백 → Kafka 재시도 시 existsById=false → 정상 재처리.
+    // saveAndFlush에서 DataIntegrityViolationException이 발생하면 동시 삽입으로 판단하고 중복 처리한다.
     private boolean isDuplicate(String eventId, String topic) {
-        try {
-            processedEventRepository.save(DropProcessedEvent.of(eventId, topic));
-            return false;
-        } catch (DataIntegrityViolationException e) {
+        if (processedEventRepository.existsById(eventId)) {
             log.info("중복 이벤트 스킵. topic={}, eventId={}", topic, eventId);
             return true;
         }
+        try {
+            processedEventRepository.saveAndFlush(DropProcessedEvent.of(eventId, topic));
+        } catch (DataIntegrityViolationException e) {
+            log.info("중복 이벤트 스킵 (동시 삽입). topic={}, eventId={}", topic, eventId);
+            return true;
+        }
+        return false;
     }
 
     private boolean isNotDrop(String salesType, String eventId, String topic) {

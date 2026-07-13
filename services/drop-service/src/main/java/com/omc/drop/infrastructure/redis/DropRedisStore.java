@@ -27,6 +27,9 @@ public class DropRedisStore {
     private static final RedisScript<Long> RECOVERY_SCRIPT =
             RedisScript.of(new ClassPathResource("scripts/recovery.lua"), Long.class);
 
+    private static final RedisScript<Long> PURCHASE_CLAIM_ROLLBACK_SCRIPT =
+            RedisScript.of(new ClassPathResource("scripts/purchase_claim_rollback.lua"), Long.class);
+
     private static final RedisScript<Long> EXPIRE_SCRIPT =
             RedisScript.of(new ClassPathResource("scripts/expire.lua"), Long.class);
 
@@ -53,20 +56,42 @@ public class DropRedisStore {
 
     // 반환값: -4 = 드롭 없음, -3 = OPEN 아님, -2 = 중복 구매, -1 = 품절, 양수 = 순번(queueNumber)
     // status/holdTtl/productId 조회를 Lua 내부로 통합 — 개별 GET 대비 round-trip 4→1
-    public Long executePurchase(UUID dropId, UUID userId, UUID orderId, String eventId) {
+    public Long executePurchase(UUID dropId, UUID userId, UUID orderId) {
         List<String> keys = List.of(
                 purchasedKey(dropId),
                 stockKey(dropId),
                 holdsKey(dropId),
                 queueKey(dropId),
-                PurchaseStreamStore.STREAM_KEY,
                 statusKey(dropId),
                 holdTtlKey(dropId),
                 productIdKey(dropId),
                 soldOutKey(dropId)
         );
         return redisTemplate.execute(PURCHASE_SCRIPT, keys,
-                userId.toString(), orderId.toString(), dropId.toString(), eventId);
+                userId.toString(), orderId.toString(), dropId.toString());
+    }
+
+    /** 선점 성공 건의 hold 만료 epoch second를 ZSCORE로 조회 — DB outbox 저장 시 holdExpiresAt 산출에 사용.
+     *  score == null이면 Lua 직후 hold가 존재하지 않는 이상 상태 → 예외로 보상 흐름을 탄다. */
+    public long getHoldExpiresAtEpochSec(UUID dropId, UUID orderId) {
+        Double score = redisTemplate.opsForZSet().score(holdsKey(dropId), orderId.toString());
+        if (score == null) {
+            throw DropRedisStateException.missingHoldAfterPurchase(dropId, orderId);
+        }
+        return score.longValue();
+    }
+
+    /** Redis warmup 시 저장된 productId 조회 — DB outbox 저장 시 payload 구성에 사용 */
+    public UUID getProductId(UUID dropId) {
+        String productId = redisTemplate.opsForValue().get(productIdKey(dropId));
+        if (productId == null || productId.isBlank()) {
+            throw DropRedisStateException.missingProductId(dropId);
+        }
+        try {
+            return UUID.fromString(productId);
+        } catch (IllegalArgumentException e) {
+            throw DropRedisStateException.invalidProductId(dropId, productId, e);
+        }
     }
 
     public Set<String> getExpiredOrderIds(UUID dropId, long nowEpoch) {
@@ -93,6 +118,14 @@ public class DropRedisStore {
         return result != null ? result : 0L;
     }
 
+    // Redis 선점은 성공했지만 DB reservation/outbox 저장에 실패한 경우의 전용 보상.
+    // hold가 이미 만료됐더라도 purchased marker는 반드시 정리한다.
+    public long rollbackPurchaseClaim(UUID dropId, UUID orderId, UUID userId) {
+        List<String> keys = List.of(holdsKey(dropId), stockKey(dropId), purchasedKey(dropId), soldOutKey(dropId));
+        Long result = redisTemplate.execute(PURCHASE_CLAIM_ROLLBACK_SCRIPT, keys, orderId.toString(), userId.toString());
+        return result != null ? result : 0L;
+    }
+
     public void addOpenDrop(UUID dropId) {
         redisTemplate.opsForSet().add(OPEN_DROPS_KEY, dropId.toString());
     }
@@ -112,7 +145,9 @@ public class DropRedisStore {
     }
 
     public long deleteDropKeys(UUID dropId) {
+        removeOpenDrop(dropId);
         List<String> keys = List.of(
+                statusKey(dropId),
                 stockKey(dropId),
                 purchasedKey(dropId),
                 holdsKey(dropId),
@@ -147,5 +182,5 @@ public class DropRedisStore {
     private static String queueKey(UUID dropId)     { return "queue:" + dropId; }
     private static String holdTtlKey(UUID dropId)   { return "hold_ttl:" + dropId; }
     private static String productIdKey(UUID dropId) { return "product_id:" + dropId; }
-    public  static String soldOutKey(UUID dropId)   { return "sold_out:" + dropId; } // Gateway SoldOutCheckFilter에서 직접 참조
+    public static String soldOutKey(UUID dropId)    { return "sold_out:" + dropId; } // Gateway SoldOutCheckFilter에서 직접 참조
 }

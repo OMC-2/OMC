@@ -12,7 +12,7 @@ import org.springframework.util.backoff.FixedBackOff;
 public class KafkaConfig {
 
     @Bean
-    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, Object> kafkaTemplate) {
+    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, String> kafkaTemplate) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate);
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
         handler.addNotRetryableExceptions(JsonProcessingException.class);

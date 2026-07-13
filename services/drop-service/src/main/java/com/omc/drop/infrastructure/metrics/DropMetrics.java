@@ -70,14 +70,17 @@ public class DropMetrics {
                 .record(elapsedNanos, TimeUnit.NANOSECONDS);
     }
 
-    public void incrementKafkaPublishFailed() {
-        Counter.builder("drop.stream.kafka.publish.failed")
+    public void incrementInventoryFallback(UUID dropId) {
+        Counter.builder("drop.open.inventory.fallback")
+                .tag("dropId", dropId.toString())
                 .register(meterRegistry)
                 .increment();
     }
 
-    public void incrementInventoryFallback(UUID dropId) {
-        Counter.builder("drop.open.inventory.fallback")
+    /** DB 저장 실패 후 Redis 선점 보상이 재시도 소진까지 모두 실패한 경우.
+     *  이 메트릭이 증가하면 Redis 선점 상태와 DB가 불일치 — 즉각 알림 필요. */
+    public void incrementRedisCompensationFailed(UUID dropId) {
+        Counter.builder("drop.purchase.compensation.failed")
                 .tag("dropId", dropId.toString())
                 .register(meterRegistry)
                 .increment();
