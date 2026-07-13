@@ -1,20 +1,23 @@
 package com.omc.drop.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.omc.drop.application.scheduler.DropOutboxPoller;
 import com.omc.drop.application.scheduler.HoldExpireScheduler;
 import com.omc.drop.domain.entity.Drop;
+import com.omc.drop.domain.entity.DropOutboxEvent;
+import com.omc.drop.domain.enums.DropOutboxStatus;
+import com.omc.drop.domain.repository.DropOutboxEventRepository;
 import com.omc.drop.domain.repository.DropProcessedEventRepository;
+import com.omc.drop.domain.repository.DropPurchaseReservationRepository;
 import com.omc.drop.domain.repository.DropRepository;
 import com.omc.drop.application.event.consumer.PaymentCompletedEvent;
 import com.omc.drop.application.event.consumer.PaymentFailedEvent;
 import com.omc.drop.application.event.consumer.StockFailedEvent;
 import com.omc.drop.infrastructure.redis.DropRedisStore;
-import com.omc.drop.infrastructure.redis.PurchaseStreamStore;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
@@ -30,6 +33,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -80,7 +84,7 @@ class DropServiceIntegrationTest {
 
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.url", () -> postgres.getJdbcUrl() + "?currentSchema=drop_db");
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.data.redis.host", redis::getHost);
@@ -91,8 +95,10 @@ class DropServiceIntegrationTest {
     @Autowired ObjectMapper objectMapper;
     @Autowired DropRepository dropRepository;
     @Autowired DropRedisStore dropRedisStore;
-    @Autowired PurchaseStreamStore purchaseStreamStore;
     @Autowired DropProcessedEventRepository processedEventRepository;
+    @Autowired DropPurchaseReservationRepository reservationRepository;
+    @Autowired DropOutboxEventRepository outboxRepository;
+    @Autowired DropOutboxPoller dropOutboxPoller;
     @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     @Autowired EmbeddedKafkaBroker embeddedKafkaBroker;
     @Autowired HoldExpireScheduler holdExpireScheduler;
@@ -132,7 +138,7 @@ class DropServiceIntegrationTest {
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", ADMIN_ID)
                             .header("X-User-Role", "ADMIN")
-                            .contentType(MediaType.APPLICATION_JSON)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.data.dropId").isNotEmpty())
@@ -161,7 +167,7 @@ class DropServiceIntegrationTest {
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", USER_ID)
                             .header("X-User-Role", "USER")
-                            .contentType(MediaType.APPLICATION_JSON)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isForbidden());
 
@@ -184,7 +190,7 @@ class DropServiceIntegrationTest {
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", ADMIN_ID)
                             .header("X-User-Role", "ADMIN")
-                            .contentType(MediaType.APPLICATION_JSON)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errorCode").value("COMMON-001"));
@@ -208,7 +214,7 @@ class DropServiceIntegrationTest {
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", ADMIN_ID)
                             .header("X-User-Role", "ADMIN")
-                            .contentType(MediaType.APPLICATION_JSON)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.totalQty").value(200))
@@ -234,7 +240,7 @@ class DropServiceIntegrationTest {
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", ADMIN_ID)
                             .header("X-User-Role", "ADMIN")
-                            .contentType(MediaType.APPLICATION_JSON)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.errorCode").value("DROP-001"));
@@ -258,7 +264,7 @@ class DropServiceIntegrationTest {
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", ADMIN_ID)
                             .header("X-User-Role", "ADMIN")
-                            .contentType(MediaType.APPLICATION_JSON)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errorCode").value("DROP-003"));
@@ -275,7 +281,6 @@ class DropServiceIntegrationTest {
                             .header("X-User-Role", "ADMIN"))
                     .andExpect(status().isNoContent());
 
-            // @SQLRestriction("deleted_at IS NULL") 로 인해 삭제된 드롭은 조회 안 됨
             assertThat(dropRepository.findById(saved.getDropId())).isEmpty();
         }
 
@@ -392,14 +397,14 @@ class DropServiceIntegrationTest {
 
         @BeforeEach
         void setUp() {
-            // 매 테스트마다 고유한 dropId → Redis 키 충돌 없음
             dropId = UUID.randomUUID();
         }
 
         @AfterEach
         void tearDown() {
-            // warmup이 만든 Redis 키 정리 (컨테이너 공유 기간 동안 누적 방지)
             dropRedisStore.deleteDropKeys(dropId);
+            outboxRepository.deleteAll();
+            reservationRepository.deleteAll();
         }
 
         @Test
@@ -427,18 +432,52 @@ class DropServiceIntegrationTest {
         }
 
         @Test
+        @DisplayName("구매 선점 성공 시 DB에 예약 레코드와 outbox 이벤트가 저장된다")
+        void purchase_openDrop_savesReservationAndOutbox() throws Exception {
+            dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
+
+            MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
+                            .header("X-Gateway-Secret", GW_SECRET)
+                            .header("X-User-Id", USER_ID)
+                            .header("X-User-Role", "USER"))
+                    .andExpect(status().isAccepted())
+                    .andReturn();
+
+            UUID orderId = UUID.fromString(
+                    objectMapper.readTree(result.getResponse().getContentAsString())
+                            .at("/data/orderId").asText()
+            );
+
+            // 예약 레코드 검증
+            assertThat(reservationRepository.findById(orderId)).isPresent().hasValueSatisfying(r -> {
+                assertThat(r.getDropId()).isEqualTo(dropId);
+                assertThat(r.getUserId()).isEqualTo(UUID.fromString(USER_ID));
+                assertThat(r.getProductId()).isEqualTo(UUID.fromString(PRODUCT_ID));
+                assertThat(r.getQueueNumber()).isEqualTo(1L);
+            });
+
+            // outbox 이벤트 검증
+            List<DropOutboxEvent> outboxEvents = outboxRepository.findAll();
+            assertThat(outboxEvents).hasSize(1).first().satisfies(e -> {
+                assertThat(e.getStatus()).isEqualTo(DropOutboxStatus.INIT);
+                assertThat(e.getTopic()).isEqualTo("purchase.confirmed");
+                assertThat(e.getAggregateId()).isEqualTo(orderId);
+                assertThat(e.getPayload()).contains(orderId.toString());
+                assertThat(e.getPayload()).contains(PRODUCT_ID);
+            });
+        }
+
+        @Test
         @DisplayName("같은 사용자가 중복 구매 시 409와 DROP-005를 반환한다")
         void purchase_duplicate_returns409() throws Exception {
             dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
-            // 첫 번째 구매
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", USER_ID)
                             .header("X-User-Role", "USER"))
                     .andExpect(status().isAccepted());
 
-            // 중복 구매
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", USER_ID)
@@ -454,14 +493,12 @@ class DropServiceIntegrationTest {
 
             String otherUserId = UUID.randomUUID().toString();
 
-            // 첫 번째 사용자 구매 (재고 1개 소진)
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", otherUserId)
                             .header("X-User-Role", "USER"))
                     .andExpect(status().isAccepted());
 
-            // 재고 소진 후 구매 시도
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", USER_ID)
@@ -473,7 +510,6 @@ class DropServiceIntegrationTest {
         @Test
         @DisplayName("OPEN 상태가 아닌 드롭 구매 시 409와 DROP-002를 반환한다")
         void purchase_notOpenDrop_returns409() throws Exception {
-            // Redis warmup 없이 호출 → isOpen() == false
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", USER_ID)
@@ -487,7 +523,6 @@ class DropServiceIntegrationTest {
         void purchase_noAuth_returns403() throws Exception {
             dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
-            // X-Gateway-Secret 없이 호출
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId))
                     .andExpect(status().isForbidden());
         }
@@ -495,10 +530,8 @@ class DropServiceIntegrationTest {
         @Test
         @DisplayName("warmup을 두 번 호출해도 재고가 초기화되지 않는다 (Lua 멱등성)")
         void warmup_calledTwice_doesNotResetStock() throws Exception {
-            // 첫 번째 warmup
             dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
-            // 구매 1건으로 재고 감소
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
                             .header("X-User-Id", USER_ID)
@@ -507,19 +540,38 @@ class DropServiceIntegrationTest {
 
             assertThat(dropRedisStore.getStock(dropId)).isEqualTo(99);
 
-            // 두 번째 warmup — status 키가 이미 존재하므로 Lua가 0 반환하고 값을 건드리지 않는다
             dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
-            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(99);  // 100으로 리셋되면 안 됨
+            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(99);
+        }
+    }
+
+    // =========================================================================
+    // Outbox Poller — purchase.confirmed 발행
+    // =========================================================================
+
+    @Nested
+    @DisplayName("DropOutboxPoller 테스트")
+    class OutboxPollerTests {
+
+        private UUID dropId;
+
+        @BeforeEach
+        void setUp() {
+            dropId = UUID.randomUUID();
+        }
+
+        @AfterEach
+        void tearDown() {
+            dropRedisStore.deleteDropKeys(dropId);
+            outboxRepository.deleteAll();
+            reservationRepository.deleteAll();
         }
 
         @Test
-        @DisplayName("구매 선점 성공 시 Stream에 이벤트가 기록된다")
-        void purchase_openDrop_writesEventToStream() throws Exception {
+        @DisplayName("INIT 상태 outbox 이벤트가 포ller 실행 후 PUBLISHED로 변경된다")
+        void publishPending_marksOutboxPublished() throws Exception {
             dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
-
-            long beforeSize = purchaseStreamStore.getStreamSize() != null
-                    ? purchaseStreamStore.getStreamSize() : 0L;
 
             mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
                             .header("X-Gateway-Secret", GW_SECRET)
@@ -527,8 +579,25 @@ class DropServiceIntegrationTest {
                             .header("X-User-Role", "USER"))
                     .andExpect(status().isAccepted());
 
-            // XADD는 XACK 이후에도 스트림 본체에 남음 → 즉시 검증 가능
-            assertThat(purchaseStreamStore.getStreamSize()).isGreaterThan(beforeSize);
+            assertThat(outboxRepository.findAll()).hasSize(1)
+                    .first().extracting(DropOutboxEvent::getStatus)
+                    .isEqualTo(DropOutboxStatus.INIT);
+
+            // Poller 직접 호출
+            dropOutboxPoller.publishPending();
+
+            await().atMost(5, TimeUnit.SECONDS).untilAsserted(() ->
+                    assertThat(outboxRepository.findAll()).hasSize(1)
+                            .first().extracting(DropOutboxEvent::getStatus)
+                            .isEqualTo(DropOutboxStatus.PUBLISHED)
+            );
+        }
+
+        @Test
+        @DisplayName("outbox가 없으면 Poller가 아무 것도 하지 않는다")
+        void publishPending_noOutbox_doesNothing() {
+            assertThat(outboxRepository.findAll()).isEmpty();
+            dropOutboxPoller.publishPending(); // 예외 없이 완료
         }
     }
 
@@ -540,7 +609,6 @@ class DropServiceIntegrationTest {
     @DisplayName("Kafka Consumer 테스트")
     class ConsumerTests {
 
-        // JsonSerializer는 String을 이중 인코딩 → StringSerializer로 직접 구성
         private KafkaTemplate<String, String> stringKafkaTemplate;
 
         private UUID dropId;
@@ -556,7 +624,6 @@ class DropServiceIntegrationTest {
             dropId = UUID.randomUUID();
             userId = UUID.randomUUID();
 
-            // Redis warmup 후 실제 구매 선점으로 hold 생성
             dropRedisStore.warmup(dropId, 100, 300, UUID.fromString(PRODUCT_ID));
 
             MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
@@ -576,6 +643,8 @@ class DropServiceIntegrationTest {
         void tearDown() {
             dropRedisStore.deleteDropKeys(dropId);
             processedEventRepository.deleteAll();
+            outboxRepository.deleteAll();
+            reservationRepository.deleteAll();
         }
 
         @Test
@@ -589,15 +658,40 @@ class DropServiceIntegrationTest {
 
             stringKafkaTemplate.send("payment.completed", objectMapper.writeValueAsString(event));
 
-            // hold 제거 대기
             await().atMost(5, TimeUnit.SECONDS)
                     .until(() -> !dropRedisStore.hasHold(dropId, orderId));
 
-            // confirmHold는 hold만 제거 — 재고·구매자는 그대로
             assertThat(dropRedisStore.hasHold(dropId, orderId)).isFalse();
             assertThat(dropRedisStore.getStock(dropId)).isEqualTo(99);
             assertThat(dropRedisStore.hasPurchased(dropId, userId)).isTrue();
             assertThat(processedEventRepository.existsById(eventId)).isTrue();
+        }
+
+        @Test
+        @DisplayName("payment.completed 후 늦은 payment.failed는 purchased set을 지우지 않는다")
+        void latePaymentFailed_afterCompleted_keepsPurchasedMarker() throws Exception {
+            String completedEventId = UUID.randomUUID().toString();
+            PaymentCompletedEvent completed = new PaymentCompletedEvent(
+                    completedEventId, "DROP", userId, null,
+                    10000L, 0L, 10000L, orderId, dropId
+            );
+
+            stringKafkaTemplate.send("payment.completed", objectMapper.writeValueAsString(completed));
+            await().atMost(5, TimeUnit.SECONDS)
+                    .until(() -> !dropRedisStore.hasHold(dropId, orderId));
+
+            String failedEventId = UUID.randomUUID().toString();
+            PaymentFailedEvent failed = new PaymentFailedEvent(
+                    failedEventId, "DROP", userId, "LATE_FAILURE", orderId, dropId
+            );
+
+            stringKafkaTemplate.send("payment.failed", objectMapper.writeValueAsString(failed));
+            await().atMost(5, TimeUnit.SECONDS)
+                    .until(() -> processedEventRepository.existsById(failedEventId));
+
+            assertThat(dropRedisStore.getStock(dropId)).isEqualTo(99);
+            assertThat(dropRedisStore.hasPurchased(dropId, userId)).isTrue();
+            assertThat(dropRedisStore.hasHold(dropId, orderId)).isFalse();
         }
 
         @Test
@@ -611,10 +705,8 @@ class DropServiceIntegrationTest {
 
             stringKafkaTemplate.send("payment.completed", objectMapper.writeValueAsString(event));
 
-            // 컨슈머가 메시지를 수신했을 충분한 시간 대기
             Thread.sleep(2000);
 
-            // RAFFLE은 스킵 → hold 유지, processedEvent 미저장
             assertThat(dropRedisStore.hasHold(dropId, orderId)).isTrue();
             assertThat(processedEventRepository.existsById(eventId)).isFalse();
         }
@@ -629,11 +721,9 @@ class DropServiceIntegrationTest {
 
             stringKafkaTemplate.send("payment.failed", objectMapper.writeValueAsString(event));
 
-            // 재고 복구 대기
             await().atMost(5, TimeUnit.SECONDS)
                     .until(() -> dropRedisStore.getStock(dropId) == 100);
 
-            // recoverHold: 재고 복구 + 구매자 취소 + hold 제거
             assertThat(dropRedisStore.getStock(dropId)).isEqualTo(100);
             assertThat(dropRedisStore.hasPurchased(dropId, userId)).isFalse();
             assertThat(dropRedisStore.hasHold(dropId, orderId)).isFalse();
@@ -668,16 +758,13 @@ class DropServiceIntegrationTest {
             );
             String message = objectMapper.writeValueAsString(event);
 
-            // 첫 번째 전송 — 재고 복구됨
             stringKafkaTemplate.send("payment.failed", message);
             await().atMost(5, TimeUnit.SECONDS)
                     .until(() -> processedEventRepository.existsById(eventId));
 
-            // 두 번째 전송 — 동일 eventId → DB 중복 체크로 스킵
             stringKafkaTemplate.send("payment.failed", message);
             Thread.sleep(2000);
 
-            // 두 번 복구되지 않음 — processedEvent는 1건만 존재
             assertThat(processedEventRepository.findAll())
                     .filteredOn(e -> e.getEventId().equals(eventId))
                     .hasSize(1);
@@ -700,11 +787,9 @@ class DropServiceIntegrationTest {
         void setUp() throws Exception {
             userId = UUID.randomUUID();
 
-            // OPEN 드롭 DB 저장 — 스케줄러가 findByStatus(OPEN)로 조회함
             Drop savedDrop = dropRepository.save(openDrop());
             dropId = savedDrop.getDropId();
 
-            // holdTtlSec=1 — 1초 후 만료되는 hold 생성
             dropRedisStore.warmup(dropId, 100, 1, UUID.fromString(PRODUCT_ID));
 
             MvcResult result = mockMvc.perform(post("/api/v1/drops/{dropId}/purchase", dropId)
@@ -724,17 +809,17 @@ class DropServiceIntegrationTest {
         void tearDown() {
             dropRepository.deleteAll();
             dropRedisStore.deleteDropKeys(dropId);
+            outboxRepository.deleteAll();
+            reservationRepository.deleteAll();
         }
 
         @Test
         @DisplayName("만료된 hold는 재고를 복구하고 hold를 제거한다")
         void expireHolds_expiredHold_recoversStockAndRemovesHold() throws Exception {
-            // holdTtlSec=1 경과 대기
             Thread.sleep(2000);
 
             holdExpireScheduler.expireHolds();
 
-            // expire.lua: ZREM holds + INCR stock (purchased Set은 제거하지 않음)
             assertThat(dropRedisStore.getStock(dropId)).isEqualTo(100);
             assertThat(dropRedisStore.hasHold(dropId, orderId)).isFalse();
             assertThat(dropRedisStore.hasPurchased(dropId, userId)).isTrue();
@@ -743,8 +828,7 @@ class DropServiceIntegrationTest {
         @Test
         @DisplayName("만료되지 않은 hold는 처리하지 않는다")
         void expireHolds_validHold_keepsHoldIntact() throws Exception {
-            // holdTtlSec=300인 별도 드롭으로 검증 (setUp의 dropId와 분리)
-            UUID validDropId = UUID.randomUUID();
+            UUID validDropId;
             UUID validUserId = UUID.randomUUID();
             Drop validDrop = dropRepository.save(openDrop());
             validDropId = validDrop.getDropId();
@@ -765,11 +849,12 @@ class DropServiceIntegrationTest {
 
             holdExpireScheduler.expireHolds();
 
-            // 300초 TTL → 만료 아님 → hold 유지
             assertThat(dropRedisStore.hasHold(validDropId, validOrderId)).isTrue();
             assertThat(dropRedisStore.getStock(validDropId)).isEqualTo(99);
 
             dropRedisStore.deleteDropKeys(validDropId);
+            outboxRepository.deleteAll();
+            reservationRepository.deleteAll();
         }
     }
 

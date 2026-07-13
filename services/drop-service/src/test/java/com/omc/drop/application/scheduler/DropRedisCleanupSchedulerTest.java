@@ -42,7 +42,7 @@ class DropRedisCleanupSchedulerTest {
             Drop drop = createClosedDrop(LocalDateTime.now().minusHours(2));
             when(dropRepository.findByStatusAndEndAtGreaterThanEqual(eq(DropStatus.CLOSED), any(LocalDateTime.class))).thenReturn(List.of(drop));
             when(dropRedisStore.isHoldsEmpty(drop.getDropId())).thenReturn(true);
-            when(dropRedisStore.deleteDropKeys(drop.getDropId())).thenReturn(6L);
+            when(dropRedisStore.deleteDropKeys(drop.getDropId())).thenReturn(8L);
 
             dropRedisCleanupScheduler.cleanupClosedDrops();
 
