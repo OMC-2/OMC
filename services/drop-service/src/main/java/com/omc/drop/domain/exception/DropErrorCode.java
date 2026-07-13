@@ -16,7 +16,8 @@ public enum DropErrorCode implements ErrorCode {
     DROP_DUPLICATE_PURCHASE(HttpStatus.CONFLICT, "DROP-005", "이미 구매를 신청한 드롭입니다."),
     DROP_INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST, "DROP-006", "종료 시간은 시작 시간보다 이후여야 합니다."),
     DROP_INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "DROP-007", "총 수량은 0보다 커야 합니다."),
-    DROP_INVALID_HOLD_TTL(HttpStatus.BAD_REQUEST, "DROP-008", "홀드 유효 시간은 0보다 커야 합니다.");
+    DROP_INVALID_HOLD_TTL(HttpStatus.BAD_REQUEST, "DROP-008", "홀드 유효 시간은 0보다 커야 합니다."),
+    PURCHASE_RESERVATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "DROP-009", "구매 선점 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
 
     private final HttpStatus status;
     private final String code;
