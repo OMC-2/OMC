@@ -75,8 +75,13 @@ Client
 
 ```
 유저: 구매 선점 (POST /drops/{id}/purchase)
-  └─ drop-service: Redis 재고 차감, orderId 발급
-       └─ publish: purchase.confirmed
+  └─ drop-service:
+       ① Lua 원자 처리 — OPEN 확인 + 재고 차감 + orderId hold 등록 (Redis 1 round-trip)
+       ② DB 트랜잭션 — p_drop_purchase_reservations + p_drop_outbox_events 동시 저장
+          └─ 저장 실패 시 Redis 선점 보상(최대 3회 retry) → 실패 지속 시 CRITICAL 메트릭
+       └─ 202 Accepted (orderId, queueNumber) 반환
+  └─ DropOutboxPoller (2초 주기, FOR UPDATE SKIP LOCKED)
+       └─ p_drop_outbox_events INIT 레코드 → publish: purchase.confirmed
 
 유저: 결제 승인 (POST /internal/v1/payments/confirm)
   └─ payment-service:
@@ -107,6 +112,7 @@ payment.completed 구독
 
 | 실패 지점 | 보상 |
 |---|---|
+| DB 저장 실패 (구매 선점 후) | Redis 선점 보상 최대 3회 retry → 전부 실패 시 `drop.purchase.compensation.failed` CRITICAL 메트릭 |
 | PG 결제 실패 | `payment.failed` → coupon RESERVED→AVAILABLE, order CANCELLED |
 | 재고 차감 실패 | `stock.failed` → payment 자동 환불 → `refund.done` → coupon 복구 |
 | 구매 선점 만료 (hold TTL) | `hold.expired` → coupon RESERVED→AVAILABLE (no-op if AVAILABLE) |

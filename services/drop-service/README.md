@@ -58,7 +58,7 @@ sequenceDiagram
     participant G as Gateway
     participant D as drop-service
     participant R as Redis
-    participant S as Redis Stream
+    participant DB as PostgreSQL
     participant K as Kafka
 
     U->>G: POST /drops/{id}/purchase
@@ -67,17 +67,15 @@ sequenceDiagram
         G-->>U: 429 Too Many Requests
     end
     G->>D: 전달
-    D->>R: Lua 원자 처리 1회 (OPEN 확인·holdTtlSec·productId 조회·중복·재고·hold·순번·XADD 통합)
+    D->>R: Lua 원자 처리 1회 (OPEN 확인·holdTtlSec·productId 조회·중복·재고·hold·순번 통합)
     alt OK
-        Note over R,S: 선점과 Stream 기록이 Lua 한 블록 안에서 원자적으로 처리됨
+        D->>DB: DropPurchaseReservation + DropOutboxEvent INSERT (단일 트랜잭션)
         D-->>U: 202 Accepted (orderId, queueNumber)
-        Note over S,K: PurchaseStreamWorker(100ms)가 XREADGROUP → Kafka 발행 → XACK
-        S->>K: purchase.confirmed 발행 (key=orderId)
+        Note over DB,K: DropOutboxPoller(2s)가 INIT 이벤트 조회(FOR UPDATE SKIP LOCKED) → Kafka 발행 → PUBLISHED
     else SOLD_OUT / DUPLICATE / NOT_OPEN
         D-->>U: 409
     end
     Note over K: 주문 생성·DB 차감은 비동기 (order / product)
-    Note over S: Kafka 장애 시 XACK 안 함 → 재시작·다른 인스턴스가 pending 재처리
 ```
 
 ### 2-3. Redis 키 정리 (`DropRedisCleanupScheduler`)
@@ -92,8 +90,9 @@ CLOSE 직후 바로 삭제하지 않는다. hold TTL(10분) + 늦은 결제 이�
 ④ ZCARD holds:{dropId} == 0  ← 대기 중인 hold 없음
 
 → 모두 만족하면 DEL:
-   stock, purchased, holds, queue, hold_ttl, product_id (6개)
-   (status는 CLOSE 시 이미 삭제)
+   drop:{dropId}:status, stock, purchased, holds, queue, hold_ttl, product_id, sold_out (8개)
+   open_drops Set에서도 dropId 제거
+   (status는 CLOSE 시 즉시 삭제되지만, 정산 cleanup에도 포함해 멱등하게 정리)
 ```
 
 > 멀티 인스턴스 환경에서 중복 실행되더라도 `DEL`은 멱등이라 안전하다.  
@@ -251,11 +250,11 @@ processed_events (
 | --- | --- | --- |
 | 1 | 동시성 제어를 분산 락(Redisson)이 아닌 **Lua Script**로 | 락은 대기·재시도 오버헤드 발생. 단일 스레드 Redis에서 Lua는 락 없이 원자성 확보 |
 | 2 | `purchase.confirmed` 파티션 키를 dropId가 아닌 **orderId**로 | 트래픽이 단일 인기 드롭에 집중 → dropId 키는 핫 파티션(병렬성 0). 순서 보장은 포기하되 정합성은 멱등 처리 + DB가 담당 |
-| 3 | 진입 API에 **DB Outbox 미적용 → Redis Stream Outbox** 채택 | 진입 경로가 DB 무접촉이라 DB Outbox는 오히려 DB I/O 추가 및 병목 재발생. Redis Stream을 Outbox로 사용하면 purchase.lua의 선점 연산과 XADD가 같은 Lua 블록 안에서 원자적으로 처리되어 DB 무접촉 원칙을 유지하면서 이벤트 유실도 방지. PurchaseStreamWorker가 XREADGROUP → Kafka 발행 → XACK 흐름으로 at-least-once 보장. 서버 재시작 시 pending 메시지를 자동 재처리하고, 멀티 인스턴스 환경에서는 XCLAIM으로 dead consumer의 메시지를 인수. 재시도 한도(5회) 초과 메시지는 `stream:purchase:failed`에 보관 — Kafka 장애가 원인일 수 있어 Kafka DLT 대신 Redis Stream 선택 |
+| 3 | **DB Outbox 패턴** 채택 (Redis Stream Outbox → DB Outbox 전환) | Redis Stream Outbox는 선점 Lua와 XADD가 원자적이나 Stream 자체의 운영 복잡도(XCLAIM, pending 관리)가 높음. DB Outbox는 `DropPurchaseReservation`과 `DropOutboxEvent` INSERT를 단일 TX로 묶어 이벤트 유실을 원천 차단. `DropOutboxPoller`가 `FOR UPDATE SKIP LOCKED`로 멀티 인스턴스 충돌 없이 폴링 → Kafka 발행 → PUBLISHED 전이. Redis 의존성 단순화 및 장애 범위 축소가 Redis Stream 장점보다 우선됨 |
 | 4 | TTL 감지를 Keyspace Notification이 아닌 **폴링**으로 | 만료 이벤트는 유실 가능성 존재. 폴링은 재실행 가능해 견고하며, hold.expired Consumer 멱등이 전제 |
 | 5 | 상태 전이를 **조건부 UPDATE**로 멱등화 | 스케줄러 다중 인스턴스 환경에서도 전이·워밍·발행이 정확히 1회 |
 | 6 | `payment.failed` 수신 시 **TTL 대기 없이 즉시 복구** | TTL(600초) 대기 시 그 시간 동안 재고 불필요하게 차단. 즉시 ZREM+INCR+SREM으로 재고 반환 → 다음 사용자 선점 가능 시간 최소화 |
-| 7 | order-service에 **no-op 처리 협의** | 인메모리 아웃박스 사용으로 극히 드문 경우 purchase.confirmed 유실 가능. order-service가 ① purchase.confirmed 멱등 처리 ② hold.expired 수신 시 주문 없으면 no-op 처리하도록 협의 완료 |
+| 7 | order-service에 **no-op 처리 협의** | Redis 선점 성공 직후 DB reservation/outbox 저장 전 장애가 나면 purchase.confirmed가 없을 수 있음. order-service가 ① purchase.confirmed 멱등 처리 ② hold.expired 수신 시 주문 없으면 no-op 처리하도록 협의 완료 |
 | 8 | **DROP / RAFFLE 테이블 분리** | drop_type 컬럼으로 통합 시 RAFFLE 전용 컬럼(winner_count 등)이 DROP 행에 NULL로 쌓이고, 래플 담당자(raffle-service)와 스키마 소유권이 충돌. 드롭서비스는 DROP 전용 `drops` 테이블만 소유하고, 래플은 raffle-service의 `raffles` 테이블로 완전 분리 |
 | 9 | **product-service 호출에 Feign + Resilience4j + FallbackFactory** 적용 | 드롭 오픈 스케줄러가 재고 스냅샷 조회 시 product-service 장애가 드롭 오픈을 막지 않도록 설계. 서킷 오픈 시 FallbackFactory가 예외 throw → 스케줄러 catch → totalQty 폴백으로 드롭 오픈 유지 |
 | 10 | **진입 API Redis 호출을 Lua 1회로 통합** | 기존 isOpen GET + holdTtlSec GET + productId GET + EVALSHA = 4 round-trips. Redis 단일 스레드 특성상 400 스레드 동시 접근 시 직렬화 대기가 avg 200ms까지 누적됨. 3개의 개별 GET을 Lua 내부로 이동해 1 round-trip으로 축소 |
@@ -364,14 +363,14 @@ drop-service
     │   └── event
     │       ├── producer     # DropEventProducer (Kafka 이벤트 발행)
     │       ├── consumer     # DropEventConsumer (payment.completed/failed, stock.failed 수신)
-    │       └── stream       # PurchaseStreamWorker (Redis Stream → Kafka 발행)
+    │       └── scheduler    # DropOutboxPoller (DB Outbox → Kafka 발행)
     ├── domain
     │   ├── entity           # Drop, DropProcessedEvent
     │   ├── enums            # DropStatus
     │   ├── repository       # DropRepository, DropProcessedEventRepository (JPA 인터페이스)
     │   └── exception        # 도메인 예외, DropErrorCode
     └── infrastructure
-        ├── redis            # DropRedisStore (상태·hold·warmup), PurchaseStreamStore (Redis Stream)
+        ├── redis            # DropRedisStore (상태·hold·warmup)
         ├── kafka            # KafkaConfig (DLT 에러 핸들러)
         ├── client           # ProductServiceClient (Feign), dto/
         └── config           # SecurityConfig, JpaConfig, RedisConfig
