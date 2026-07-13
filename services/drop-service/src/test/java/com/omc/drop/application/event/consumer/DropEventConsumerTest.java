@@ -17,6 +17,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,9 +45,21 @@ class DropEventConsumerTest {
     class OnPaymentCompleted {
 
         @Test
-        @DisplayName("save에서 PK 충돌이 나면 confirmHold를 호출하지 않는다")
+        @DisplayName("existsById가 true이면 confirmHold를 호출하지 않는다")
         void skipsDuplicate() {
-            doThrow(DataIntegrityViolationException.class).when(processedEventRepository).save(any());
+            when(processedEventRepository.existsById(anyString())).thenReturn(true);
+
+            dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-dup", "DROP"));
+
+            verify(holdService, never()).confirmHold(any(), any(), any());
+            verify(processedEventRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("saveAndFlush에서 PK 충돌이 나면 confirmHold를 호출하지 않는다")
+        void skipsDuplicateConcurrentInsert() {
+            when(processedEventRepository.existsById(anyString())).thenReturn(false);
+            doThrow(DataIntegrityViolationException.class).when(processedEventRepository).saveAndFlush(any());
 
             dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-dup", "DROP"));
 
@@ -54,20 +67,22 @@ class DropEventConsumerTest {
         }
 
         @Test
-        @DisplayName("salesType이 RAFFLE이면 save와 confirmHold를 호출하지 않는다")
+        @DisplayName("salesType이 RAFFLE이면 saveAndFlush와 confirmHold를 호출하지 않는다")
         void skipsRaffle() {
             dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-raffle", "RAFFLE"));
 
             verify(holdService, never()).confirmHold(any(), any(), any());
-            verify(processedEventRepository, never()).save(any());
+            verify(processedEventRepository, never()).saveAndFlush(any());
         }
 
         @Test
-        @DisplayName("정상 DROP 이벤트면 save 후 confirmHold를 호출한다")
+        @DisplayName("정상 DROP 이벤트면 saveAndFlush 후 confirmHold를 호출한다")
         void processesInstant() {
+            when(processedEventRepository.existsById(anyString())).thenReturn(false);
+
             dropEventConsumer.onPaymentCompleted(paymentCompletedJson("evt-ok", "DROP"));
 
-            verify(processedEventRepository).save(any(DropProcessedEvent.class));
+            verify(processedEventRepository).saveAndFlush(any(DropProcessedEvent.class));
             verify(holdService).confirmHold(DROP_ID, ORDER_ID, USER_ID);
         }
     }
@@ -77,30 +92,33 @@ class DropEventConsumerTest {
     class OnPaymentFailed {
 
         @Test
-        @DisplayName("save에서 PK 충돌이 나면 recoverHold를 호출하지 않는다")
+        @DisplayName("existsById가 true이면 recoverHold를 호출하지 않는다")
         void skipsDuplicate() {
-            doThrow(DataIntegrityViolationException.class).when(processedEventRepository).save(any());
+            when(processedEventRepository.existsById(anyString())).thenReturn(true);
 
             dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-dup", "DROP"));
 
             verify(holdService, never()).recoverHold(any(), any(), any());
+            verify(processedEventRepository, never()).saveAndFlush(any());
         }
 
         @Test
-        @DisplayName("salesType이 RAFFLE이면 save와 recoverHold를 호출하지 않는다")
+        @DisplayName("salesType이 RAFFLE이면 saveAndFlush와 recoverHold를 호출하지 않는다")
         void skipsRaffle() {
             dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-raffle", "RAFFLE"));
 
             verify(holdService, never()).recoverHold(any(), any(), any());
-            verify(processedEventRepository, never()).save(any());
+            verify(processedEventRepository, never()).saveAndFlush(any());
         }
 
         @Test
-        @DisplayName("정상 DROP 이벤트면 save 후 recoverHold를 호출한다")
+        @DisplayName("정상 DROP 이벤트면 saveAndFlush 후 recoverHold를 호출한다")
         void processesInstant() {
+            when(processedEventRepository.existsById(anyString())).thenReturn(false);
+
             dropEventConsumer.onPaymentFailed(paymentFailedJson("evt-ok", "DROP"));
 
-            verify(processedEventRepository).save(any(DropProcessedEvent.class));
+            verify(processedEventRepository).saveAndFlush(any(DropProcessedEvent.class));
             verify(holdService).recoverHold(DROP_ID, ORDER_ID, USER_ID);
         }
     }
@@ -110,21 +128,24 @@ class DropEventConsumerTest {
     class OnStockFailed {
 
         @Test
-        @DisplayName("save에서 PK 충돌이 나면 recoverHold를 호출하지 않는다")
+        @DisplayName("existsById가 true이면 recoverHold를 호출하지 않는다")
         void skipsDuplicate() {
-            doThrow(DataIntegrityViolationException.class).when(processedEventRepository).save(any());
+            when(processedEventRepository.existsById(anyString())).thenReturn(true);
 
             dropEventConsumer.onStockFailed(stockFailedJson("evt-dup"));
 
             verify(holdService, never()).recoverHold(any(), any(), any());
+            verify(processedEventRepository, never()).saveAndFlush(any());
         }
 
         @Test
-        @DisplayName("정상 이벤트면 save 후 recoverHold를 호출한다")
+        @DisplayName("정상 이벤트면 saveAndFlush 후 recoverHold를 호출한다")
         void processes() {
+            when(processedEventRepository.existsById(anyString())).thenReturn(false);
+
             dropEventConsumer.onStockFailed(stockFailedJson("evt-ok"));
 
-            verify(processedEventRepository).save(any(DropProcessedEvent.class));
+            verify(processedEventRepository).saveAndFlush(any(DropProcessedEvent.class));
             verify(holdService).recoverHold(DROP_ID, ORDER_ID, USER_ID);
         }
     }
